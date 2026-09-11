@@ -1,0 +1,21 @@
+<h1 style="margin:0 0 16px; font-size:19px; color:#1d1533;">Confirmez votre adresse e-mail</h1>
+
+<p style="margin:0 0 20px; font-size:14.5px; line-height:1.6; color:#5a5175;">
+  <% if @first_name.present? %>Bonjour <%= @first_name %>,<br><% end %>
+  Cliquez sur le bouton ci-dessous pour confirmer que cette adresse vous appartient bien.
+</p>
+
+<table role="presentation" cellpadding="0" cellspacing="0" style="margin:0 0 20px;">
+  <tr>
+    <td style="border-radius:10px; background:#4a2a8f;">
+      <a href="<%= @verify_url %>" style="display:inline-block; padding:12px 24px; font-size:14px; font-weight:700; color:#ffffff; text-decoration:none;">
+        Confirmer mon adresse e-mail
+      </a>
+    </td>
+  </tr>
+</table>
+
+<p style="margin:0; font-size:12.5px; line-height:1.6; color:#948aae;">
+  Si vous n'êtes pas à l'origine de cette demande, vous pouvez ignorer cet e-mail sans risque.<br>
+  Le lien ne fonctionne pas ? Copiez-collez cette adresse : <%= @verify_url %>
+</p>

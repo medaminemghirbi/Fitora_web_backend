@@ -1,0 +1,90 @@
+class ApplicationController < ActionController::API
+  rescue_from ActiveRecord::RecordNotFound, with: :render_not_found
+  rescue_from ActiveRecord::RecordInvalid, with: :render_unprocessable
+  rescue_from ActionController::ParameterMissing, with: :render_bad_request
+
+  private
+
+  def authenticate_request!
+    token = request.headers["Authorization"]&.split(" ")&.last
+    render_unauthorized and return if token.blank?
+
+    claims = JwtService.decode(token)
+
+    if claims[:client_id]
+      @current_client = Client.active.find_by(id: claims[:client_id])
+      render_unauthorized if @current_client.nil?
+    else
+      @current_user = User.active.find_by(id: claims[:user_id])
+      @current_impersonator = User.active.find_by(id: claims[:impersonator_id]) if claims[:impersonator_id]
+      render_unauthorized if @current_user.nil?
+    end
+
+    tag_sentry_context!
+  rescue JwtService::DecodeError
+    render_unauthorized
+  end
+
+  # Attaches whoever a request is for to any error Sentry captures during
+  # it — the difference between "something broke" and "something broke
+  # for this one company," which matters once there's more than a
+  # handful of tenants. Sentry.set_user/set_tags are safe no-ops on their
+  # own when Sentry was never initialized (no SENTRY_DSN, see
+  # config/initializers/sentry.rb). Reads current_user/current_client
+  # directly rather than the current_company helper (Api::V1::BaseController-only)
+  # so this stays safe to call from every controller that authenticates,
+  # not just that one subclass.
+  def tag_sentry_context!
+    if current_client
+      Sentry.set_user(id: current_client.id, email: current_client.email)
+      Sentry.set_tags(account_type: "client", company_id: current_client.company_id)
+    elsif current_user
+      Sentry.set_user(id: current_user.id, email: current_user.email)
+      Sentry.set_tags(
+        account_type: "user", role: current_user.role,
+        company_id: current_user.company&.id || current_user.staff_member&.company_id
+      )
+    end
+  end
+
+  def current_user
+    @current_user
+  end
+
+  # A Client authenticated through their own mobile login (see
+  # Api::V1::AuthController#login) — mutually exclusive with current_user.
+  # Every existing controller keeps assuming current_user is present because
+  # nothing client-facing exists yet; this is here so that surface can be
+  # built later without touching the auth core again.
+  def current_client
+    @current_client
+  end
+
+  # The admin who is impersonating current_user, if this is an impersonation
+  # session — nil for a normal login. See JwtService.encode.
+  def current_impersonator
+    @current_impersonator
+  end
+
+  def render_unauthorized
+    render json: { error: "Unauthorized" }, status: :unauthorized
+  end
+
+  def render_forbidden(message = "You are not allowed to perform this action")
+    render json: { error: message }, status: :forbidden
+  end
+
+  def render_not_found
+    render json: { error: "Resource not found" }, status: :not_found
+  end
+
+  def render_bad_request(exception)
+    render json: { error: exception.message }, status: :bad_request
+  end
+
+  def render_unprocessable(exception = nil)
+    record = exception&.record
+    errors = record ? record.errors.full_messages : [ exception&.message ].compact
+    render json: { error: errors.first || "Validation failed", errors: errors }, status: :unprocessable_entity
+  end
+end

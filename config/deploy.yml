@@ -1,0 +1,90 @@
+# Kamal 2 deploy config for Fitora.  Run from backend/:  kamal deploy
+#
+# Fill every <PLACEHOLDER> before the first deploy, then:
+#   bin/kamal setup            # first time (installs Docker, boots accessories)
+#   bin/kamal deploy           # subsequent releases
+#
+# One box runs everything: the Rails app (API + baked-in Angular SPA on one
+# origin), a Sidekiq worker, plus Postgres and Redis as accessories.
+
+service: fitora
+
+image: <REGISTRY_USER>/fitora
+
+servers:
+  web:
+    - <VPS_IP>
+  worker:
+    hosts:
+      - <VPS_IP>
+    cmd: bundle exec sidekiq
+
+proxy:
+  ssl: true
+  host: <APP_DOMAIN>          # e.g. app.fitora.io — DNS A record → <VPS_IP>
+  app_port: 3000
+  healthcheck:
+    path: /up
+
+registry:
+  server: ghcr.io            # or docker.io
+  username: <REGISTRY_USER>
+  password:
+    - KAMAL_REGISTRY_PASSWORD
+
+builder:
+  arch: amd64
+  context: ..                # repo root — Dockerfile builds backend/ + frontend/
+  dockerfile: backend/Dockerfile
+
+env:
+  clear:
+    RAILS_ENV: production
+    WEB_CONCURRENCY: 2
+    RAILS_MAX_THREADS: 5
+    RAILS_LOG_LEVEL: info
+    FRONTEND_ORIGINS: https://<APP_DOMAIN>
+    REDIS_URL: redis://fitora-redis:6379/1
+    DATABASE_URL: postgres://fitora:$BACKEND_DATABASE_PASSWORD@fitora-db:5432/backend_production
+  secret:
+    - RAILS_MASTER_KEY
+    - BACKEND_DATABASE_PASSWORD
+    - TUNISIESMS_API_KEY
+    # add S3 creds here once storage.yml :production points at a bucket
+    # - AWS_ACCESS_KEY_ID
+    # - AWS_SECRET_ACCESS_KEY
+    # Rails-side error tracking (config/initializers/sentry.rb) — safely a
+    # no-op with no DSN, so uncomment once the project exists in Sentry.
+    # - SENTRY_DSN
+
+accessories:
+  db:
+    image: postgres:16
+    host: <VPS_IP>
+    port: "127.0.0.1:5432:5432"
+    env:
+      clear:
+        POSTGRES_USER: fitora
+        POSTGRES_DB: backend_production
+      secret:
+        - POSTGRES_PASSWORD
+    directories:
+      - data:/var/lib/postgresql/data
+
+  redis:
+    image: redis:7
+    host: <VPS_IP>
+    port: "127.0.0.1:6379:6379"
+    directories:
+      - data:/data
+
+# Uploaded files live on local disk until storage.yml :production points at
+# S3 — named volume so a redeploy doesn't wipe them.
+volumes:
+  - "fitora_storage:/rails/storage"
+
+aliases:
+  console: app exec --interactive --reuse "bin/rails console"
+  shell: app exec --interactive --reuse "bash"
+  logs: app logs -f
+  migrate: app exec "bin/rails db:migrate"

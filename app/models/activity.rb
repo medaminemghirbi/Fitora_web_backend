@@ -1,0 +1,56 @@
+class Activity < ApplicationRecord
+  belongs_to :location
+
+  has_many :sessions, dependent: :destroy
+  has_many :contract_type_activities, dependent: :destroy
+  has_many :contract_types, through: :contract_type_activities
+
+  # How many people a session of this activity is for. The owner picks the
+  # format; it constrains the capacity (see CAPACITY_BOUNDS + the validation).
+  #   individual   → 1-on-1 (capacity 1)
+  #   small_group  → small group (capacity 2–9)
+  #   collective   → class (capacity 10+)
+  # ("group" alone would collide with an Active Record class method.)
+  # `attribute` must precede `enum` or the dev code-reloader raises
+  # "Undeclared attribute type for enum" after the column rename migration.
+  attribute :session_format, :integer
+  enum :session_format, { individual: 0, small_group: 1, collective: 2 }
+
+  CAPACITY_BOUNDS = {
+    "individual"  => { min: 1,  max: 1 },
+    "small_group" => { min: 2,  max: 9 },
+    "collective"  => { min: 10, max: nil }
+  }.freeze
+
+  validates :name, presence: true
+  validates :duration, numericality: { greater_than: 0 }
+  validates :capacity, numericality: { greater_than: 0 }
+  validate :capacity_matches_session_format
+
+  scope :active, -> { where(active: true) }
+
+  delegate :company, to: :location
+
+  private
+
+  def capacity_matches_session_format
+    return if session_format.blank? || capacity.blank?
+
+    bounds = CAPACITY_BOUNDS[session_format]
+    return if bounds.nil?
+    return if capacity >= bounds[:min] && (bounds[:max].nil? || capacity <= bounds[:max])
+
+    errors.add(:capacity, capacity_range_message(bounds))
+  end
+
+  def capacity_range_message(bounds)
+    label = "#{session_format.tr('_', '-')} activity"
+    if bounds[:max].nil?
+      "must be at least #{bounds[:min]} for a #{label}"
+    elsif bounds[:min] == bounds[:max]
+      "must be #{bounds[:min]} for an #{label}"
+    else
+      "must be between #{bounds[:min]} and #{bounds[:max]} for a #{label}"
+    end
+  end
+end

@@ -1,0 +1,19 @@
+test:
+  service: Disk
+  root: <%= Rails.root.join("tmp/storage") %>
+
+local:
+  service: Disk
+  root: <%= Rails.root.join("storage") %>
+
+# S3-compatible object storage. Used in production when S3_BUCKET is set
+# (see config/environments/production.rb) — otherwise production falls back
+# to :local on a persistent volume. Works with AWS S3, Scaleway, OVH, etc.
+amazon:
+  service: S3
+  access_key_id: <%= ENV["AWS_ACCESS_KEY_ID"] %>
+  secret_access_key: <%= ENV["AWS_SECRET_ACCESS_KEY"] %>
+  region: <%= ENV.fetch("AWS_REGION", "eu-west-3") %>
+  bucket: <%= ENV["S3_BUCKET"] %>
+  endpoint: <%= ENV["S3_ENDPOINT"].presence %>
+  force_path_style: <%= ENV["S3_ENDPOINT"].present? %>

@@ -1,0 +1,121 @@
+require "rails_helper"
+
+RSpec.describe "Api::V1::Sessions", type: :request do
+  let(:owner) { create(:user, :owner) }
+  let!(:company) { create(:company, owner: owner) }
+  let!(:location) { create(:location, company: company) }
+  let!(:activity) { create(:activity, location: location) }
+
+  describe "GET /api/v1/sessions" do
+    it "never exposes another company's sessions" do
+      create(:session, activity: activity, location: location)
+      other_activity = create(:activity)
+      other_session = create(:session, activity: other_activity, location: other_activity.location)
+
+      get "/api/v1/sessions", headers: auth_headers(owner)
+
+      ids = response.parsed_body["sessions"].map { |s| s["id"] }
+      expect(ids).not_to include(other_session.id)
+    end
+
+    it "limits a coach to only their own sessions" do
+      coach = create(:coach, company: company)
+      create(:coach_location, coach: coach, location: location)
+      coach_staff = create(:staff_member, company: company, role: :coach, coach: coach)
+      own_session = create(:session, activity: activity, location: location, coach: coach)
+      other_coach_session = create(:session, activity: activity, location: location)
+
+      get "/api/v1/sessions", headers: auth_headers(coach_staff.user)
+
+      ids = response.parsed_body["sessions"].map { |s| s["id"] }
+      expect(ids).to include(own_session.id)
+      expect(ids).not_to include(other_coach_session.id)
+    end
+  end
+
+  describe "GET /api/v1/sessions/:id" do
+    it "404s for a session belonging to another company" do
+      other_activity = create(:activity)
+      other_session = create(:session, activity: other_activity, location: other_activity.location)
+
+      get "/api/v1/sessions/#{other_session.id}", headers: auth_headers(owner)
+
+      expect(response).to have_http_status(:not_found)
+    end
+  end
+
+  describe "POST /api/v1/sessions" do
+    let(:params) do
+      {
+        session: {
+          activity_id: activity.id,
+          starts_at: 2.days.from_now.change(hour: 10).iso8601,
+          ends_at: 2.days.from_now.change(hour: 11).iso8601
+        }
+      }
+    end
+
+    it "creates a session, defaulting capacity from the activity" do
+      post "/api/v1/sessions", params: params, headers: auth_headers(owner)
+
+      expect(response).to have_http_status(:created)
+      expect(Session.last.capacity).to eq(activity.capacity)
+    end
+
+    context "with a client_id (individual session)" do
+      let(:solo_activity) { create(:activity, location: location, session_format: :individual, capacity: 1) }
+      let(:client) { create(:client, company: company) }
+
+      def solo_params(client_id)
+        {
+          session: {
+            activity_id: solo_activity.id, client_id: client_id,
+            starts_at: 2.days.from_now.change(hour: 9).iso8601,
+            ends_at: 2.days.from_now.change(hour: 10).iso8601
+          }
+        }
+      end
+
+      it "books the chosen member when they have a covering contract" do
+        plan = create(:contract_type, company: company, unlimited_bookings: true)
+        create(:contract, client: client, contract_type: plan)
+
+        expect {
+          post "/api/v1/sessions", params: solo_params(client.id), headers: auth_headers(owner)
+        }.to change(Booking, :count).by(1)
+
+        expect(response).to have_http_status(:created)
+        expect(Booking.last.client).to eq(client)
+        expect(Booking.last.session_id).to eq(response.parsed_body["session"]["id"])
+      end
+
+      it "rolls the session back when the member has no covering contract" do
+        expect {
+          post "/api/v1/sessions", params: solo_params(client.id), headers: auth_headers(owner)
+        }.not_to change(Session, :count)
+
+        expect(response).to have_http_status(:unprocessable_content)
+        expect(response.parsed_body["error"]).to match(/active contract/)
+      end
+
+      it "404s for a client from another company" do
+        other_client = create(:client)
+
+        post "/api/v1/sessions", params: solo_params(other_client.id), headers: auth_headers(owner)
+
+        expect(response).to have_http_status(:not_found)
+      end
+    end
+  end
+
+  describe "PATCH /api/v1/sessions/:id" do
+    it "rejects updates to another company's session" do
+      other_activity = create(:activity)
+      other_session = create(:session, activity: other_activity, location: other_activity.location)
+
+      patch "/api/v1/sessions/#{other_session.id}", params: { session: { capacity: 99 } }, headers: auth_headers(owner)
+
+      expect(response).to have_http_status(:not_found)
+    end
+  end
+end

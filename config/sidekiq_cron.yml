@@ -1,0 +1,18 @@
+# Daily scans that turn approaching dates into owner notifications.
+# Times are UTC. Immediate changes (editing a document/contract expiry) are
+# handled synchronously by model after_commit hooks, not here.
+
+scan_expiring_documents:
+  cron: "0 7 * * *"
+  class: "Notifications::ScanExpiringDocumentsJob"
+  queue: default
+
+scan_expiring_contracts:
+  cron: "5 7 * * *"
+  class: "Notifications::ScanExpiringContractsJob"
+  queue: default
+
+scan_employee_birthdays:
+  cron: "10 7 * * *"
+  class: "Notifications::ScanEmployeeBirthdaysJob"
+  queue: default
