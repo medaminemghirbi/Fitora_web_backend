@@ -7,7 +7,7 @@ class WorkContract < ApplicationRecord
   # no app account. See #employee and exactly_one_employee.
   belongs_to :staff_member, optional: true
   belongs_to :coach, optional: true
-  belongs_to :work_contract_type
+  belongs_to :work_contract_type, counter_cache: true
 
   enum :status, STATUSES
   enum :payment_method, PAYMENT_METHODS, prefix: :pay

@@ -29,6 +29,15 @@ Rails.application.configure do
   # Don't care if the mailer can't send.
   config.action_mailer.raise_delivery_errors = false
 
+  # Every email the app sends (AccountMailer: password reset, email
+  # verification) goes to MailCatcher instead of a real inbox or silently
+  # vanishing — one delivery_method, so nothing needs per-mailer setup.
+  # `gem install mailcatcher` once (not in the Gemfile — its dependencies
+  # are known to clash with a Rails app's own), then `mailcatcher` to start
+  # it; view caught mail at http://localhost:1080.
+  config.action_mailer.delivery_method = :smtp
+  config.action_mailer.smtp_settings = { address: "localhost", port: 1025 }
+
   # Make template changes take effect immediately.
   config.action_mailer.perform_caching = false
 

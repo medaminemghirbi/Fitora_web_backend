@@ -106,6 +106,9 @@ GEM
     brakeman (8.0.6)
       racc
     builder (3.3.0)
+    bullet (8.2.0)
+      activesupport (>= 3.0.0)
+      uniform_notifier (~> 1.11)
     caxlsx (4.5.0)
       htmlentities (~> 4.3, >= 4.3.4)
       marcel (~> 1.0)
@@ -395,6 +398,7 @@ GEM
     unicode-display_width (3.2.0)
       unicode-emoji (~> 4.1)
     unicode-emoji (4.2.0)
+    uniform_notifier (1.18.0)
     uri (1.1.1)
     useragent (0.16.11)
     websocket-driver (0.8.2)
@@ -420,6 +424,7 @@ DEPENDENCIES
   bcrypt (~> 3.1.7)
   bootsnap
   brakeman
+  bullet
   caxlsx
   csv
   debug

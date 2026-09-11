@@ -3,7 +3,7 @@ class LeaveRequest < ApplicationRecord
 
   belongs_to :company
   belongs_to :staff_member
-  belongs_to :absence_type
+  belongs_to :absence_type, counter_cache: true
   belongs_to :recorded_by, class_name: "User", optional: true
 
   enum :status, STATUSES, prefix: :status

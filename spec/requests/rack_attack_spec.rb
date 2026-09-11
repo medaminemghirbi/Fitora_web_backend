@@ -15,7 +15,7 @@ RSpec.describe "Rack::Attack throttling on login", type: :request do
 
   describe "POST /api/v1/auth/login" do
     it "throttles a single IP after too many attempts, regardless of the email tried" do
-      5.times { |i| post "/api/v1/auth/login", params: { email: "nobody#{i}@example.test", password: "wrong" } }
+      60.times { |i| post "/api/v1/auth/login", params: { email: "nobody#{i}@example.test", password: "wrong" } }
       expect(response).to have_http_status(:unauthorized) # still under the limit — ordinary failed logins
 
       post "/api/v1/auth/login", params: { email: "nobody99@example.test", password: "wrong" }

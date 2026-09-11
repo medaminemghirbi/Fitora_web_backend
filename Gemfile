@@ -77,5 +77,9 @@ group :development, :test do
 
   gem "rspec-rails"
   gem "factory_bot_rails"
+
+  # N+1 / unused-eager-loading detection — driven by spec/rails_helper.rb
+  # under BULLET=1, so it stays out of the way of a normal test run.
+  gem "bullet", require: false
   gem "dotenv-rails"
 end

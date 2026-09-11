@@ -18,6 +18,9 @@ servers:
     hosts:
       - <VPS_IP>
     cmd: bundle exec sidekiq
+    env:
+      clear:
+        RAILS_MAX_THREADS: 10
 
 proxy:
   ssl: true

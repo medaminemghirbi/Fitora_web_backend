@@ -27,6 +27,19 @@
 threads_count = ENV.fetch("RAILS_MAX_THREADS", 3)
 threads threads_count, threads_count
 
+# config/deploy.yml sets WEB_CONCURRENCY (2 in production) expecting Puma's
+# clustered mode — this app was running as a single process regardless of
+# that setting until this line existed, since nothing here ever read the
+# variable. `preload_app!` gives forked workers real copy-on-write memory
+# savings; it's safe with Active Record here since Rails 6.1+ reconnects a
+# pool automatically on a pid change, no explicit before_fork/on_worker_boot
+# hook required.
+worker_count = Integer(ENV.fetch("WEB_CONCURRENCY", 0))
+if worker_count > 0
+  workers worker_count
+  preload_app!
+end
+
 # Specifies the `port` that Puma will listen on to receive requests; default is 3000.
 port ENV.fetch("PORT", 3000)
 

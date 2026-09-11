@@ -22,7 +22,8 @@ class StaffMember < ApplicationRecord
   # The configurable role this staff login is assigned to. Optional during
   # the migration window; #permission_keys falls back to CAPABILITIES when
   # it's nil.
-  belongs_to :assigned_role, class_name: "Role", foreign_key: :role_id, optional: true, inverse_of: :staff_members
+  belongs_to :assigned_role, class_name: "Role", foreign_key: :role_id, optional: true, inverse_of: :staff_members,
+                              counter_cache: :staff_members_count
 
   has_many :staff_member_locations, dependent: :destroy
   has_many :locations, through: :staff_member_locations

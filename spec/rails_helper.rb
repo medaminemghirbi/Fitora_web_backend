@@ -25,6 +25,24 @@ require 'rspec/rails'
 #
 Rails.root.glob('spec/support/**/*.rb').sort_by(&:to_s).each { |f| require f }
 
+# N+1 / unused-eager-loading audit — off by default (adds per-request
+# overhead), opt in with `BULLET=1 bundle exec rspec`. Logs to
+# log/bullet_test.log instead of raising, so a single run against the full
+# request-spec suite produces one full report rather than stopping at the
+# first offender.
+if ENV["BULLET"] == "1"
+  require "bullet"
+  Bullet.enable = true
+  Bullet.bullet_logger = true
+  Bullet.raise = false
+  Bullet.add_footer = false
+
+  RSpec.configure do |config|
+    config.before(:each) { Bullet.start_request }
+    config.after(:each) { Bullet.perform_out_of_channel_notifications if Bullet.notification?; Bullet.end_request }
+  end
+end
+
 # Ensures that the test database schema matches the current schema file.
 # If there are pending migrations it will invoke `db:test:prepare` to
 # recreate the test database by loading the schema.

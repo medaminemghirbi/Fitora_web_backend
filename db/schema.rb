@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_09_10_225418) do
+ActiveRecord::Schema[8.1].define(version: 2026_09_11_152538) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "btree_gist"
   enable_extension "pg_catalog.plpgsql"
@@ -22,6 +22,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_10_225418) do
     t.boolean "active", default: true, null: false
     t.uuid "company_id", null: false
     t.datetime "created_at", null: false
+    t.integer "leave_requests_count", default: 0, null: false
     t.string "name", null: false
     t.boolean "paid", default: false, null: false
     t.integer "position", default: 0, null: false
@@ -124,7 +125,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_10_225418) do
     t.index ["client_id"], name: "index_bookings_on_client_id"
     t.index ["contract_period_id"], name: "index_bookings_on_contract_period_id"
     t.index ["session_id", "client_id"], name: "index_bookings_on_session_id_and_client_id_when_held", unique: true, where: "(status = 0)"
-    t.index ["session_id"], name: "index_bookings_on_session_id"
+    t.index ["session_id", "status"], name: "index_bookings_on_session_id_and_status"
   end
 
   create_table "clients", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
@@ -197,6 +198,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_10_225418) do
     t.string "email"
     t.decimal "latitude", precision: 10, scale: 6
     t.string "locale", default: "fr", null: false
+    t.integer "locations_count", default: 0, null: false
     t.decimal "longitude", precision: 10, scale: 6
     t.string "mobile_auth_key", null: false
     t.string "name", null: false
@@ -428,6 +430,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_10_225418) do
     t.string "name", null: false
     t.string "permissions", default: [], null: false, array: true
     t.integer "position", default: 0, null: false
+    t.integer "staff_members_count", default: 0, null: false
     t.datetime "updated_at", null: false
     t.index ["company_id", "key"], name: "index_roles_on_company_id_and_key", unique: true
     t.index ["company_id"], name: "index_roles_on_company_id"
@@ -446,10 +449,9 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_10_225418) do
     t.integer "status", default: 0, null: false
     t.datetime "updated_at", null: false
     t.index ["activity_id"], name: "index_sessions_on_activity_id"
-    t.index ["coach_id"], name: "index_sessions_on_coach_id"
-    t.index ["location_id"], name: "index_sessions_on_location_id"
+    t.index ["coach_id", "starts_at"], name: "index_sessions_on_coach_id_and_starts_at"
+    t.index ["location_id", "starts_at"], name: "index_sessions_on_location_id_and_starts_at"
     t.index ["recurring_schedule_id"], name: "index_sessions_on_recurring_schedule_id"
-    t.index ["starts_at"], name: "index_sessions_on_starts_at"
     t.exclusion_constraint "coach_id WITH =, tsrange(starts_at, ends_at) WITH &&", where: "(status = 0) AND (coach_id IS NOT NULL)", using: :gist, name: "no_overlapping_coach_sessions"
   end
 
@@ -567,6 +569,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_10_225418) do
     t.string "name", null: false
     t.integer "position", default: 0, null: false
     t.datetime "updated_at", null: false
+    t.integer "work_contracts_count", default: 0, null: false
     t.index ["company_id", "abbreviation"], name: "index_work_contract_types_on_company_id_and_abbreviation", unique: true
     t.index ["company_id"], name: "index_work_contract_types_on_company_id"
   end
