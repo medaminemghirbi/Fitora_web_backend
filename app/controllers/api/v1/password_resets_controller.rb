@@ -23,13 +23,13 @@ module Api
         record = User.active.where.not(role: :admin).find_by_reset_password_token(params[:token])
         record ||= Client.active.find_by_reset_password_token(params[:token])
 
-        return render(json: { error: "invalid_or_expired_token" }, status: :unprocessable_entity) if record.nil?
+        return render(json: { error: "invalid_or_expired_token" }, status: :unprocessable_content) if record.nil?
 
         if record.update(password: params[:password])
           record.clear_password_reset_token!
           head :no_content
         else
-          render json: { error: record.errors.full_messages.first, errors: record.errors.full_messages }, status: :unprocessable_entity
+          render json: { error: record.errors.full_messages.first, errors: record.errors.full_messages }, status: :unprocessable_content
         end
       end
 

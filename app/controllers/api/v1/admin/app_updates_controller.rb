@@ -24,7 +24,7 @@ module Api
             notify_recipients(update)
             render json: { app_update: AppUpdateSerializer.new(update).as_json }, status: :created
           else
-            render json: { error: update.errors.full_messages.first, errors: update.errors.full_messages }, status: :unprocessable_entity
+            render json: { error: update.errors.full_messages.first, errors: update.errors.full_messages }, status: :unprocessable_content
           end
         end
 

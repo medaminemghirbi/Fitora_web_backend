@@ -43,7 +43,7 @@ RSpec.describe "Api::V1::Bookings", type: :request do
 
       post "/api/v1/bookings", params: { client_id: client.id, session_id: session.id }, headers: auth_headers(owner)
 
-      expect(response).to have_http_status(:unprocessable_entity)
+      expect(response).to have_http_status(:unprocessable_content)
       expect(response.parsed_body["error"]).to eq("This session is full.")
     end
   end
@@ -135,7 +135,7 @@ RSpec.describe "Api::V1::Bookings", type: :request do
 
       post "/api/v1/bookings/#{booking.id}/remind", headers: auth_headers(owner)
 
-      expect(response).to have_http_status(:unprocessable_entity)
+      expect(response).to have_http_status(:unprocessable_content)
       expect(response.parsed_body["error"]).to eq("TUNISIESMS_API_KEY is not set")
     end
 

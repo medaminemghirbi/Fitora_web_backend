@@ -32,7 +32,7 @@ RSpec.describe "Api::V1::SupportTickets", type: :request do
     it "rejects a ticket with no subject" do
       post "/api/v1/support_tickets", params: { message: "..." }, headers: auth_headers(owner)
 
-      expect(response).to have_http_status(:unprocessable_entity)
+      expect(response).to have_http_status(:unprocessable_content)
     end
   end
 

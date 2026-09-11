@@ -79,13 +79,13 @@ RSpec.describe "Api::V1::Companies", type: :request do
     it "rejects an invalid hex color" do
       patch "/api/v1/company", params: { company: { primary_color: "orange" } }, headers: auth_headers(owner)
 
-      expect(response).to have_http_status(:unprocessable_entity)
+      expect(response).to have_http_status(:unprocessable_content)
     end
 
     it "rejects a slug with uppercase or spaces" do
       patch "/api/v1/company", params: { company: { slug: "Power Gym" } }, headers: auth_headers(owner)
 
-      expect(response).to have_http_status(:unprocessable_entity)
+      expect(response).to have_http_status(:unprocessable_content)
     end
 
     it "rejects a slug already used by another company" do
@@ -93,7 +93,7 @@ RSpec.describe "Api::V1::Companies", type: :request do
 
       patch "/api/v1/company", params: { company: { slug: "power-gym" } }, headers: auth_headers(owner)
 
-      expect(response).to have_http_status(:unprocessable_entity)
+      expect(response).to have_http_status(:unprocessable_content)
     end
 
     it "defaults working_days to Monday–Friday" do
@@ -113,13 +113,13 @@ RSpec.describe "Api::V1::Companies", type: :request do
     it "rejects an empty working_days list" do
       patch "/api/v1/company", params: { company: { working_days: [ "" ] } }, headers: auth_headers(owner)
 
-      expect(response).to have_http_status(:unprocessable_entity)
+      expect(response).to have_http_status(:unprocessable_content)
     end
 
     it "rejects an out-of-range weekday" do
       patch "/api/v1/company", params: { company: { working_days: [ 1, 2, 7 ] } }, headers: auth_headers(owner)
 
-      expect(response).to have_http_status(:unprocessable_entity)
+      expect(response).to have_http_status(:unprocessable_content)
     end
 
     it "forbids staff from changing branding" do

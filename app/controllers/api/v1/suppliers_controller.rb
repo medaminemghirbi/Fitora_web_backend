@@ -22,7 +22,7 @@ module Api
         if supplier.save
           render json: { supplier: SupplierSerializer.new(supplier).as_json }, status: :created
         else
-          render json: { error: supplier.errors.full_messages.first, errors: supplier.errors.to_hash }, status: :unprocessable_entity
+          render json: { error: supplier.errors.full_messages.first, errors: supplier.errors.to_hash }, status: :unprocessable_content
         end
       end
 
@@ -31,7 +31,7 @@ module Api
         if @supplier.update(supplier_params)
           render json: { supplier: SupplierSerializer.new(@supplier).as_json }
         else
-          render json: { error: @supplier.errors.full_messages.first, errors: @supplier.errors.to_hash }, status: :unprocessable_entity
+          render json: { error: @supplier.errors.full_messages.first, errors: @supplier.errors.to_hash }, status: :unprocessable_content
         end
       end
 

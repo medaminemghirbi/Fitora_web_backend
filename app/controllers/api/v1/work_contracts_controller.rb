@@ -75,7 +75,7 @@ module Api
       end
 
       def render_error(record)
-        render json: { error: record.errors.full_messages.first, errors: record.errors.full_messages }, status: :unprocessable_entity
+        render json: { error: record.errors.full_messages.first, errors: record.errors.full_messages }, status: :unprocessable_content
       end
     end
   end

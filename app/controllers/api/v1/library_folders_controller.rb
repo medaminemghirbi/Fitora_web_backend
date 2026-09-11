@@ -23,7 +23,7 @@ module Api
         if folder.save
           render json: { folder: LibraryFolderSerializer.new(folder).as_json }, status: :created
         else
-          render json: { error: folder.errors.full_messages.first, errors: folder.errors.full_messages }, status: :unprocessable_entity
+          render json: { error: folder.errors.full_messages.first, errors: folder.errors.full_messages }, status: :unprocessable_content
         end
       end
 
@@ -32,7 +32,7 @@ module Api
         if @folder.update(folder_params)
           render json: { folder: LibraryFolderSerializer.new(@folder).as_json }
         else
-          render json: { error: @folder.errors.full_messages.first, errors: @folder.errors.full_messages }, status: :unprocessable_entity
+          render json: { error: @folder.errors.full_messages.first, errors: @folder.errors.full_messages }, status: :unprocessable_content
         end
       end
 

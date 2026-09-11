@@ -62,7 +62,7 @@ module Api
             payment: PaymentSerializer.new(result.payment).as_json
           }, status: :created
         else
-          render json: { error: result.error }, status: :unprocessable_entity
+          render json: { error: result.error }, status: :unprocessable_content
         end
       end
 
@@ -76,7 +76,7 @@ module Api
         if result.success?
           render json: { contract: ContractSerializer.new(result.contract).as_json }
         else
-          render json: { error: result.error }, status: :unprocessable_entity
+          render json: { error: result.error }, status: :unprocessable_content
         end
       end
 
@@ -87,7 +87,7 @@ module Api
         if result.success?
           render json: { contract: ContractSerializer.new(result.contract).as_json }, status: :created
         else
-          render json: { error: result.error }, status: :unprocessable_entity
+          render json: { error: result.error }, status: :unprocessable_content
         end
       end
 
@@ -102,7 +102,7 @@ module Api
           )
           render json: { contract: ContractSerializer.new(@contract.reload).as_json }
         else
-          render json: { error: result.error }, status: :unprocessable_entity
+          render json: { error: result.error }, status: :unprocessable_content
         end
       end
 
@@ -112,7 +112,7 @@ module Api
       # second step for actually clearing clutter out of a client's history.
       def destroy
         unless @contract.cancelled?
-          return render json: { error: "Only cancelled contracts can be deleted" }, status: :unprocessable_entity
+          return render json: { error: "Only cancelled contracts can be deleted" }, status: :unprocessable_content
         end
 
         metadata = { client: @contract.client.full_name, plan: @contract.contract_type.name }

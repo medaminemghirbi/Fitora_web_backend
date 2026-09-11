@@ -27,7 +27,7 @@ module Api
           )
           render json: { support_ticket: SupportTicketSerializer.new(ticket).as_json }, status: :created
         else
-          render json: { error: ticket.errors.full_messages.first, errors: ticket.errors.full_messages }, status: :unprocessable_entity
+          render json: { error: ticket.errors.full_messages.first, errors: ticket.errors.full_messages }, status: :unprocessable_content
         end
       end
 

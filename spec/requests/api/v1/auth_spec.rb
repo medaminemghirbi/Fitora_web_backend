@@ -21,7 +21,7 @@ RSpec.describe "Api::V1::Auth", type: :request do
         first_name: "Jane", last_name: "Doe", email: "dup@example.com", password: "password123"
       }
 
-      expect(response).to have_http_status(:unprocessable_entity)
+      expect(response).to have_http_status(:unprocessable_content)
     end
 
     it "never allows self-registering as admin or staff — always owner" do

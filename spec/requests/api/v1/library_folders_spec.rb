@@ -16,7 +16,7 @@ RSpec.describe "Api::V1::LibraryFolders", type: :request do
     it "rejects a folder with no name" do
       post "/api/v1/library_folders", params: { library_folder: { name: "" } }, headers: auth_headers(owner)
 
-      expect(response).to have_http_status(:unprocessable_entity)
+      expect(response).to have_http_status(:unprocessable_content)
     end
 
     it "rejects a duplicate folder name within the same company" do
@@ -24,7 +24,7 @@ RSpec.describe "Api::V1::LibraryFolders", type: :request do
 
       post "/api/v1/library_folders", params: { library_folder: { name: "Assurances" } }, headers: auth_headers(owner)
 
-      expect(response).to have_http_status(:unprocessable_entity)
+      expect(response).to have_http_status(:unprocessable_content)
     end
 
     it "allows the same folder name in a different company" do

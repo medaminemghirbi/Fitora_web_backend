@@ -29,7 +29,7 @@ module Api
             conflicts: generation.conflict_errors
           }, status: :created
         else
-          render json: { error: schedule.errors.full_messages.first, errors: schedule.errors.full_messages }, status: :unprocessable_entity
+          render json: { error: schedule.errors.full_messages.first, errors: schedule.errors.full_messages }, status: :unprocessable_content
         end
       end
 
@@ -40,7 +40,7 @@ module Api
         if @schedule.update(params.permit(:active))
           render json: { recurring_schedule: RecurringScheduleSerializer.new(@schedule).as_json }
         else
-          render json: { error: @schedule.errors.full_messages.first, errors: @schedule.errors.full_messages }, status: :unprocessable_entity
+          render json: { error: @schedule.errors.full_messages.first, errors: @schedule.errors.full_messages }, status: :unprocessable_content
         end
       end
 

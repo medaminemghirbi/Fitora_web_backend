@@ -26,7 +26,7 @@ module Api
             render json: pricing_json(price)
           else
             errors = price.errors.full_messages + setting.errors.full_messages
-            render json: { error: errors.first, errors: errors }, status: :unprocessable_entity
+            render json: { error: errors.first, errors: errors }, status: :unprocessable_content
           end
         end
 

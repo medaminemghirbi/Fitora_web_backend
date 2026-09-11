@@ -39,7 +39,7 @@ RSpec.describe "Api::V1::Suppliers", type: :request do
       it "rejects a supplier with no name" do
         post "/api/v1/suppliers", params: { supplier: { category: "Textile" } }, headers: auth_headers(owner)
 
-        expect(response).to have_http_status(:unprocessable_entity)
+        expect(response).to have_http_status(:unprocessable_content)
         expect(response.parsed_body["errors"]).to eq({ "name" => [ "can't be blank" ] })
       end
 
@@ -60,7 +60,7 @@ RSpec.describe "Api::V1::Suppliers", type: :request do
 
         post "/api/v1/suppliers", params: { supplier: { name: "Alpha Sport", photo: bad_file } }, headers: auth_headers(owner)
 
-        expect(response).to have_http_status(:unprocessable_entity)
+        expect(response).to have_http_status(:unprocessable_content)
         expect(response.parsed_body["errors"]["photo"]).to be_present
       end
     end

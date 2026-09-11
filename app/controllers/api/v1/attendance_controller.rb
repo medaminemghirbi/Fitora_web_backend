@@ -26,7 +26,7 @@ module Api
         if result.success?
           render json: { attendance: AttendanceBookingSerializer.new(booking.reload).as_json }
         else
-          render json: { error: result.error }, status: :unprocessable_entity
+          render json: { error: result.error }, status: :unprocessable_content
         end
       end
 

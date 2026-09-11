@@ -55,7 +55,7 @@ RSpec.describe "Api::V1::Me::LeaveRequests", type: :request do
     it "rejects a request with no dates" do
       post "/api/v1/me/leave_requests", params: { leave_request: { absence_type_id: absence_type.id } }, headers: auth_headers(coach_staff.user)
 
-      expect(response).to have_http_status(:unprocessable_entity)
+      expect(response).to have_http_status(:unprocessable_content)
     end
   end
 end

@@ -37,7 +37,7 @@ module Api
         if client.save
           render json: { client: ClientSerializer.new(client).as_json }, status: :created
         else
-          render json: { error: client.errors.full_messages.first, errors: client.errors.full_messages }, status: :unprocessable_entity
+          render json: { error: client.errors.full_messages.first, errors: client.errors.full_messages }, status: :unprocessable_content
         end
       end
 
@@ -52,7 +52,7 @@ module Api
           end
           render json: { client: ClientSerializer.new(@client).as_json }
         else
-          render json: { error: @client.errors.full_messages.first, errors: @client.errors.full_messages }, status: :unprocessable_entity
+          render json: { error: @client.errors.full_messages.first, errors: @client.errors.full_messages }, status: :unprocessable_content
         end
       end
 

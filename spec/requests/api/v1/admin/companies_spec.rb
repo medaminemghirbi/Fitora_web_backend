@@ -161,7 +161,7 @@ RSpec.describe "Api::V1::Admin::Companies", type: :request do
             params: { debt_cents: -100 },
             headers: auth_headers(admin)
 
-      expect(response).to have_http_status(:unprocessable_entity)
+      expect(response).to have_http_status(:unprocessable_content)
     end
   end
 
@@ -180,7 +180,7 @@ RSpec.describe "Api::V1::Admin::Companies", type: :request do
 
       patch "/api/v1/admin/companies/#{company.id}/mobile_key", params: { mobile_auth_key: "Power-Gym!" }, headers: auth_headers(admin)
 
-      expect(response).to have_http_status(:unprocessable_entity)
+      expect(response).to have_http_status(:unprocessable_content)
     end
 
     it "rejects a key already used by another company" do
@@ -189,7 +189,7 @@ RSpec.describe "Api::V1::Admin::Companies", type: :request do
 
       patch "/api/v1/admin/companies/#{company.id}/mobile_key", params: { mobile_auth_key: "takenkey" }, headers: auth_headers(admin)
 
-      expect(response).to have_http_status(:unprocessable_entity)
+      expect(response).to have_http_status(:unprocessable_content)
     end
 
     it "forbids a non-admin from setting the key" do

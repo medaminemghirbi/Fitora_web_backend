@@ -15,7 +15,7 @@ RSpec.describe "Api::V1::Clients", type: :request do
     it "rejects a client with no phone" do
       post "/api/v1/clients", params: { client: { first_name: "Ahmed", last_name: "Ben Ali" } }, headers: auth_headers(owner)
 
-      expect(response).to have_http_status(:unprocessable_entity)
+      expect(response).to have_http_status(:unprocessable_content)
     end
 
     it "is never blocked by any client count — no plans, no limits" do
@@ -117,7 +117,7 @@ RSpec.describe "Api::V1::Clients", type: :request do
 
       patch "/api/v1/clients/#{client.id}", params: { client: { password: "password123" } }, headers: auth_headers(owner)
 
-      expect(response).to have_http_status(:unprocessable_entity)
+      expect(response).to have_http_status(:unprocessable_content)
     end
 
     it "rejects a too-short password" do
@@ -125,7 +125,7 @@ RSpec.describe "Api::V1::Clients", type: :request do
 
       patch "/api/v1/clients/#{client.id}", params: { client: { password: "short" } }, headers: auth_headers(owner)
 
-      expect(response).to have_http_status(:unprocessable_entity)
+      expect(response).to have_http_status(:unprocessable_content)
     end
   end
 end

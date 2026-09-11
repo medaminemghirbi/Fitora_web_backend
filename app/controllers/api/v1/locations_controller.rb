@@ -20,7 +20,7 @@ module Api
         if location.update(location_params)
           render json: { location: LocationSerializer.new(location).as_json }
         else
-          render json: { error: location.errors.full_messages.first, errors: location.errors.full_messages }, status: :unprocessable_entity
+          render json: { error: location.errors.full_messages.first, errors: location.errors.full_messages }, status: :unprocessable_content
         end
       end
 

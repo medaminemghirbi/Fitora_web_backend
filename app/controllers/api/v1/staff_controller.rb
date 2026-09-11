@@ -49,7 +49,7 @@ module Api
 
         render json: { staff_member: StaffMemberSerializer.new(staff_member).as_json }, status: :created
       rescue ActiveRecord::RecordInvalid => e
-        render json: { error: e.record.errors.full_messages.first, errors: e.record.errors.full_messages }, status: :unprocessable_entity
+        render json: { error: e.record.errors.full_messages.first, errors: e.record.errors.full_messages }, status: :unprocessable_content
       end
 
       # PATCH /api/v1/staff/:id
@@ -68,7 +68,7 @@ module Api
 
           render json: { staff_member: StaffMemberSerializer.new(@staff_member).as_json }
         else
-          render json: { error: @staff_member.errors.full_messages.first, errors: @staff_member.errors.full_messages }, status: :unprocessable_entity
+          render json: { error: @staff_member.errors.full_messages.first, errors: @staff_member.errors.full_messages }, status: :unprocessable_content
         end
       end
 

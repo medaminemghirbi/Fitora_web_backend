@@ -10,8 +10,8 @@ module Api
       def create
         record = current_client || current_user
         return render_forbidden if record.nil? || (record.is_a?(User) && record.admin?)
-        return render(json: { error: "no_email" }, status: :unprocessable_entity) if record.email.blank?
-        return render(json: { error: "already_verified" }, status: :unprocessable_entity) if record.email_verified?
+        return render(json: { error: "no_email" }, status: :unprocessable_content) if record.email.blank?
+        return render(json: { error: "already_verified" }, status: :unprocessable_content) if record.email_verified?
 
         raw = record.generate_email_verification_token!
         AccountMailer.email_verification(record, raw).deliver_later
@@ -24,7 +24,7 @@ module Api
         record = User.where.not(role: :admin).find_by_email_verification_token(params[:token])
         record ||= Client.find_by_email_verification_token(params[:token])
 
-        return render(json: { error: "invalid_or_expired_token" }, status: :unprocessable_entity) if record.nil?
+        return render(json: { error: "invalid_or_expired_token" }, status: :unprocessable_content) if record.nil?
 
         record.verify_email!
         head :no_content

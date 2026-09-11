@@ -11,7 +11,7 @@ module Api
       # POST /api/v1/company
       def create
         if current_company.present?
-          return render json: { error: "You already have a company" }, status: :unprocessable_entity
+          return render json: { error: "You already have a company" }, status: :unprocessable_content
         end
 
         company = Company.new(company_params)
@@ -55,7 +55,7 @@ module Api
 
         render json: { company: CompanySerializer.new(company).as_json }, status: :created
       rescue ActiveRecord::RecordInvalid => e
-        render json: { error: e.record.errors.full_messages.first, errors: e.record.errors.full_messages }, status: :unprocessable_entity
+        render json: { error: e.record.errors.full_messages.first, errors: e.record.errors.full_messages }, status: :unprocessable_content
       end
 
       # PATCH /api/v1/company
@@ -69,7 +69,7 @@ module Api
         if current_company.update(company_params.except(:currency))
           render json: { company: CompanySerializer.new(current_company).as_json }
         else
-          render json: { error: current_company.errors.full_messages.first, errors: current_company.errors.full_messages }, status: :unprocessable_entity
+          render json: { error: current_company.errors.full_messages.first, errors: current_company.errors.full_messages }, status: :unprocessable_content
         end
       end
 

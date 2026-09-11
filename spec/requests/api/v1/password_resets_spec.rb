@@ -57,7 +57,7 @@ RSpec.describe "Api::V1::PasswordResets", type: :request do
     it "rejects an invalid token" do
       patch "/api/v1/password_resets/not-a-real-token", params: { password: "new-strong-password" }
 
-      expect(response).to have_http_status(:unprocessable_entity)
+      expect(response).to have_http_status(:unprocessable_content)
     end
 
     it "rejects a token belonging to a platform admin" do
@@ -66,7 +66,7 @@ RSpec.describe "Api::V1::PasswordResets", type: :request do
 
       patch "/api/v1/password_resets/#{raw}", params: { password: "new-strong-password" }
 
-      expect(response).to have_http_status(:unprocessable_entity)
+      expect(response).to have_http_status(:unprocessable_content)
     end
 
     it "rejects an expired token" do
@@ -76,7 +76,7 @@ RSpec.describe "Api::V1::PasswordResets", type: :request do
 
       patch "/api/v1/password_resets/#{raw}", params: { password: "new-strong-password" }
 
-      expect(response).to have_http_status(:unprocessable_entity)
+      expect(response).to have_http_status(:unprocessable_content)
     end
   end
 end

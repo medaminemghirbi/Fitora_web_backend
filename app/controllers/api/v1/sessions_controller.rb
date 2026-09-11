@@ -60,13 +60,13 @@ module Api
         attributes.delete(:price) if attributes[:price].blank?
 
         result = Sessions::Create.call(attributes: attributes)
-        return render(json: { error: result.error }, status: :unprocessable_entity) unless result.success?
+        return render(json: { error: result.error }, status: :unprocessable_content) unless result.success?
 
         if client
           booking = Bookings::Create.call(client: client, session: result.session)
           unless booking.success?
             result.session.destroy
-            return render json: { error: booking.error }, status: :unprocessable_entity
+            return render json: { error: booking.error }, status: :unprocessable_content
           end
         end
 
@@ -80,7 +80,7 @@ module Api
         if result.success?
           render json: { session: SessionSerializer.new(result.session).as_json }
         else
-          render json: { error: result.error }, status: :unprocessable_entity
+          render json: { error: result.error }, status: :unprocessable_content
         end
       end
 

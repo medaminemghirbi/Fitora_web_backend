@@ -54,7 +54,7 @@ module Api
             )
             render json: { company: AdminCompanySerializer.new(@company.reload).as_json }
           else
-            render json: { error: subscription.errors.full_messages.first, errors: subscription.errors.full_messages }, status: :unprocessable_entity
+            render json: { error: subscription.errors.full_messages.first, errors: subscription.errors.full_messages }, status: :unprocessable_content
           end
         end
 
@@ -70,7 +70,7 @@ module Api
             )
             render json: { company: AdminCompanySerializer.new(@company).as_json }
           else
-            render json: { error: @company.errors.full_messages.first, errors: @company.errors.full_messages }, status: :unprocessable_entity
+            render json: { error: @company.errors.full_messages.first, errors: @company.errors.full_messages }, status: :unprocessable_content
           end
         end
 
@@ -88,7 +88,7 @@ module Api
             )
             render json: { company: AdminCompanySerializer.new(@company).as_json }
           else
-            render json: { error: @company.errors.full_messages.first, errors: @company.errors.full_messages }, status: :unprocessable_entity
+            render json: { error: @company.errors.full_messages.first, errors: @company.errors.full_messages }, status: :unprocessable_content
           end
         end
 
@@ -106,7 +106,7 @@ module Api
             )
             render json: { company: AdminCompanySerializer.new(@company).as_json }
           else
-            render json: { error: @company.errors.full_messages.first, errors: @company.errors.full_messages }, status: :unprocessable_entity
+            render json: { error: @company.errors.full_messages.first, errors: @company.errors.full_messages }, status: :unprocessable_content
           end
         end
 
@@ -116,7 +116,7 @@ module Api
         # app as-is instead of duplicating every page for admin use.
         def impersonate
           owner = @company.owner
-          return render json: { error: "This company has no owner account" }, status: :unprocessable_entity if owner.nil?
+          return render json: { error: "This company has no owner account" }, status: :unprocessable_content if owner.nil?
 
           AuditLogs::Record.call(
             company: @company, user: owner, action: "admin.impersonation_started",

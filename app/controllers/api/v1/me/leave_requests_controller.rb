@@ -32,7 +32,7 @@ module Api
           if leave.save
             render json: { leave_request: LeaveRequestSerializer.new(leave).as_json }, status: :created
           else
-            render json: { error: leave.errors.full_messages.first, errors: leave.errors.full_messages }, status: :unprocessable_entity
+            render json: { error: leave.errors.full_messages.first, errors: leave.errors.full_messages }, status: :unprocessable_content
           end
         end
 

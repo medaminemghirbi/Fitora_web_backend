@@ -26,7 +26,7 @@ module Api
           coach.coach_locations.create!(location: current_company.location)
           render json: { coach: CoachSerializer.new(coach.reload).as_json }, status: :created
         else
-          render json: { error: coach.errors.full_messages.first, errors: coach.errors.full_messages }, status: :unprocessable_entity
+          render json: { error: coach.errors.full_messages.first, errors: coach.errors.full_messages }, status: :unprocessable_content
         end
       end
 
@@ -35,7 +35,7 @@ module Api
         if @coach.update(coach_params)
           render json: { coach: CoachSerializer.new(@coach).as_json }
         else
-          render json: { error: @coach.errors.full_messages.first, errors: @coach.errors.full_messages }, status: :unprocessable_entity
+          render json: { error: @coach.errors.full_messages.first, errors: @coach.errors.full_messages }, status: :unprocessable_content
         end
       end
 
@@ -59,7 +59,7 @@ module Api
           )
           render json: { coach: CoachSerializer.new(@coach.reload).as_json }
         else
-          render json: { error: result.error }, status: :unprocessable_entity
+          render json: { error: result.error }, status: :unprocessable_content
         end
       end
 

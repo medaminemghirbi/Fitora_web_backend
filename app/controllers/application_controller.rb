@@ -85,6 +85,6 @@ class ApplicationController < ActionController::API
   def render_unprocessable(exception = nil)
     record = exception&.record
     errors = record ? record.errors.full_messages : [ exception&.message ].compact
-    render json: { error: errors.first || "Validation failed", errors: errors }, status: :unprocessable_entity
+    render json: { error: errors.first || "Validation failed", errors: errors }, status: :unprocessable_content
   end
 end

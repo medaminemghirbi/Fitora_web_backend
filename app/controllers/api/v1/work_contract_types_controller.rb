@@ -39,7 +39,7 @@ module Api
         if @type.destroy
           head :no_content
         else
-          render json: { error: @type.errors.full_messages.first }, status: :unprocessable_entity
+          render json: { error: @type.errors.full_messages.first }, status: :unprocessable_content
         end
       end
 
@@ -54,7 +54,7 @@ module Api
       end
 
       def render_error(record)
-        render json: { error: record.errors.full_messages.first, errors: record.errors.full_messages }, status: :unprocessable_entity
+        render json: { error: record.errors.full_messages.first, errors: record.errors.full_messages }, status: :unprocessable_content
       end
     end
   end

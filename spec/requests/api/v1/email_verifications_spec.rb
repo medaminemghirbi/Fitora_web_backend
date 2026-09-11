@@ -37,7 +37,7 @@ RSpec.describe "Api::V1::EmailVerifications", type: :request do
 
       post "/api/v1/email_verifications", headers: auth_headers(owner)
 
-      expect(response).to have_http_status(:unprocessable_entity)
+      expect(response).to have_http_status(:unprocessable_content)
     end
 
     it "requires authentication" do
@@ -71,7 +71,7 @@ RSpec.describe "Api::V1::EmailVerifications", type: :request do
     it "rejects an invalid token" do
       patch "/api/v1/email_verifications/not-a-real-token"
 
-      expect(response).to have_http_status(:unprocessable_entity)
+      expect(response).to have_http_status(:unprocessable_content)
     end
 
     it "rejects a token belonging to a platform admin" do
@@ -80,7 +80,7 @@ RSpec.describe "Api::V1::EmailVerifications", type: :request do
 
       patch "/api/v1/email_verifications/#{raw}"
 
-      expect(response).to have_http_status(:unprocessable_entity)
+      expect(response).to have_http_status(:unprocessable_content)
     end
   end
 end

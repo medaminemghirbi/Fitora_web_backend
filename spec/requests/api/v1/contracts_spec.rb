@@ -159,7 +159,7 @@ RSpec.describe "Api::V1::Contracts", type: :request do
 
       post "/api/v1/contracts/#{contract.id}/cancel", headers: auth_headers(owner)
 
-      expect(response).to have_http_status(:unprocessable_entity)
+      expect(response).to have_http_status(:unprocessable_content)
     end
 
     it "forbids a coach — coaches don't have the contracts capability" do
@@ -193,7 +193,7 @@ RSpec.describe "Api::V1::Contracts", type: :request do
 
       delete "/api/v1/contracts/#{contract.id}", headers: auth_headers(owner)
 
-      expect(response).to have_http_status(:unprocessable_entity)
+      expect(response).to have_http_status(:unprocessable_content)
       expect(Contract.exists?(contract.id)).to be true
     end
 

@@ -15,7 +15,7 @@ module Api
       # POST /api/v1/subscription/request_upgrade  { period: "monthly" | "yearly" }
       def request_upgrade
         subscription = current_company.subscription
-        return render(json: { error: "no_subscription" }, status: :unprocessable_entity) if subscription.nil?
+        return render(json: { error: "no_subscription" }, status: :unprocessable_content) if subscription.nil?
 
         subscription.request_upgrade!(period: params[:period])
         AuditLogs::Record.call(

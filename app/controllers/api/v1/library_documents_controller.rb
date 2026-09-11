@@ -28,7 +28,7 @@ module Api
         if document.save
           render json: { document: LibraryDocumentSerializer.new(document).as_json }, status: :created
         else
-          render json: { error: document.errors.full_messages.first, errors: document.errors.full_messages }, status: :unprocessable_entity
+          render json: { error: document.errors.full_messages.first, errors: document.errors.full_messages }, status: :unprocessable_content
         end
       end
 
@@ -37,7 +37,7 @@ module Api
         if @document.update(document_params)
           render json: { document: LibraryDocumentSerializer.new(@document).as_json }
         else
-          render json: { error: @document.errors.full_messages.first, errors: @document.errors.full_messages }, status: :unprocessable_entity
+          render json: { error: @document.errors.full_messages.first, errors: @document.errors.full_messages }, status: :unprocessable_content
         end
       end
 

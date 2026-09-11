@@ -47,7 +47,7 @@ module Api
         if result.success?
           render json: { booking: BookingSerializer.new(result.booking).as_json }, status: :created
         else
-          render json: { error: result.error }, status: :unprocessable_entity
+          render json: { error: result.error }, status: :unprocessable_content
         end
       end
 
@@ -64,7 +64,7 @@ module Api
           )
           render json: { booking: BookingSerializer.new(@booking.reload).as_json }
         else
-          render json: { error: result.error }, status: :unprocessable_entity
+          render json: { error: result.error }, status: :unprocessable_content
         end
       end
 
@@ -82,7 +82,7 @@ module Api
           )
           render json: { status: "sent" }
         else
-          render json: { error: result.error }, status: :unprocessable_entity
+          render json: { error: result.error }, status: :unprocessable_content
         end
       end
 

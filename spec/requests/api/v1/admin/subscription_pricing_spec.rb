@@ -49,7 +49,7 @@ RSpec.describe "Api::V1::Admin::SubscriptionPricing", type: :request do
       patch "/api/v1/admin/subscription_pricing",
             params: { annual_discount_percent: 250 }, headers: auth_headers(admin)
 
-      expect(response).to have_http_status(:unprocessable_entity)
+      expect(response).to have_http_status(:unprocessable_content)
     end
   end
 end

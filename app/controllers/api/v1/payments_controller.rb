@@ -48,7 +48,7 @@ module Api
         if result.success?
           render json: { payment: PaymentSerializer.new(result.payment).as_json }, status: :created
         else
-          render json: { error: result.error }, status: :unprocessable_entity
+          render json: { error: result.error }, status: :unprocessable_content
         end
       end
 
@@ -59,7 +59,7 @@ module Api
         if result.success?
           render json: { payment: PaymentSerializer.new(@payment.reload).as_json }
         else
-          render json: { error: result.error }, status: :unprocessable_entity
+          render json: { error: result.error }, status: :unprocessable_content
         end
       end
 

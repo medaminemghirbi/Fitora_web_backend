@@ -65,7 +65,7 @@ RSpec.describe "Api::V1::Staff", type: :request do
 
       # The platform admin has no company of their own, so this 422s on
       # require_company! rather than ever leaking another org's staff.
-      expect(response).to have_http_status(:unprocessable_entity)
+      expect(response).to have_http_status(:unprocessable_content)
     end
   end
 

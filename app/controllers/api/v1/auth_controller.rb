@@ -22,7 +22,7 @@ module Api
           AccountMailer.email_verification(user, raw).deliver_later
           render json: { token: JwtService.encode(user.id), user: UserSerializer.new(user).as_json }, status: :created
         else
-          render json: { error: user.errors.full_messages.first, errors: user.errors.full_messages }, status: :unprocessable_entity
+          render json: { error: user.errors.full_messages.first, errors: user.errors.full_messages }, status: :unprocessable_content
         end
       end
 

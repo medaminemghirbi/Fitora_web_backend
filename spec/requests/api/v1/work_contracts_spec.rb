@@ -68,7 +68,7 @@ RSpec.describe "Api::V1::WorkContracts & LeaveRequests", type: :request do
       post "/api/v1/work_contracts",
            params: { work_contract: { work_contract_type_id: cdi.id, starts_on: "2025-06-01", gross_monthly_salary: "1000" } },
            headers: auth_headers(owner)
-      expect(response).to have_http_status(:unprocessable_entity)
+      expect(response).to have_http_status(:unprocessable_content)
     end
 
     it "rejects a contract that references both a staff member and a coach" do
@@ -76,14 +76,14 @@ RSpec.describe "Api::V1::WorkContracts & LeaveRequests", type: :request do
       post "/api/v1/work_contracts",
            params: { work_contract: { staff_member_id: staff.id, coach_id: coach.id, work_contract_type_id: cdi.id, starts_on: "2025-06-01", gross_monthly_salary: "1000" } },
            headers: auth_headers(owner)
-      expect(response).to have_http_status(:unprocessable_entity)
+      expect(response).to have_http_status(:unprocessable_content)
     end
 
     it "rejects an end date before the start date" do
       post "/api/v1/work_contracts",
            params: { work_contract: { staff_member_id: staff.id, work_contract_type_id: cdi.id, starts_on: "2025-06-01", ends_on: "2025-01-01", gross_monthly_salary: "1000" } },
            headers: auth_headers(owner)
-      expect(response).to have_http_status(:unprocessable_entity)
+      expect(response).to have_http_status(:unprocessable_content)
     end
 
     it "scopes /staff/:id to the current work contract + leave balance" do

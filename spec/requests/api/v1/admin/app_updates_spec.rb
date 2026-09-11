@@ -64,7 +64,7 @@ RSpec.describe "Api::V1::Admin::AppUpdates", type: :request do
     it "rejects an update with no version" do
       post "/api/v1/admin/app_updates", params: { app_update: { title: "Nouveau tableau de bord" } }, headers: auth_headers(admin)
 
-      expect(response).to have_http_status(:unprocessable_entity)
+      expect(response).to have_http_status(:unprocessable_content)
     end
   end
 

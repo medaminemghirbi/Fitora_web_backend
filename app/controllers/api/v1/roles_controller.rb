@@ -28,7 +28,7 @@ module Api
 
       # PATCH /api/v1/roles/:id — rename / re-permission (not the owner role)
       def update
-        return render(json: { error: "The Owner role cannot be edited." }, status: :unprocessable_entity) if @role.key == "owner"
+        return render(json: { error: "The Owner role cannot be edited." }, status: :unprocessable_content) if @role.key == "owner"
 
         # A built-in role keeps its key even if renamed.
         if @role.update(role_params)
@@ -42,7 +42,7 @@ module Api
       def destroy
         unless @role.deletable?
           reason = @role.builtin? ? "A built-in role cannot be deleted." : "Staff accounts still use this role."
-          return render json: { error: reason }, status: :unprocessable_entity
+          return render json: { error: reason }, status: :unprocessable_content
         end
 
         @role.destroy
@@ -60,7 +60,7 @@ module Api
       end
 
       def render_error(record)
-        render json: { error: record.errors.full_messages.first, errors: record.errors.full_messages }, status: :unprocessable_entity
+        render json: { error: record.errors.full_messages.first, errors: record.errors.full_messages }, status: :unprocessable_content
       end
     end
   end

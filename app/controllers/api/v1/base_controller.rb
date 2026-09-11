@@ -102,7 +102,7 @@ module Api
       end
 
       def require_company!
-        render json: { error: "No company found for this account" }, status: :unprocessable_entity if current_company.nil?
+        render json: { error: "No company found for this account" }, status: :unprocessable_content if current_company.nil?
       end
 
       def paginate(scope)

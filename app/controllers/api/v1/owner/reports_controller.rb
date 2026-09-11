@@ -16,7 +16,7 @@ module Api
                      type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                      disposition: "attachment"
         rescue Reports::Period::InvalidPeriod => e
-          render json: { error: e.message }, status: :unprocessable_entity
+          render json: { error: e.message }, status: :unprocessable_content
         end
       end
     end

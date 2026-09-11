@@ -24,19 +24,19 @@ RSpec.describe "Api::V1::LibraryDocuments", type: :request do
     it "rejects a document with no title" do
       post "/api/v1/library_documents", params: { library_document: { folder_id: folder.id, file: sample_file } }, headers: auth_headers(owner)
 
-      expect(response).to have_http_status(:unprocessable_entity)
+      expect(response).to have_http_status(:unprocessable_content)
     end
 
     it "rejects a document with no folder" do
       post "/api/v1/library_documents", params: { library_document: { title: "Test", file: sample_file } }, headers: auth_headers(owner)
 
-      expect(response).to have_http_status(:unprocessable_entity)
+      expect(response).to have_http_status(:unprocessable_content)
     end
 
     it "rejects a document with no file" do
       post "/api/v1/library_documents", params: { library_document: { title: "Test", folder_id: folder.id } }, headers: auth_headers(owner)
 
-      expect(response).to have_http_status(:unprocessable_entity)
+      expect(response).to have_http_status(:unprocessable_content)
       expect(response.parsed_body["errors"]).to include("File must be attached")
     end
 
@@ -49,7 +49,7 @@ RSpec.describe "Api::V1::LibraryDocuments", type: :request do
         post "/api/v1/library_documents", params: { library_document: { title: "Test", folder_id: folder.id, file: upload } }, headers: auth_headers(owner)
       end
 
-      expect(response).to have_http_status(:unprocessable_entity)
+      expect(response).to have_http_status(:unprocessable_content)
     end
 
     it "rejects a folder that belongs to another company" do
@@ -57,7 +57,7 @@ RSpec.describe "Api::V1::LibraryDocuments", type: :request do
 
       post "/api/v1/library_documents", params: { library_document: { title: "Test", folder_id: other_folder.id, file: sample_file } }, headers: auth_headers(owner)
 
-      expect(response).to have_http_status(:unprocessable_entity)
+      expect(response).to have_http_status(:unprocessable_content)
     end
 
     it "forbids a coach from adding documents" do

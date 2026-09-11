@@ -94,7 +94,7 @@ RSpec.describe "Api::V1::Coaches", type: :request do
 
       post "/api/v1/coaches/#{coach.id}/login", params: { email: "taken@example.com", password: "password123" }, headers: auth_headers(owner)
 
-      expect(response).to have_http_status(:unprocessable_entity)
+      expect(response).to have_http_status(:unprocessable_content)
     end
   end
 end

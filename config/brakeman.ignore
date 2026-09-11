@@ -1,0 +1,29 @@
+{
+  "ignored_warnings": [
+    {
+      "warning_type": "Mass Assignment",
+      "warning_code": 105,
+      "fingerprint": "618d06f01b52497df52ddea54c1fac1ff174f941f4a0bf196dabbb4bef7d0e8b",
+      "check_name": "PermitAttributes",
+      "message": "Potentially dangerous key allowed for mass assignment",
+      "file": "app/controllers/api/v1/staff_controller.rb",
+      "line": 92,
+      "link": "https://brakemanscanner.org/docs/warning_types/mass_assignment/",
+      "code": "params.require(:staff_member).permit(:role, :role_id, :active, :coach_id, :birthdate)",
+      "render_path": null,
+      "location": {
+        "type": "method",
+        "class": "Api::V1::StaffController",
+        "method": "staff_params"
+      },
+      "user_input": null,
+      "confidence": "Medium",
+      "cwe_id": [
+        915
+      ],
+      "note": "False positive — `role`/`role_id` from staff_params are never mass-assigned directly. `role_assignment` (same file) re-derives a validated { role:, assigned_role: } hash from them — role_id is looked up via current_company.roles.find (tenant-scoped, raises on a foreign/bogus id) and role only ever reaches the model as one of the enum's own values."
+    }
+  ],
+  "updated": "2026-09-11 16:00:00 +0100",
+  "brakeman_version": "8.0.6"
+}
