@@ -82,6 +82,17 @@ RSpec.describe "Api::V1::Contracts", type: :request do
 
       expect(response).to have_http_status(:forbidden)
     end
+
+    it "logs an audit entry for the new contract" do
+      plan = create(:contract_type, company: company, active: true)
+      client = create(:client, company: company)
+
+      post "/api/v1/contracts", params: { client_id: client.id, contract_type_id: plan.id }, headers: auth_headers(owner)
+
+      log = AuditLog.last
+      expect(log.action).to eq("contract.created")
+      expect(log.company_id).to eq(company.id)
+    end
   end
 
   describe "PATCH /api/v1/contracts/:id" do

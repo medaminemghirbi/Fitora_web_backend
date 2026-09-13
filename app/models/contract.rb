@@ -23,18 +23,24 @@ class Contract < ApplicationRecord
     contract_periods.order(starts_at: :desc, created_at: :desc).first
   end
 
-  def usable_for?(location:, activity:)
-    return false unless current_period&.active? && (expires_at.nil? || expires_at >= Time.current)
-    return false if contract_type.booking_limit.present? && !contract_type.unlimited_bookings? && remaining_bookings.to_i <= 0
+  # `period:` lets a caller re-check eligibility against an already-locked
+  # ContractPeriod row instead of the unlocked current_period lookup — see
+  # Bookings::Create, which re-verifies through a `SELECT ... FOR UPDATE`
+  # row after picking a candidate contract, closing the check-then-act
+  # window a concurrent booking against the same contract could otherwise
+  # slip through (same class of race the Session capacity lock exists for).
+  def usable_for?(location:, activity:, period: current_period)
+    return false unless period&.active? && (period.expires_at.nil? || period.expires_at >= Time.current)
+    return false if contract_type.booking_limit.present? && !contract_type.unlimited_bookings? && period.remaining_bookings.to_i <= 0
 
     contract_type.grants_access_to?(location: location, activity: activity)
   end
 
-  def consume_booking!
+  def consume_booking!(period: current_period)
     return if contract_type.unlimited_bookings?
-    return if current_period&.remaining_bookings.nil?
+    return if period&.remaining_bookings.nil?
 
-    current_period.decrement!(:remaining_bookings)
+    period.decrement!(:remaining_bookings)
   end
 
   def restore_booking!

@@ -25,6 +25,14 @@ RSpec.describe "Api::V1::Clients", type: :request do
 
       expect(response).to have_http_status(:created)
     end
+
+    it "logs an audit entry for the new client" do
+      post "/api/v1/clients", params: { client: { first_name: "Ahmed", last_name: "Ben Ali", phone: "20000000" } }, headers: auth_headers(owner)
+
+      log = AuditLog.last
+      expect(log.action).to eq("client.created")
+      expect(log.company_id).to eq(company.id)
+    end
   end
 
   describe "GET /api/v1/clients" do
@@ -110,6 +118,17 @@ RSpec.describe "Api::V1::Clients", type: :request do
 
       expect(response).to have_http_status(:ok)
       expect(client.reload.login_enabled?).to be true
+    end
+
+    it "logs an audit entry noting login was enabled" do
+      client = create(:client, company: company, email: "gymgoer3@example.com")
+
+      patch "/api/v1/clients/#{client.id}", params: { client: { password: "password123" } }, headers: auth_headers(owner)
+
+      log = AuditLog.last
+      expect(log.action).to eq("client.updated")
+      expect(log.company_id).to eq(company.id)
+      expect(log.metadata["login_enabled"]).to be true
     end
 
     it "rejects enabling login without an email on file" do

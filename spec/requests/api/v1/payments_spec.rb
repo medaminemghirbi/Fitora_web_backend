@@ -44,5 +44,32 @@ RSpec.describe "Api::V1::Payments", type: :request do
 
       expect(response).to have_http_status(:not_found)
     end
+
+    it "logs an audit entry for the recorded payment" do
+      client = create(:client, company: company)
+      contract = create(:contract, client: client, contract_type: create(:contract_type, company: company))
+
+      post "/api/v1/payments",
+           params: { client_id: client.id, amount: 50, payment_method: "cash", contract_period_id: contract.current_period.id },
+           headers: auth_headers(owner)
+
+      expect(response).to have_http_status(:created)
+      log = AuditLog.last
+      expect(log.action).to eq("payment.recorded")
+      expect(log.company_id).to eq(company.id)
+    end
+  end
+
+  describe "POST /api/v1/payments/:id/refund" do
+    it "logs an audit entry for the refund" do
+      payment = create(:payment, company: company, client: create(:client, company: company), status: :paid)
+
+      post "/api/v1/payments/#{payment.id}/refund", headers: auth_headers(owner)
+
+      expect(response).to have_http_status(:ok)
+      log = AuditLog.last
+      expect(log.action).to eq("payment.refunded")
+      expect(log.company_id).to eq(company.id)
+    end
   end
 end

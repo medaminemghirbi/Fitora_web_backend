@@ -25,6 +25,14 @@ RSpec.describe "Api::V1::Owner::Reports", type: :request do
       expect(response).to have_http_status(:ok)
     end
 
+    it "logs an audit entry for the export" do
+      get "/api/v1/owner/reports/export", params: { period_type: "year", period: Date.current.year.to_s }, headers: auth_headers(owner)
+
+      log = AuditLog.last
+      expect(log.action).to eq("report.exported")
+      expect(log.company_id).to eq(company.id)
+    end
+
     it "rejects an invalid period" do
       get "/api/v1/owner/reports/export", params: { period_type: "month", period: "not-a-period" }, headers: auth_headers(owner)
 

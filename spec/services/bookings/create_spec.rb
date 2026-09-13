@@ -81,4 +81,25 @@ RSpec.describe Bookings::Create do
     expect(successes).to eq(1)
     expect(session.reload.confirmed_bookings_count).to eq(1)
   end
+
+  it "does not let a contract's booking credit go negative under concurrent requests against different sessions" do
+    company = create(:company)
+    client = create(:client, company: company)
+    plan = create(:contract_type, company: company, unlimited_bookings: false, booking_limit: 1)
+    contract = create(:contract, client: client, contract_type: plan, remaining_bookings: 1)
+    session_a = create(:session, activity: create(:activity, location: company.locations.first), capacity: 5)
+    session_b = create(:session, activity: session_a.activity, location: session_a.location, capacity: 5)
+
+    results = [ session_a, session_b ].map do |session|
+      Thread.new do
+        ActiveRecord::Base.connection_pool.with_connection do
+          described_class.call(client: client, session: session)
+        end
+      end
+    end.map(&:value)
+
+    successes = results.count(&:success?)
+    expect(successes).to eq(1)
+    expect(contract.current_period.reload.remaining_bookings).to eq(0)
+  end
 end

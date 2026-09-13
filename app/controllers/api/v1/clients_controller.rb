@@ -35,6 +35,10 @@ module Api
         client = current_company.clients.new(client_params)
 
         if client.save
+          AuditLogs::Record.call(
+            company: current_company, user: current_user, action: "client.created",
+            auditable: client, metadata: { name: client.full_name }
+          )
           render json: { client: ClientSerializer.new(client).as_json }, status: :created
         else
           render json: { error: client.errors.full_messages.first, errors: client.errors.full_messages }, status: :unprocessable_content
@@ -50,6 +54,10 @@ module Api
             raw = @client.generate_email_verification_token!
             AccountMailer.email_verification(@client, raw).deliver_later
           end
+          AuditLogs::Record.call(
+            company: current_company, user: current_user, action: "client.updated",
+            auditable: @client, metadata: { name: @client.full_name, login_enabled: login_newly_enabled }
+          )
           render json: { client: ClientSerializer.new(@client).as_json }
         else
           render json: { error: @client.errors.full_messages.first, errors: @client.errors.full_messages }, status: :unprocessable_content

@@ -98,6 +98,28 @@ RSpec.describe "Api::V1::WorkContracts & LeaveRequests", type: :request do
       expect(response.parsed_body["current_work_contract"]["id"]).to eq(contract.id)
       expect(response.parsed_body["paid_leave_balance"]).to include("entitlement" => 30.0, "taken" => 5.0, "balance" => 25.0)
     end
+
+    it "logs an audit entry on update" do
+      contract = create(:work_contract, company: company, staff_member: staff, work_contract_type: cdi)
+
+      patch "/api/v1/work_contracts/#{contract.id}", params: { work_contract: { job_title: "Manager" } }, headers: auth_headers(owner)
+
+      expect(response).to have_http_status(:ok)
+      log = AuditLog.last
+      expect(log.action).to eq("work_contract.updated")
+      expect(log.company_id).to eq(company.id)
+    end
+
+    it "logs an audit entry on destroy" do
+      contract = create(:work_contract, company: company, staff_member: staff, work_contract_type: cdi)
+
+      delete "/api/v1/work_contracts/#{contract.id}", headers: auth_headers(owner)
+
+      expect(response).to have_http_status(:no_content)
+      log = AuditLog.last
+      expect(log.action).to eq("work_contract.deleted")
+      expect(log.company_id).to eq(company.id)
+    end
   end
 
   describe "absence types + leave requests" do

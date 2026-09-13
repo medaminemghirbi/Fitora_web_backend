@@ -32,7 +32,13 @@ module Bookings
           contract = find_contract_coverage(company: company, location: locked_session.location, activity: activity)
 
           if contract
-            booking = confirm_with_contract(locked_session, contract)
+            locked_period = contract.contract_periods.lock.find(contract.current_period.id)
+
+            if contract.usable_for?(location: locked_session.location, activity: activity, period: locked_period)
+              booking = confirm_with_contract(locked_session, contract, locked_period)
+            else
+              error = "This client needs an active contract to book this activity."
+            end
           else
             error = "This client needs an active contract to book this activity."
           end
@@ -60,17 +66,17 @@ module Bookings
             .find { |c| c.usable_for?(location: location, activity: activity) }
     end
 
-    def confirm_with_contract(locked_session, contract)
+    def confirm_with_contract(locked_session, contract, period)
       booking = locked_session.bookings.create!(
         client: client,
         status: :confirmed,
         amount: 0,
         currency: locked_session.activity.location.company.currency,
         payment_status: :paid,
-        contract_period: contract.current_period
+        contract_period: period
       )
 
-      contract.consume_booking!
+      contract.consume_booking!(period: period)
 
       booking
     end

@@ -30,7 +30,7 @@ module ModuleCatalog
     "hr"          => { permissions: %w[coaches] },
     "ged"         => { permissions: %w[company_library] },
     "payroll"     => { permissions: %w[] },
-    "suppliers"   => { permissions: %w[] }
+    "suppliers"   => { permissions: %w[suppliers] }
   }.freeze
 
   KEYS = CATALOG.keys.freeze

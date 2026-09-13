@@ -5,6 +5,25 @@ RSpec.describe "Api::V1::Suppliers", type: :request do
   let!(:company) { create(:company, owner: owner) }
 
   context "suppliers" do
+    describe "authorization" do
+      it "forbids a coach (no suppliers capability by default) from browsing suppliers" do
+        coach_staff = create(:staff_member, company: company, role: :coach)
+
+        get "/api/v1/suppliers", headers: auth_headers(coach_staff.user)
+
+        expect(response).to have_http_status(:forbidden)
+      end
+
+      it "lets a staff member whose role was granted the suppliers capability manage suppliers" do
+        role = create(:role, company: company, permissions: %w[suppliers])
+        staff = create(:staff_member, company: company, assigned_role: role)
+
+        get "/api/v1/suppliers", headers: auth_headers(staff.user)
+
+        expect(response).to have_http_status(:ok)
+      end
+    end
+
     describe "GET /api/v1/suppliers" do
       it "lists this company's suppliers, alphabetically" do
         create(:supplier, company: company, name: "Zenith Fournitures")

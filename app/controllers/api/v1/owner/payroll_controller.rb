@@ -29,6 +29,11 @@ module Api
           pdf = Payroll::SheetPdf.call(company: current_company, sheet: sheet, employees: employees)
           suffix = params[:staff_member_id].present? ? employees.first[:name].parameterize : "equipe"
 
+          AuditLogs::Record.call(
+            company: current_company, user: current_user, action: "payroll.exported",
+            auditable: current_company, metadata: { month: sheet[:month], scope: suffix }
+          )
+
           send_data pdf,
                     filename: "pre-fiche-paie-#{sheet[:month]}-#{suffix}.pdf",
                     type: "application/pdf",

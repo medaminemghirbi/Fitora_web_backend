@@ -57,6 +57,10 @@ module Api
         )
 
         if result.success?
+          AuditLogs::Record.call(
+            company: current_company, user: current_user, action: "contract.created",
+            auditable: result.contract, metadata: { client: client.full_name, plan: plan.name }
+          )
           render json: {
             contract: ContractSerializer.new(result.contract).as_json,
             payment: PaymentSerializer.new(result.payment).as_json

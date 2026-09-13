@@ -2,6 +2,7 @@ module Api
   module V1
     class BookingsController < BaseController
       before_action :require_company!
+      before_action -> { require_capability!(:bookings) }, only: :index
       before_action :set_booking, only: [ :show, :cancel, :remind ]
 
       # GET /api/v1/bookings — filterable list of the company's bookings (coaches

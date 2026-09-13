@@ -102,10 +102,11 @@ RSpec.describe "Api::V1::Bookings", type: :request do
       expect(body.first["client"]["id"]).to eq(client.id)
     end
 
-    it "narrows a coach to bookings on their own sessions" do
+    it "narrows a coach (granted the bookings capability) to bookings on their own sessions" do
       coach_profile = create(:coach, company: company)
       create(:coach_location, coach: coach_profile, location: location)
-      coach_staff = create(:staff_member, company: company, role: :coach, coach: coach_profile)
+      bookings_role = create(:role, company: company, permissions: %w[bookings])
+      coach_staff = create(:staff_member, company: company, role: :coach, coach: coach_profile, assigned_role: bookings_role)
       own_session = create(:session, activity: activity, location: location, coach: coach_profile)
       other_session = create(:session, activity: activity, location: location)
       create(:booking, client: client, session: own_session)
@@ -114,6 +115,14 @@ RSpec.describe "Api::V1::Bookings", type: :request do
       get "/api/v1/bookings", headers: auth_headers(coach_staff.user)
 
       expect(response.parsed_body["bookings"].size).to eq(1)
+    end
+
+    it "forbids a coach with no bookings capability from browsing the booking list" do
+      coach = create(:staff_member, company: company, role: :coach)
+
+      get "/api/v1/bookings", headers: auth_headers(coach.user)
+
+      expect(response).to have_http_status(:forbidden)
     end
   end
 

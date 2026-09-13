@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_09_11_152538) do
+ActiveRecord::Schema[8.1].define(version: 2026_09_11_165022) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "btree_gist"
   enable_extension "pg_catalog.plpgsql"
@@ -149,6 +149,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_11_152538) do
     t.string "phone"
     t.datetime "reset_password_sent_at"
     t.string "reset_password_token_digest"
+    t.integer "token_version", default: 0, null: false
     t.datetime "updated_at", null: false
     t.index ["company_id", "created_at"], name: "index_clients_on_company_id_and_created_at"
     t.index ["company_id", "first_name", "last_name"], name: "index_clients_on_company_id_and_first_name_and_last_name"
@@ -231,6 +232,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_11_152538) do
     t.index ["contract_id", "status"], name: "index_contract_periods_on_contract_id_and_status"
     t.index ["contract_id"], name: "index_contract_periods_on_contract_id"
     t.index ["status", "expires_at"], name: "index_contract_periods_on_status_and_expires_at"
+    t.check_constraint "remaining_bookings IS NULL OR remaining_bookings >= 0", name: "remaining_bookings_not_negative"
   end
 
   create_table "contract_type_activities", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
@@ -551,6 +553,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_11_152538) do
     t.datetime "reset_password_sent_at"
     t.string "reset_password_token_digest"
     t.integer "role", default: 1, null: false
+    t.integer "token_version", default: 0, null: false
     t.datetime "updated_at", null: false
     t.index ["email"], name: "index_users_on_email", unique: true
     t.index ["email"], name: "index_users_on_email_trgm", opclass: :gin_trgm_ops, using: :gin

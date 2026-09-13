@@ -46,6 +46,10 @@ module Api
         )
 
         if result.success?
+          AuditLogs::Record.call(
+            company: current_company, user: current_user, action: "payment.recorded",
+            auditable: result.payment, metadata: { client: client.full_name, amount: result.payment.amount, method: result.payment.payment_method }
+          )
           render json: { payment: PaymentSerializer.new(result.payment).as_json }, status: :created
         else
           render json: { error: result.error }, status: :unprocessable_content
@@ -57,6 +61,10 @@ module Api
         result = Payments::Refund.call(payment: @payment)
 
         if result.success?
+          AuditLogs::Record.call(
+            company: current_company, user: current_user, action: "payment.refunded",
+            auditable: @payment, metadata: { client: @payment.client.full_name, amount: @payment.amount }
+          )
           render json: { payment: PaymentSerializer.new(@payment.reload).as_json }
         else
           render json: { error: result.error }, status: :unprocessable_content

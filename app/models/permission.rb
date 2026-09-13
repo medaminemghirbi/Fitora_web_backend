@@ -19,7 +19,8 @@ module Permission
     "reports"         => "Dashboard & reports",
     "checkin"         => "Attendance check-in",
     "locations"       => "Locations",
-    "company_library" => "Document library"
+    "company_library" => "Document library",
+    "suppliers"       => "Suppliers"
   }.freeze
 
   ALL = CATALOG.keys.freeze

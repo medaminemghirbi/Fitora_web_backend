@@ -44,6 +44,11 @@ module Api
       # PATCH /api/v1/work_contracts/:id
       def update
         if @contract.update(contract_params)
+          AuditLogs::Record.call(
+            company: current_company, user: current_user, action: "work_contract.updated",
+            auditable: @contract,
+            metadata: { staff_member_id: @contract.staff_member_id, coach_id: @contract.coach_id }
+          )
           render json: { work_contract: WorkContractSerializer.new(@contract).as_json }
         else
           render_error(@contract)
@@ -52,7 +57,12 @@ module Api
 
       # DELETE /api/v1/work_contracts/:id
       def destroy
+        metadata = { staff_member_id: @contract.staff_member_id, coach_id: @contract.coach_id }
         @contract.destroy
+        AuditLogs::Record.call(
+          company: current_company, user: current_user, action: "work_contract.deleted",
+          auditable: @contract, metadata: metadata
+        )
         head :no_content
       end
 

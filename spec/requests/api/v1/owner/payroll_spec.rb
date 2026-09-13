@@ -64,6 +64,14 @@ RSpec.describe "Api::V1::Owner::Payroll", type: :request do
     expect(response.headers["Content-Disposition"]).to include(".pdf")
   end
 
+  it "logs an audit entry for the export" do
+    get "/api/v1/owner/payroll/export", params: { month: "2026-08" }, headers: auth_headers(owner)
+
+    log = AuditLog.last
+    expect(log.action).to eq("payroll.exported")
+    expect(log.company_id).to eq(company.id)
+  end
+
   it "is owner-only" do
     staff2 = create(:staff_member, company: company, role: :receptionist)
     get "/api/v1/owner/payroll", params: { month: "2026-08" }, headers: auth_headers(staff2.user)

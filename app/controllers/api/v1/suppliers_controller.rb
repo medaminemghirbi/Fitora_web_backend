@@ -2,6 +2,7 @@ module Api
   module V1
     class SuppliersController < BaseController
       before_action :require_company!
+      before_action -> { require_capability!(:suppliers) }
       before_action :set_supplier, only: [ :show, :update, :destroy ]
 
       # GET /api/v1/suppliers?search=
