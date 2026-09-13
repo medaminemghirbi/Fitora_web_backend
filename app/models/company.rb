@@ -1,11 +1,10 @@
 class Company < ApplicationRecord
   MOBILE_AUTH_KEY_LENGTH = 8
 
-  # Same allowlist/ceiling as HasPhoto (Supplier) —
-  # logo is the one has_one_attached in the app that predates that concern
-  # and had no validation at all. content_type below is Marcel-sniffed by
-  # Active Storage, not the client-declared header, so a renamed .html/.svg
-  # can't pass as an image.
+  # Same allowlist/ceiling as HasPhoto — logo is the one has_one_attached in
+  # the app that predates that concern and had no validation at all.
+  # content_type below is Marcel-sniffed by Active Storage, not the
+  # client-declared header, so a renamed .html/.svg can't pass as an image.
   ALLOWED_LOGO_TYPES = %w[image/jpeg image/png image/webp].freeze
   MAX_LOGO_SIZE = 10.megabytes
 
@@ -37,17 +36,10 @@ class Company < ApplicationRecord
   has_many :payments, dependent: :destroy
   has_many :staff_members, dependent: :destroy
   has_many :roles, dependent: :destroy
-  has_many :work_contract_types, dependent: :destroy
-  has_many :work_contracts, dependent: :destroy
-  has_many :absence_types, dependent: :destroy
-  has_many :leave_requests, dependent: :destroy
   has_many :recurring_schedules, dependent: :destroy
   has_many :audit_logs, dependent: :destroy
-  has_many :library_folders, dependent: :destroy
-  has_many :library_documents, dependent: :destroy
   has_many :notifications, dependent: :destroy
   has_many :support_tickets, dependent: :destroy
-  has_many :suppliers, dependent: :destroy
 
   validates :name, presence: true
   validates :timezone, presence: true
@@ -109,8 +101,7 @@ class Company < ApplicationRecord
     steps = {
       activity: location&.activities&.exists? || false,
       contract_type: contract_types.exists?,
-      coach: coaches.exists?,
-      work_contract: work_contracts.exists?
+      coach: coaches.exists?
     }
     steps.merge(dismissed: setup_dismissed_at.present?, complete: steps.values.all?)
   end

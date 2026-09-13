@@ -27,8 +27,6 @@ class StaffMember < ApplicationRecord
 
   has_many :staff_member_locations, dependent: :destroy
   has_many :locations, through: :staff_member_locations
-  has_many :work_contracts, dependent: :destroy
-  has_many :leave_requests, dependent: :destroy
 
   enum :role, ROLES
 
@@ -70,21 +68,6 @@ class StaffMember < ApplicationRecord
     return assigned_role.permissions if assigned_role
 
     CAPABILITIES.fetch(role.to_sym, []).map(&:to_s)
-  end
-
-  # The employee's live employment contract, if any — the active one, else
-  # the most recent. Feeds the RH pré-fiche de paie and the CP balance.
-  def current_work_contract
-    work_contracts.active.order(starts_on: :desc).first || work_contracts.order(starts_on: :desc).first
-  end
-
-  # Paid-leave (CP) balance for a calendar year: annual entitlement from the
-  # current work contract, minus approved paid leave taken that year.
-  def paid_leave_balance(year: Date.current.year)
-    entitlement = current_work_contract&.paid_leave_days_per_year.to_f
-    taken = leave_requests.counts_against_balance.in_year(year).sum(:days_count).to_f
-
-    { year: year, entitlement: entitlement, taken: taken, balance: (entitlement - taken).round(1) }
   end
 
   private

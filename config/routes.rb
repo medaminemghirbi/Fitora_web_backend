@@ -88,22 +88,9 @@ Rails.application.routes.draw do
       resources :staff, only: [ :index, :show, :create, :update ]
       resources :roles, only: [ :index, :create, :update, :destroy ]
 
-      # RH — employment contracts + leave (foundation for the pré-fiche de paie)
-      resources :work_contract_types, only: [ :index, :create, :update, :destroy ]
-      resources :absence_types, only: [ :index, :create, :update, :destroy ]
-      resources :work_contracts, only: [ :index, :show, :create, :update, :destroy ]
-      resources :leave_requests, only: [ :index, :create, :update, :destroy ]
-
       resources :attendance, only: [ :index, :create ]
       resources :recurring_schedules, only: [ :index, :create, :update ]
       resources :audit_logs, only: [ :index ]
-      resources :library_folders, only: [ :index, :show, :create, :update, :destroy ]
-      resources :library_documents, only: [ :index, :show, :create, :update, :destroy ] do
-        member do
-          get :file
-        end
-      end
-      resources :suppliers, only: [ :index, :show, :create, :update, :destroy ]
       resources :app_updates, only: [ :index ]
       resources :support_tickets, only: [ :index, :create ] do
         member do
@@ -117,15 +104,12 @@ Rails.application.routes.draw do
           member { post :cancel }
         end
         resources :sessions, only: [ :index ]
-        resources :leave_requests, only: [ :index, :create ]
       end
 
       namespace :owner do
         get "dashboard", to: "dashboard#show"
         get "revenue", to: "revenue#show"
         get "reports/export", to: "reports#export"
-        get "payroll", to: "payroll#index"
-        get "payroll/export", to: "payroll#export"
       end
 
       namespace :admin do

@@ -45,12 +45,6 @@ module Api
             city: company.city,
             timezone: company.timezone
           )
-
-          # Standard employment-contract + absence types (CDI/CDD/SIVP…,
-          # Congé payé/maladie…) for the RH section — the owner can
-          # rename/disable/add their own from Settings.
-          WorkContractType.seed_defaults_for(company)
-          AbsenceType.seed_defaults_for(company)
         end
 
         render json: { company: CompanySerializer.new(company).as_json }, status: :created

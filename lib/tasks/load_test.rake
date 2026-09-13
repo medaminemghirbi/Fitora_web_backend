@@ -49,8 +49,6 @@ namespace :load_test do
       Role.seed_defaults_for(company)
       company.create_subscription!(status: :active, starts_at: Time.current, expires_at: 1.year.from_now)
       location = company.locations.create!(name: company.name, timezone: company.timezone)
-      WorkContractType.seed_defaults_for(company)
-      AbsenceType.seed_defaults_for(company)
 
       activities = 6.times.map do |a|
         Activity.create!(location: location, name: "Activity #{i}-#{a}", session_format: :collective, duration: 60, capacity: 15)

@@ -10,26 +10,12 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_09_11_165022) do
+ActiveRecord::Schema[8.1].define(version: 2026_09_14_000000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "btree_gist"
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_trgm"
   enable_extension "pgcrypto"
-
-  create_table "absence_types", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
-    t.string "abbreviation", null: false
-    t.boolean "active", default: true, null: false
-    t.uuid "company_id", null: false
-    t.datetime "created_at", null: false
-    t.integer "leave_requests_count", default: 0, null: false
-    t.string "name", null: false
-    t.boolean "paid", default: false, null: false
-    t.integer "position", default: 0, null: false
-    t.datetime "updated_at", null: false
-    t.index ["company_id", "abbreviation"], name: "index_absence_types_on_company_id_and_abbreviation", unique: true
-    t.index ["company_id"], name: "index_absence_types_on_company_id"
-  end
 
   create_table "active_storage_attachments", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
     t.uuid "blob_id", null: false
@@ -288,56 +274,6 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_11_165022) do
     t.index ["created_by_id"], name: "index_contracts_on_created_by_id"
   end
 
-  create_table "leave_requests", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
-    t.uuid "absence_type_id", null: false
-    t.uuid "company_id", null: false
-    t.datetime "created_at", null: false
-    t.decimal "days_count", precision: 5, scale: 1, default: "0.0", null: false
-    t.date "ends_on", null: false
-    t.string "reason"
-    t.uuid "recorded_by_id"
-    t.uuid "staff_member_id", null: false
-    t.date "starts_on", null: false
-    t.integer "status", default: 1, null: false
-    t.datetime "updated_at", null: false
-    t.index ["absence_type_id"], name: "index_leave_requests_on_absence_type_id"
-    t.index ["company_id"], name: "index_leave_requests_on_company_id"
-    t.index ["recorded_by_id"], name: "index_leave_requests_on_recorded_by_id"
-    t.index ["staff_member_id", "starts_on"], name: "index_leave_requests_on_staff_member_id_and_starts_on"
-    t.index ["staff_member_id"], name: "index_leave_requests_on_staff_member_id"
-  end
-
-  create_table "library_documents", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
-    t.boolean "active", default: true, null: false
-    t.uuid "company_id", null: false
-    t.datetime "created_at", null: false
-    t.uuid "created_by_id"
-    t.date "expires_on"
-    t.uuid "folder_id", null: false
-    t.date "issued_on"
-    t.text "notes"
-    t.string "reference_number"
-    t.string "title", null: false
-    t.datetime "updated_at", null: false
-    t.index ["company_id", "expires_on"], name: "index_library_documents_on_company_id_and_expires_on"
-    t.index ["company_id"], name: "index_library_documents_on_company_id"
-    t.index ["created_by_id"], name: "index_library_documents_on_created_by_id"
-    t.index ["folder_id"], name: "index_library_documents_on_folder_id"
-    t.index ["reference_number"], name: "index_library_documents_on_reference_number_trgm", opclass: :gin_trgm_ops, using: :gin
-    t.index ["title"], name: "index_library_documents_on_title_trgm", opclass: :gin_trgm_ops, using: :gin
-  end
-
-  create_table "library_folders", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
-    t.uuid "company_id", null: false
-    t.datetime "created_at", null: false
-    t.uuid "created_by_id"
-    t.string "name", null: false
-    t.datetime "updated_at", null: false
-    t.index ["company_id", "name"], name: "index_library_folders_on_company_id_and_name", unique: true
-    t.index ["company_id"], name: "index_library_folders_on_company_id"
-    t.index ["created_by_id"], name: "index_library_folders_on_created_by_id"
-  end
-
   create_table "locations", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
     t.boolean "active", default: true, null: false
     t.string "address"
@@ -504,27 +440,6 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_11_165022) do
     t.index ["company_id"], name: "index_subscriptions_on_company_id", unique: true
   end
 
-  create_table "suppliers", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
-    t.boolean "active", default: true, null: false
-    t.text "address"
-    t.string "category"
-    t.uuid "company_id", null: false
-    t.string "contact_name"
-    t.datetime "created_at", null: false
-    t.string "email"
-    t.string "name", null: false
-    t.text "notes"
-    t.string "phone"
-    t.datetime "updated_at", null: false
-    t.index ["category"], name: "index_suppliers_on_category_trgm", opclass: :gin_trgm_ops, using: :gin
-    t.index ["company_id", "name"], name: "index_suppliers_on_company_id_and_name"
-    t.index ["company_id"], name: "index_suppliers_on_company_id"
-    t.index ["contact_name"], name: "index_suppliers_on_contact_name_trgm", opclass: :gin_trgm_ops, using: :gin
-    t.index ["email"], name: "index_suppliers_on_email_trgm", opclass: :gin_trgm_ops, using: :gin
-    t.index ["name"], name: "index_suppliers_on_name_trgm", opclass: :gin_trgm_ops, using: :gin
-    t.index ["phone"], name: "index_suppliers_on_phone_trgm", opclass: :gin_trgm_ops, using: :gin
-  end
-
   create_table "support_tickets", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
     t.uuid "company_id", null: false
     t.datetime "created_at", null: false
@@ -563,56 +478,6 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_11_165022) do
     t.index ["reset_password_token_digest"], name: "index_users_on_reset_password_token_digest", unique: true
   end
 
-  create_table "work_contract_types", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
-    t.string "abbreviation", null: false
-    t.boolean "active", default: true, null: false
-    t.uuid "company_id", null: false
-    t.datetime "created_at", null: false
-    t.boolean "fixed_term", default: false, null: false
-    t.string "name", null: false
-    t.integer "position", default: 0, null: false
-    t.datetime "updated_at", null: false
-    t.integer "work_contracts_count", default: 0, null: false
-    t.index ["company_id", "abbreviation"], name: "index_work_contract_types_on_company_id_and_abbreviation", unique: true
-    t.index ["company_id"], name: "index_work_contract_types_on_company_id"
-  end
-
-  create_table "work_contracts", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
-    t.jsonb "allowances", default: [], null: false
-    t.string "bank_iban"
-    t.string "bank_name"
-    t.date "cnss_affiliated_on"
-    t.string "cnss_number"
-    t.uuid "coach_id"
-    t.uuid "company_id", null: false
-    t.datetime "created_at", null: false
-    t.string "currency", default: "TND", null: false
-    t.date "ends_on"
-    t.decimal "gross_monthly_salary", precision: 12, scale: 3, default: "0.0", null: false
-    t.decimal "hourly_rate", precision: 10, scale: 3
-    t.string "job_title"
-    t.text "notes"
-    t.integer "notice_period_days"
-    t.decimal "paid_leave_days_per_year", precision: 5, scale: 1, default: "30.0", null: false
-    t.integer "payment_method", default: 0, null: false
-    t.string "reference"
-    t.uuid "staff_member_id"
-    t.date "starts_on", null: false
-    t.integer "status", default: 0, null: false
-    t.date "terminated_on"
-    t.string "termination_reason"
-    t.date "trial_period_end"
-    t.datetime "updated_at", null: false
-    t.decimal "weekly_hours", precision: 6, scale: 2
-    t.uuid "work_contract_type_id", null: false
-    t.index ["coach_id"], name: "index_work_contracts_on_coach_id"
-    t.index ["company_id"], name: "index_work_contracts_on_company_id"
-    t.index ["staff_member_id", "status"], name: "index_work_contracts_on_staff_member_id_and_status"
-    t.index ["staff_member_id"], name: "index_work_contracts_on_staff_member_id"
-    t.index ["work_contract_type_id"], name: "index_work_contracts_on_work_contract_type_id"
-  end
-
-  add_foreign_key "absence_types", "companies"
   add_foreign_key "active_storage_attachments", "active_storage_blobs", column: "blob_id"
   add_foreign_key "active_storage_variant_records", "active_storage_blobs", column: "blob_id"
   add_foreign_key "activities", "locations"
@@ -639,15 +504,6 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_11_165022) do
   add_foreign_key "contracts", "companies"
   add_foreign_key "contracts", "contract_types"
   add_foreign_key "contracts", "users", column: "created_by_id"
-  add_foreign_key "leave_requests", "absence_types"
-  add_foreign_key "leave_requests", "companies"
-  add_foreign_key "leave_requests", "staff_members"
-  add_foreign_key "leave_requests", "users", column: "recorded_by_id"
-  add_foreign_key "library_documents", "companies"
-  add_foreign_key "library_documents", "library_folders", column: "folder_id"
-  add_foreign_key "library_documents", "users", column: "created_by_id"
-  add_foreign_key "library_folders", "companies"
-  add_foreign_key "library_folders", "users", column: "created_by_id"
   add_foreign_key "locations", "companies"
   add_foreign_key "notifications", "companies"
   add_foreign_key "notifications", "users", column: "recipient_id"
@@ -672,12 +528,6 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_11_165022) do
   add_foreign_key "staff_members", "roles"
   add_foreign_key "staff_members", "users"
   add_foreign_key "subscriptions", "companies"
-  add_foreign_key "suppliers", "companies"
   add_foreign_key "support_tickets", "companies"
   add_foreign_key "support_tickets", "users", column: "created_by_id"
-  add_foreign_key "work_contract_types", "companies"
-  add_foreign_key "work_contracts", "coaches"
-  add_foreign_key "work_contracts", "companies"
-  add_foreign_key "work_contracts", "staff_members"
-  add_foreign_key "work_contracts", "work_contract_types"
 end

@@ -1,6 +1,5 @@
-# Used by Supplier — a single optional photo shown
-# as a thumbnail/card image. Same has_one_attached shape as Company#logo,
-# validated like LibraryDocument's file (Marcel-sniffed content type, not
+# A single optional photo shown as a thumbnail/card image. Same
+# has_one_attached shape as Company#logo (Marcel-sniffed content type, not
 # the client-declared one).
 module HasPhoto
   extend ActiveSupport::Concern

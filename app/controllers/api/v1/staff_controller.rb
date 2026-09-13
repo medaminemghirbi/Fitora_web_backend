@@ -11,16 +11,9 @@ module Api
         render json: { staff: staff.map { |s| StaffMemberSerializer.new(s).as_json } }
       end
 
-      # GET /api/v1/staff/:id — the HR "fiche employé" header: identity plus a
-      # summary of the current work contract and the paid-leave balance.
+      # GET /api/v1/staff/:id
       def show
-        contract = @staff_member.current_work_contract
-
-        render json: {
-          staff_member: StaffMemberSerializer.new(@staff_member).as_json,
-          current_work_contract: contract && WorkContractSerializer.new(contract).as_json,
-          paid_leave_balance: @staff_member.paid_leave_balance
-        }
+        render json: { staff_member: StaffMemberSerializer.new(@staff_member).as_json }
       end
 
       # POST /api/v1/staff — auto-assigned to the company's one location

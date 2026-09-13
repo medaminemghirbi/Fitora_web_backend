@@ -1,7 +1,7 @@
 class Notification < ApplicationRecord
-  KINDS = %w[document_expiring contract_expiring employee_birthday system_update].freeze
+  KINDS = %w[contract_expiring employee_birthday system_update].freeze
 
-  # Company-scoped events (document/contract expiry, birthdays) always carry
+  # Company-scoped events (contract expiry, birthdays) always carry
   # one; a platform-level event fanned out to Fitora admins (system_update)
   # has none — those recipients don't belong to any company.
   belongs_to :company, optional: true

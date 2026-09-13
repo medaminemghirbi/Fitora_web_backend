@@ -19,8 +19,8 @@ class Role < ApplicationRecord
       permissions: Permission::ALL
     },
     # Front desk / daily gym operations. NOT the catalogs (activities,
-    # membership plans), the coach roster, opening hours, or payroll — the
-    # owner can grant those per-role via the roles editor.
+    # membership plans), the coach roster, or opening hours — the owner can
+    # grant those per-role via the roles editor.
     "receptionist" => {
       name: "Réception",
       permissions: %w[sessions bookings clients contracts payments checkin reports]

@@ -20,17 +20,18 @@ module ModuleCatalog
   # Only features with real code behind them belong here. client_portal,
   # messaging, pos, maintenance and analytics were removed (no backend or
   # frontend anywhere); fleet, inventory and appointments were real but cut
-  # by the gym-only product decision. Re-add a key once its feature exists.
+  # by the gym-only product decision. suppliers, ged (company_library) and
+  # payroll (work contracts/leave/absence) were real, implemented features
+  # cut by the same decision — Fitora stays focused on members, subscriptions,
+  # payments, schedule, bookings and team-as-in-coaches. Re-add a key once
+  # its feature exists.
   CATALOG = {
     "clients"     => { permissions: %w[clients] },
     "classes"     => { permissions: %w[activities sessions] },
     "bookings"    => { permissions: %w[bookings checkin] },
     "memberships" => { permissions: %w[contracts contract_types] },
     "billing"     => { permissions: %w[payments] },
-    "hr"          => { permissions: %w[coaches] },
-    "ged"         => { permissions: %w[company_library] },
-    "payroll"     => { permissions: %w[] },
-    "suppliers"   => { permissions: %w[suppliers] }
+    "hr"          => { permissions: %w[coaches] }
   }.freeze
 
   KEYS = CATALOG.keys.freeze

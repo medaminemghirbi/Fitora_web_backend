@@ -32,8 +32,8 @@ module Api
       end
 
       # GET /api/v1/support_tickets/:id/attachments/:attachment_id — streamed
-      # rather than a public Active Storage URL, same reasoning as
-      # LibraryDocumentsController#file.
+      # rather than a public Active Storage URL, so access still goes through
+      # the tenant/permission check above instead of a guessable public link.
       def attachment
         file = @ticket.attachments.find(params[:attachment_id])
         send_data file.download, filename: file.filename.to_s, type: file.content_type, disposition: "inline"

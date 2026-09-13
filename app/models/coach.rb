@@ -4,7 +4,6 @@ class Coach < ApplicationRecord
   has_many :coach_locations, dependent: :destroy
   has_many :locations, through: :coach_locations
   has_many :sessions, dependent: :nullify
-  has_many :work_contracts, dependent: :destroy
   has_one :staff_member, dependent: :nullify
 
   validates :first_name, :last_name, presence: true

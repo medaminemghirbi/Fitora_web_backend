@@ -4,9 +4,9 @@ RSpec.describe Notifications::Push do
   let(:company) { create(:company) }
   let(:owner) { company.owner }
 
-  def push(dedup: "doc_exp:1")
+  def push(dedup: "contract_exp:1")
     described_class.call(
-      recipient: owner, kind: "document_expiring", data: { "title" => "X" },
+      recipient: owner, kind: "contract_expiring", data: { "title" => "X" },
       url: "/owner/x", dedup_key: dedup
     )
   end

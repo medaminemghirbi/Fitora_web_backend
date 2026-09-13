@@ -34,10 +34,8 @@ module RuboCop
         TENANT_MODELS = %w[
           Client Booking Session Activity Location Coach CoachLocation
           StaffMember StaffMemberLocation Contract ContractPeriod ContractType
-          ContractTypeActivity ContractTypeLocation Payment WorkContract
-          WorkContractType AbsenceType LeaveRequest
-          AttendanceRecord RecurringSchedule LibraryFolder LibraryDocument
-          Supplier SupportTicket Role
+          ContractTypeActivity ContractTypeLocation Payment
+          AttendanceRecord RecurringSchedule SupportTicket Role
           AuditLog Notification
         ].freeze
 
