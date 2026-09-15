@@ -3,7 +3,7 @@ module Api
     module Admin
       class CompaniesController < BaseController
         before_action :require_admin!
-        before_action :set_company, only: [ :show, :update_subscription, :update_settings, :update_mobile_key, :update_debt, :impersonate ]
+        before_action :set_company, only: [ :show, :update_subscription, :update_settings, :update_mobile_key, :update_debt, :update_company_limit, :impersonate ]
 
         # GET /api/v1/admin/companies
         def index
@@ -107,6 +107,26 @@ module Api
             render json: { company: AdminCompanySerializer.new(@company).as_json }
           else
             render json: { error: @company.errors.full_messages.first, errors: @company.errors.full_messages }, status: :unprocessable_content
+          end
+        end
+
+        # PATCH /api/v1/admin/companies/:id/company_limit — { company_limit }
+        # (1, 3, or blank/null for unlimited). Reached via any one of the
+        # owner's companies in the admin console, but it governs the OWNER,
+        # not this company — every company they run shares the same tier
+        # and its price (Company#monthly_subscription_cents).
+        def update_company_limit
+          owner = @company.owner
+          previous = owner.company_limit
+
+          if owner.update(company_limit: params[:company_limit].presence)
+            AuditLogs::Record.call(
+              company: @company, user: current_user, action: "owner.company_limit_changed",
+              auditable: owner, metadata: { from: previous, to: owner.company_limit }
+            )
+            render json: { company: AdminCompanySerializer.new(@company.reload).as_json }
+          else
+            render json: { error: owner.errors.full_messages.first, errors: owner.errors.full_messages }, status: :unprocessable_content
           end
         end
 

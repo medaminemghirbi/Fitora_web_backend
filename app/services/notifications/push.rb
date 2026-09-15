@@ -9,7 +9,7 @@ module Notifications
       # Every company-scoped notification still requires one (a nil company
       # here would silently be a bug in the caller); a platform-level event
       # aimed at a Fitora admin has none by design — see Notification#company.
-      company = recipient.company
+      company = recipient.active_company || recipient.staff_member&.company
       return nil if company.nil? && !recipient.admin?
 
       recipient.notifications.create!(

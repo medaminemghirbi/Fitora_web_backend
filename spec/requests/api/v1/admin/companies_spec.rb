@@ -165,6 +165,64 @@ RSpec.describe "Api::V1::Admin::Companies", type: :request do
     end
   end
 
+  describe "PATCH /api/v1/admin/companies/:id/company_limit" do
+    it "raises the owner's tier, affecting every company they run" do
+      company = create(:company)
+      other_company = create(:company, owner: company.owner)
+
+      patch "/api/v1/admin/companies/#{company.id}/company_limit",
+            params: { company_limit: 3 },
+            headers: auth_headers(admin)
+
+      expect(response).to have_http_status(:ok)
+      expect(company.owner.reload.company_limit).to eq(3)
+      expect(response.parsed_body["company"]["owner"]["company_limit"]).to eq(3)
+      expect(response.parsed_body["company"]["owner"]["companies_count"]).to eq(2) # company + other_company, same owner
+      expect(other_company.reload.owner.company_limit).to eq(3)
+    end
+
+    it "sets the unlimited tier with a blank value" do
+      company = create(:company)
+
+      patch "/api/v1/admin/companies/#{company.id}/company_limit",
+            params: { company_limit: "" },
+            headers: auth_headers(admin)
+
+      expect(response).to have_http_status(:ok)
+      expect(company.owner.reload.company_limit).to be_nil
+    end
+
+    it "rejects a tier that isn't 1, 3, or unlimited" do
+      company = create(:company)
+
+      patch "/api/v1/admin/companies/#{company.id}/company_limit",
+            params: { company_limit: 2 },
+            headers: auth_headers(admin)
+
+      expect(response).to have_http_status(:unprocessable_content)
+    end
+
+    it "logs an audit entry" do
+      company = create(:company)
+
+      patch "/api/v1/admin/companies/#{company.id}/company_limit", params: { company_limit: 3 }, headers: auth_headers(admin)
+
+      log = AuditLog.last
+      expect(log.action).to eq("owner.company_limit_changed")
+      expect(log.metadata["to"]).to eq(3)
+    end
+
+    it "is admin-only" do
+      company = create(:company)
+
+      patch "/api/v1/admin/companies/#{company.id}/company_limit",
+            params: { company_limit: 3 },
+            headers: auth_headers(create(:user, :owner))
+
+      expect(response).to have_http_status(:forbidden)
+    end
+  end
+
   describe "PATCH /api/v1/admin/companies/:id/mobile_key" do
     it "sets the mobile pairing key to a specific admin-chosen value" do
       company = create(:company)

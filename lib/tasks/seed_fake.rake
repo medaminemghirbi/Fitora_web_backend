@@ -28,7 +28,7 @@ namespace :seed do
     email = ENV.fetch("EMAIL", "owner@fitora.test")
 
     owner = User.find_by!(email: email)
-    company = owner.company or abort("#{email} has no company")
+    company = owner.active_company or abort("#{email} has no active company")
 
     puts "Seeding #{count} fake clients into #{company.name} (#{email})…"
     now = Time.current
@@ -69,7 +69,7 @@ namespace :seed do
 
   task fake_clients_clear: :environment do
     email = ENV.fetch("EMAIL", "owner@fitora.test")
-    company = User.find_by!(email: email).company
+    company = User.find_by!(email: email).active_company
     deleted = company.clients.where("notes LIKE '[seed]%'").delete_all
     puts "Removed #{deleted} seeded clients from #{company.name}."
   end

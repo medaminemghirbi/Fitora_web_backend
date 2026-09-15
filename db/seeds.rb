@@ -10,8 +10,11 @@
 # owner side, register a real company via POST /api/v1/company (or
 # /auth/register on the frontend) after seeding.
 
-puts "Seeding the reference subscription price + platform settings..."
-SubscriptionPrice.for(SubscriptionPrice::REFERENCE_CURRENCY) # TND monthly price row
+puts "Seeding the reference subscription prices + platform settings..."
+# One row per company-limit tier (1 / 3 / unlimited) — every other
+# currency's first-seen price for a tier is derived from this one (see
+# SubscriptionPrice.for), so all three need to exist up front.
+SubscriptionPrice::TIERS.each { |tier| SubscriptionPrice.for(SubscriptionPrice::REFERENCE_CURRENCY, company_limit: tier) }
 PlatformSetting.current # the singleton (annual discount = 10%)
 
 puts "Seeding the platform admin account..."

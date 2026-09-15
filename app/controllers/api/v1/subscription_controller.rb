@@ -51,8 +51,30 @@ module Api
           annual_subscription_cents: company&.annual_subscription_cents || 0,
           annual_discount_percent: company&.annual_discount_percent || 0,
           debt_cents: company&.debt_cents || 0,
-          included_modules: ModuleCatalog::KEYS
+          included_modules: ModuleCatalog::KEYS,
+          # How many companies this owner may run, and what each tier
+          # costs in their currency — Company#monthly_subscription_cents
+          # above is just "the price of the tier they're already on";
+          # this is the full comparison for an upgrade prompt.
+          company_limit: current_user.company_limit,
+          companies_count: current_user.companies.count,
+          company_limit_reached: current_user.company_limit_reached?,
+          company_tiers: company_tiers(company&.currency)
         }
+      end
+
+      def company_tiers(currency)
+        return [] if currency.blank?
+
+        discount = PlatformSetting.current.annual_discount_percent
+        SubscriptionPrice::TIERS.map do |tier|
+          price = SubscriptionPrice.for(currency, company_limit: tier)
+          {
+            company_limit: price.unlimited? ? nil : tier,
+            monthly_cents: price.monthly_cents,
+            annual_cents: (price.monthly_cents * 12 * (100 - discount) / 100.0).round
+          }
+        end
       end
     end
   end

@@ -14,7 +14,7 @@ class Company < ApplicationRecord
   # language switch inside a company's app.
   LOCALES = %w[fr en ar].freeze
 
-  belongs_to :owner, class_name: "User", inverse_of: :company
+  belongs_to :owner, class_name: "User", inverse_of: :companies
 
   # White-label branding — logo shown in the owner/coach shells, primary_color
   # overrides --color-primary (see BrandingService on the frontend, which
@@ -115,9 +115,11 @@ class Company < ApplicationRecord
   end
 
   # The company's monthly subscription price, in its own currency — what
-  # its off-app subscription costs per month.
+  # its owner's current company-limit tier costs per month. Priced per
+  # OWNER (the tier governs how many companies they may run), not per
+  # company, so every company under one owner shows the same price.
   def monthly_subscription_cents
-    SubscriptionPrice.for(currency).monthly_cents
+    SubscriptionPrice.for(currency, company_limit: owner.company_limit).monthly_cents
   end
 
   # Platform-wide discount applied to a full year paid up front (info only

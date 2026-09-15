@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_09_14_000000) do
+ActiveRecord::Schema[8.1].define(version: 2026_09_14_231826) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "btree_gist"
   enable_extension "pg_catalog.plpgsql"
@@ -200,7 +200,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_14_000000) do
     t.index ["city"], name: "index_companies_on_city_trgm", opclass: :gin_trgm_ops, using: :gin
     t.index ["mobile_auth_key"], name: "index_companies_on_mobile_auth_key", unique: true
     t.index ["name"], name: "index_companies_on_name_trgm", opclass: :gin_trgm_ops, using: :gin
-    t.index ["owner_id"], name: "index_companies_on_owner_id", unique: true
+    t.index ["owner_id"], name: "index_companies_on_owner_id"
     t.index ["slug"], name: "index_companies_on_slug", unique: true
   end
 
@@ -374,6 +374,17 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_14_000000) do
     t.index ["company_id"], name: "index_roles_on_company_id"
   end
 
+  create_table "salles", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.boolean "active", default: true, null: false
+    t.integer "capacity", null: false
+    t.datetime "created_at", null: false
+    t.text "description"
+    t.uuid "location_id", null: false
+    t.string "name", null: false
+    t.datetime "updated_at", null: false
+    t.index ["location_id"], name: "index_salles_on_location_id"
+  end
+
   create_table "sessions", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
     t.uuid "activity_id", null: false
     t.integer "capacity", null: false
@@ -420,11 +431,12 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_14_000000) do
   end
 
   create_table "subscription_prices", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.integer "company_limit", default: 1, null: false
     t.datetime "created_at", null: false
     t.string "currency", null: false
     t.integer "monthly_cents", default: 0, null: false
     t.datetime "updated_at", null: false
-    t.index ["currency"], name: "index_subscription_prices_on_currency", unique: true
+    t.index ["currency", "company_limit"], name: "index_subscription_prices_on_currency_and_tier", unique: true
   end
 
   create_table "subscriptions", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
@@ -455,6 +467,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_14_000000) do
 
   create_table "users", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
     t.boolean "active", default: true, null: false
+    t.uuid "active_company_id"
+    t.integer "company_limit", default: 1
     t.datetime "created_at", null: false
     t.string "email", null: false
     t.datetime "email_verification_sent_at"
@@ -470,6 +484,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_14_000000) do
     t.integer "role", default: 1, null: false
     t.integer "token_version", default: 0, null: false
     t.datetime "updated_at", null: false
+    t.index ["active_company_id"], name: "index_users_on_active_company_id"
     t.index ["email"], name: "index_users_on_email", unique: true
     t.index ["email"], name: "index_users_on_email_trgm", opclass: :gin_trgm_ops, using: :gin
     t.index ["email_verification_token_digest"], name: "index_users_on_email_verification_token_digest", unique: true
@@ -517,6 +532,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_14_000000) do
   add_foreign_key "recurring_schedules", "companies"
   add_foreign_key "recurring_schedules", "locations"
   add_foreign_key "roles", "companies"
+  add_foreign_key "salles", "locations"
   add_foreign_key "sessions", "activities"
   add_foreign_key "sessions", "coaches"
   add_foreign_key "sessions", "locations"
@@ -530,4 +546,5 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_14_000000) do
   add_foreign_key "subscriptions", "companies"
   add_foreign_key "support_tickets", "companies"
   add_foreign_key "support_tickets", "users", column: "created_by_id"
+  add_foreign_key "users", "companies", column: "active_company_id", on_delete: :nullify
 end

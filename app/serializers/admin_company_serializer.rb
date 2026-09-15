@@ -22,7 +22,11 @@ class AdminCompanySerializer
         id: company.owner.id,
         full_name: company.owner.full_name,
         email: company.owner.email,
-        phone: company.owner.phone
+        phone: company.owner.phone,
+        # The tier governs the OWNER, not this one company — every company
+        # under them shares it. nil = unlimited.
+        company_limit: company.owner.company_limit,
+        companies_count: company.owner.companies.count
       },
       subscription: SubscriptionSerializer.new(company.subscription).as_json,
       # The company's subscription price in its own currency — read-only

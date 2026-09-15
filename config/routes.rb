@@ -39,15 +39,22 @@ Rails.application.routes.draw do
         end
       end
 
-      resource :company, only: [ :show, :update, :create ] do
+      resource :company, only: [ :show, :update ] do
         post :regenerate_mobile_key
         get :mobile_key_qr
+      end
+      # Plural: an owner can run more than one company now (see
+      # User#company_limit) — :show/:update above always act on whichever
+      # one is currently active; these list/create/switch between them.
+      resources :companies, only: [ :index, :create ] do
+        member { post :switch }
       end
       get "branding", to: "branding#show"
       get "pairing/:mobile_auth_key", to: "pairing#show"
       post "onboarding/dismiss", to: "onboarding#dismiss"
 
       resource :location, only: [ :show, :update ]
+      resources :salles
       resources :activities
       resources :coaches do
         member do
@@ -55,6 +62,9 @@ Rails.application.routes.draw do
         end
       end
       resources :sessions, only: [ :index, :show, :create, :update ] do
+        collection do
+          get :schedule_pdf
+        end
         member do
           post :cancel
         end
@@ -66,6 +76,10 @@ Rails.application.routes.draw do
         end
       end
       resources :clients, only: [ :index, :show, :create, :update ]
+
+      get "data_exchange/:entity/template", to: "data_exchange#template"
+      get "data_exchange/:entity/export", to: "data_exchange#export"
+      post "data_exchange/:entity/import", to: "data_exchange#import"
 
       get "subscription", to: "subscription#show"
       post "subscription/request_upgrade", to: "subscription#request_upgrade"
@@ -119,6 +133,7 @@ Rails.application.routes.draw do
             patch :settings, to: "companies#update_settings"
             patch :mobile_key, to: "companies#update_mobile_key"
             patch :debt, to: "companies#update_debt"
+            patch :company_limit, to: "companies#update_company_limit"
             post :impersonate, to: "companies#impersonate"
           end
         end

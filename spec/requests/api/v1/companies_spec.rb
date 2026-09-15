@@ -21,11 +21,11 @@ RSpec.describe "Api::V1::Companies", type: :request do
     end
   end
 
-  describe "POST /api/v1/company — signup" do
+  describe "POST /api/v1/companies — signup" do
     let(:fresh_owner) { create(:user, :owner) }
 
     it "gives the new company every feature" do
-      post "/api/v1/company",
+      post "/api/v1/companies",
            params: { company: { name: "Iron Box", timezone: "Africa/Tunis", currency: "TND" } },
            headers: auth_headers(fresh_owner)
 
@@ -33,11 +33,107 @@ RSpec.describe "Api::V1::Companies", type: :request do
       created = Company.find_by(owner: fresh_owner)
       expect(created.enabled_module_keys).to match_array(%w[base] + ModuleCatalog::KEYS)
     end
+
+    it "becomes the owner's active company immediately" do
+      post "/api/v1/companies", params: { company: { name: "Iron Box", timezone: "Africa/Tunis", currency: "TND" } },
+                                 headers: auth_headers(fresh_owner)
+
+      created = Company.find_by(owner: fresh_owner)
+      expect(fresh_owner.reload.active_company).to eq(created)
+    end
+
+    it "lets an owner already on the unlimited tier create as many companies as they like" do
+      owner.update!(company_limit: nil)
+
+      post "/api/v1/companies", params: { company: { name: "Second Gym", timezone: "Africa/Tunis", currency: "TND" } },
+                                 headers: auth_headers(owner)
+
+      expect(response).to have_http_status(:created)
+      expect(owner.companies.count).to eq(2)
+    end
+
+    it "blocks a second company once the owner's tier limit (1) is reached" do
+      post "/api/v1/companies", params: { company: { name: "Second Gym", timezone: "Africa/Tunis", currency: "TND" } },
+                                 headers: auth_headers(owner)
+
+      expect(response).to have_http_status(:unprocessable_content)
+      expect(response.parsed_body["error"]).to eq("company_limit_reached")
+      expect(owner.companies.count).to eq(1)
+    end
+
+    it "allows a third company on the tier-3 plan, then blocks a fourth" do
+      owner.update!(company_limit: 3)
+      create(:company, owner: owner)
+
+      post "/api/v1/companies", params: { company: { name: "Third Gym", timezone: "Africa/Tunis", currency: "TND" } },
+                                 headers: auth_headers(owner)
+      expect(response).to have_http_status(:created)
+
+      post "/api/v1/companies", params: { company: { name: "Fourth Gym", timezone: "Africa/Tunis", currency: "TND" } },
+                                 headers: auth_headers(owner)
+      expect(response).to have_http_status(:unprocessable_content)
+    end
+  end
+
+  describe "GET /api/v1/companies" do
+    it "lists every company this owner runs, flagging which one is active" do
+      owner.update!(company_limit: nil)
+      second = create(:company, owner: owner)
+
+      get "/api/v1/companies", headers: auth_headers(owner)
+
+      expect(response).to have_http_status(:ok)
+      body = response.parsed_body["companies"]
+      expect(body.map { |c| c["id"] }).to contain_exactly(company.id, second.id)
+      expect(body.find { |c| c["id"] == company.id }["active"]).to be true
+      expect(body.find { |c| c["id"] == second.id }["active"]).to be false
+    end
+
+    it "never lists another owner's companies" do
+      other = create(:company)
+
+      get "/api/v1/companies", headers: auth_headers(owner)
+
+      ids = response.parsed_body["companies"].map { |c| c["id"] }
+      expect(ids).not_to include(other.id)
+    end
+  end
+
+  describe "POST /api/v1/companies/:id/switch" do
+    it "moves the owner's active company and current_company follows on the next request" do
+      owner.update!(company_limit: nil)
+      second = create(:company, owner: owner)
+
+      post "/api/v1/companies/#{second.id}/switch", headers: auth_headers(owner)
+      expect(response).to have_http_status(:ok)
+      expect(response.parsed_body["company"]["id"]).to eq(second.id)
+
+      get "/api/v1/company", headers: auth_headers(owner)
+      expect(response.parsed_body["company"]["id"]).to eq(second.id)
+    end
+
+    it "404s when switching to a company this owner doesn't own" do
+      other = create(:company)
+
+      post "/api/v1/companies/#{other.id}/switch", headers: auth_headers(owner)
+
+      expect(response).to have_http_status(:not_found)
+    end
+
+    it "is unaffected by another of the owner's companies being trial-locked" do
+      owner.update!(company_limit: nil)
+      second = create(:company, owner: owner)
+      create(:subscription, company: company, expires_at: 1.day.ago)
+
+      post "/api/v1/companies/#{second.id}/switch", headers: auth_headers(owner)
+
+      expect(response).to have_http_status(:ok)
+    end
   end
 
   describe "GET /api/v1/company — subscription info" do
     it "lists every feature as included and the monthly / annual price in the company's currency" do
-      SubscriptionPrice.for("TND").update!(monthly_cents: 20_000)
+      SubscriptionPrice.for("TND", company_limit: 1).update!(monthly_cents: 20_000)
       get "/api/v1/company", headers: auth_headers(owner)
       body = response.parsed_body["company"]
 
@@ -49,13 +145,13 @@ RSpec.describe "Api::V1::Companies", type: :request do
     end
 
     it "prices in the company's own currency, auto-seeded from the TND reference" do
-      SubscriptionPrice.for("TND").update!(monthly_cents: 18_000)
+      SubscriptionPrice.for("TND", company_limit: 1).update!(monthly_cents: 18_000)
       company.update!(currency: "EUR")
 
       get "/api/v1/company", headers: auth_headers(owner)
 
       expect(response.parsed_body["company"]["monthly_subscription_cents"]).to eq(18_000)
-      expect(SubscriptionPrice.find_by(currency: "EUR").monthly_cents).to eq(18_000)
+      expect(SubscriptionPrice.for("EUR", company_limit: 1).monthly_cents).to eq(18_000)
     end
   end
 

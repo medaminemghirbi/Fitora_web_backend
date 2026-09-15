@@ -2,6 +2,7 @@ class Location < ApplicationRecord
   belongs_to :company, counter_cache: true
 
   has_many :activities, dependent: :destroy
+  has_many :salles, dependent: :destroy
   has_many :sessions, dependent: :destroy
   has_many :coach_locations, dependent: :destroy
   has_many :coaches, through: :coach_locations

@@ -47,7 +47,7 @@ RSpec.describe "Api::V1::Admin::AppUpdates", type: :request do
       notif = customer_owner.notifications.find_by(kind: "system_update")
       expect(notif).to be_present
       expect(notif.url).to eq("/owner/updates")
-      expect(notif.company_id).to eq(customer_owner.company.id)
+      expect(notif.company_id).to eq(customer_owner.active_company.id)
     end
 
     it "attaches media" do

@@ -45,6 +45,7 @@ namespace :load_test do
       company = Company.new(name: "Load Test Gym #{i}", timezone: "Africa/Tunis", currency: "TND", locale: "fr")
       company.owner = owner
       company.save!
+      owner.update!(active_company: company)
 
       Role.seed_defaults_for(company)
       company.create_subscription!(status: :active, starts_at: Time.current, expires_at: 1.year.from_now)
@@ -116,8 +117,7 @@ namespace :load_test do
   task clear: :environment do
     count = 0
     User.where("email LIKE 'loadtest-owner-%@fitora.load'").find_each do |owner|
-      owner.company&.destroy
-      owner.destroy
+      owner.destroy # dependent: :destroy on User#companies takes every one of them with it
       count += 1
     end
     puts "Cleared #{count} load-test companies and everything under them."

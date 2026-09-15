@@ -2,7 +2,7 @@ module Api
   module V1
     class SessionsController < BaseController
       before_action :require_company!
-      before_action :require_staff!, only: [ :index, :show ]
+      before_action :require_staff!, only: [ :index, :show, :schedule_pdf ]
       before_action :require_session_management!, only: [ :create, :update, :cancel ]
       before_action :set_session, only: [ :show, :update, :cancel ]
 
@@ -34,6 +34,23 @@ module Api
       # GET /api/v1/sessions/:id
       def show
         render json: { session: SessionSerializer.new(@session).as_json }
+      end
+
+      # GET /api/v1/sessions/schedule_pdf?from=&location_id=
+      # Prints the week containing `from` (defaults to today), one page per
+      # coach. `base_scope` already keeps a coach login to their own sessions.
+      def schedule_pdf
+        week_start = (params[:from].present? ? Date.parse(params[:from]) : Date.current).beginning_of_week(:monday)
+        week_end = week_start + 6.days
+
+        scope = base_scope.where(starts_at: week_start.beginning_of_day..week_end.end_of_day)
+        scope = scope.where(location_id: params[:location_id]) if params[:location_id].present?
+        sessions = scope.includes(:activity, :coach, :location).order(:starts_at)
+
+        location = current_company.locations.find_by(id: params[:location_id]) || current_company.locations.first
+
+        pdf = Schedule::WeeklyPdf.call(company: current_company, location: location, week_start: week_start, sessions: sessions)
+        send_data pdf, filename: "planning-#{week_start.strftime('%Y-%m-%d')}.pdf", type: "application/pdf", disposition: "inline"
       end
 
       # POST /api/v1/sessions

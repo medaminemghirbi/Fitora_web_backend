@@ -13,7 +13,10 @@ module Api
       # grants access again (Api::V1::Admin::CompaniesController#update_subscription).
       OWNER_ALLOWED_WHEN_LOCKED = {
         "Api::V1::SubscriptionController" => %w[show],
-        "Api::V1::CompaniesController" => %w[show]
+        # One of an owner's companies being locked must never trap them —
+        # they still need to see the list, switch to an unlocked one, or
+        # create a fresh one (its own independent trial).
+        "Api::V1::CompaniesController" => %w[show index create switch]
       }.freeze
       private_constant :OWNER_ALLOWED_WHEN_LOCKED
 
@@ -39,12 +42,14 @@ module Api
       end
 
       # Never trust a company_id supplied by the client — always derive
-      # it from the authenticated user: owners have one via Company,
-      # staff (managers/coaches/receptionists/company-admins) have one via
+      # it from the authenticated user: an owner may now run several
+      # companies, so theirs is whichever one is their active_company
+      # (Api::V1::CompaniesController#switch), not just "the" company;
+      # staff (managers/coaches/receptionists) still have exactly one, via
       # StaffMember. Never confuse either with User#role == "admin", the
       # Fitora platform operator handled entirely by Api::V1::Admin::*.
       def current_company
-        @current_company ||= current_user&.company || current_staff_member&.company
+        @current_company ||= current_user&.active_company || current_staff_member&.company
       end
 
       def current_staff_member

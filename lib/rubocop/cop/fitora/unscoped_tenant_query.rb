@@ -32,7 +32,7 @@ module RuboCop
         # PairingController) and User (login has to search by email across
         # everyone, unauthenticated, before any company is known).
         TENANT_MODELS = %w[
-          Client Booking Session Activity Location Coach CoachLocation
+          Client Booking Session Activity Location Salle Coach CoachLocation
           StaffMember StaffMemberLocation Contract ContractPeriod ContractType
           ContractTypeActivity ContractTypeLocation Payment
           AttendanceRecord RecurringSchedule SupportTicket Role

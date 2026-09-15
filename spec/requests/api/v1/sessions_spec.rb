@@ -44,6 +44,38 @@ RSpec.describe "Api::V1::Sessions", type: :request do
     end
   end
 
+  describe "GET /api/v1/sessions/schedule_pdf" do
+    it "returns a pdf covering the week containing the given date" do
+      week_start = Date.current.beginning_of_week(:monday)
+      create(:session, activity: activity, location: location, starts_at: week_start.to_time.change(hour: 9))
+
+      get "/api/v1/sessions/schedule_pdf", params: { from: week_start.iso8601 }, headers: auth_headers(owner)
+
+      expect(response).to have_http_status(:ok)
+      expect(response.content_type).to eq("application/pdf")
+      expect(response.body).to start_with("%PDF")
+    end
+
+    it "limits a coach's pdf to their own sessions" do
+      coach = create(:coach, company: company)
+      create(:coach_location, coach: coach, location: location)
+      coach_staff = create(:staff_member, company: company, role: :coach, coach: coach)
+
+      get "/api/v1/sessions/schedule_pdf", headers: auth_headers(coach_staff.user)
+
+      expect(response).to have_http_status(:ok)
+      expect(response.content_type).to eq("application/pdf")
+    end
+
+    it "requires staff access" do
+      inactive_staff = create(:staff_member, company: company, role: :receptionist, active: false)
+
+      get "/api/v1/sessions/schedule_pdf", headers: auth_headers(inactive_staff.user)
+
+      expect(response).to have_http_status(:forbidden)
+    end
+  end
+
   describe "POST /api/v1/sessions" do
     let(:params) do
       {
