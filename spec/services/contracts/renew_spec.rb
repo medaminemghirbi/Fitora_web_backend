@@ -30,4 +30,33 @@ RSpec.describe Contracts::Renew do
 
     expect(result.contract.starts_at.to_date).to eq(Date.current)
   end
+
+  it "renews at today's tariff, leaving the previous period at what it was sold for" do
+    activity = create(:activity)
+    plan = create(:contract_type, company: activity.company, activity: activity, price: 70)
+    client = create(:client, company: plan.company)
+    staff = create(:user, :owner)
+    contract = create(:contract, client: client, contract_type: plan, company: plan.company, activity: activity)
+    first_period = contract.current_period
+
+    plan.contract_type_activities.find_by(activity: activity).update!(price: 80)
+    result = described_class.call(contract: contract, created_by: staff)
+
+    expect(first_period.reload.final_price).to eq(70)
+    expect(result.contract.current_period.final_price).to eq(80)
+  end
+
+  it "falls back to the previous period's price when the plan no longer prices that activity" do
+    activity = create(:activity)
+    plan = create(:contract_type, company: activity.company, activity: activity, price: 70)
+    client = create(:client, company: plan.company)
+    staff = create(:user, :owner)
+    contract = create(:contract, client: client, contract_type: plan, company: plan.company, activity: activity)
+
+    plan.contract_type_activities.find_by(activity: activity).destroy
+    result = described_class.call(contract: contract, created_by: staff)
+
+    expect(result.success?).to be true
+    expect(result.contract.current_period.final_price).to eq(70)
+  end
 end

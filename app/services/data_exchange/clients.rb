@@ -21,22 +21,32 @@ module DataExchange
       end
     end
 
+    # An email that already has an account joins that person to this gym
+    # rather than failing on the platform-wide uniqueness — importing a
+    # member list must not depend on whether they train elsewhere too.
     def self.import_csv(company:, user:, io:)
       created = 0
       errors = []
 
       CSV.parse(io.read, headers: true).each_with_index do |row, index|
-        client = company.clients.new(
-          first_name: row["first_name"].to_s.strip,
-          last_name: row["last_name"].to_s.strip,
-          email: row["email"].to_s.strip,
-          phone: row["phone"].to_s.strip
-        )
+        email = row["email"].to_s.strip
+        client = Client.find_by_email(email) || Client.new(email: email.presence)
+        if client.new_record?
+          client.assign_attributes(
+            first_name: row["first_name"].to_s.strip,
+            last_name: row["last_name"].to_s.strip,
+            phone: row["phone"].to_s.strip
+          )
+        end
 
-        if client.save
+        begin
+          ActiveRecord::Base.transaction do
+            client.save!
+            client.join!(company)
+          end
           created += 1
-        else
-          errors << { row: index + 2, message: client.errors.full_messages.join(", ") }
+        rescue ActiveRecord::RecordInvalid => e
+          errors << { row: index + 2, message: e.record.errors.full_messages.join(", ") }
         end
       end
 

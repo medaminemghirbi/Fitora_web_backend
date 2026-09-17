@@ -13,9 +13,7 @@ class AdminCompanySerializer
       currency_symbol: company.currency_symbol,
       locale: company.locale,
       active: company.active,
-      mobile_auth_key: company.mobile_auth_key,
       created_at: company.created_at,
-      locations_count: company.locations_count,
       trial_locked: company.subscription&.locked? || false,
       trial_days_remaining: company.subscription&.days_remaining,
       owner: {

@@ -32,10 +32,14 @@ class ContractPeriod < ApplicationRecord
     Notifications::ContractExpiryChangedJob.perform_later(id)
   end
 
+  # base_price is the catalogue price frozen when this period was created
+  # (Contracts::Create / Contracts::Renew) and is never rewritten — so a
+  # later change to the activity's tariff leaves already-sold periods alone.
+  # Only the discount, which the owner can still edit while unpaid, moves
+  # final_price after the fact.
   def compute_final_price
-    plan = contract&.contract_type
-    return if plan.blank?
+    return if base_price.blank?
 
-    self.final_price = [ plan.price - discount.to_f, 0 ].max
+    self.final_price = [ base_price.to_f - discount.to_f, 0 ].max
   end
 end

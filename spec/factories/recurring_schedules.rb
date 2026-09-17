@@ -1,8 +1,7 @@
 FactoryBot.define do
   factory :recurring_schedule do
     activity
-    location { activity.location }
-    company { activity.location.company }
+    company { activity.company }
     weekdays { [ 1 ] } # Monday
     start_time { "18:00" }
     recurrence_type { :weekly }

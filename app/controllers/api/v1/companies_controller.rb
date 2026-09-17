@@ -56,17 +56,6 @@ module Api
             expires_at: 14.days.from_now
           )
 
-          # One location per company, always — created here so the
-          # owner never has to think about "locations" as a separate setup
-          # step before they can add activities or staff.
-          company.locations.create!(
-            name: company.name,
-            address: company.address,
-            phone: company.phone,
-            email: company.email,
-            city: company.city,
-            timezone: company.timezone
-          )
 
           current_user.update!(active_company: company)
         end
@@ -99,28 +88,20 @@ module Api
         render json: { company: CompanySerializer.new(@company).as_json }
       end
 
-      # POST /api/v1/company/regenerate_mobile_key — the owner can only
-      # roll a fresh random key, never set one by hand (that's admin-only,
-      # see Api::V1::Admin::CompaniesController#update_mobile_key).
-      def regenerate_mobile_key
+      # POST /api/v1/company/publish — puts the gym in the public directory,
+      # or takes it back out. Nothing about a company is discoverable until
+      # an owner does this.
+      def publish
         require_company!
         return if performed?
 
-        current_company.regenerate_mobile_auth_key!
-        AuditLogs::Record.call(company: current_company, user: current_user, action: "mobile_key.regenerated", auditable: current_company)
+        listed = ActiveModel::Type::Boolean.new.cast(params[:listed])
+        listed ? current_company.publish! : current_company.unpublish!
+        AuditLogs::Record.call(
+          company: current_company, user: current_user,
+          action: listed ? "company.published" : "company.unpublished", auditable: current_company
+        )
         render json: { company: CompanySerializer.new(current_company).as_json }
-      end
-
-      # GET /api/v1/company/mobile_key_qr — SVG, generated fresh each call
-      # (a handful of characters is cheap to re-encode; not worth caching).
-      def mobile_key_qr
-        require_company!
-        return if performed?
-
-        qr = RQRCode::QRCode.new(current_company.mobile_auth_key)
-        svg = qr.as_svg(offset: 8, color: "000", fill: "fff", module_size: 8, use_path: true)
-
-        send_data svg, type: "image/svg+xml", disposition: "inline"
       end
 
       private
@@ -134,6 +115,7 @@ module Api
           :name, :description, :phone, :email, :country, :city,
           :address, :latitude, :longitude, :timezone, :currency,
           :slug, :primary_color, :logo,
+          :business_hours_start, :business_hours_end,
           working_days: []
         )
       end

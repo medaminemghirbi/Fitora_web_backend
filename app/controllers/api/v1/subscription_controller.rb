@@ -39,7 +39,6 @@ module Api
 
         {
           subscription: SubscriptionSerializer.new(subscription).as_json,
-          locations_used: company&.locations&.count || 0,
           clients_used: company&.clients&.count || 0,
           staff_used: company&.staff_members&.count || 0,
           locked: subscription&.locked? || false,

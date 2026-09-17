@@ -2,12 +2,10 @@ require "rails_helper"
 
 RSpec.describe "Api::V1::Attendance", type: :request do
   let(:company) { create(:company) }
-  let(:location) { create(:location, company: company) }
-  let(:activity) { create(:activity, location: location) }
+  let(:activity) { create(:activity, company: company) }
   let(:coach) { create(:coach, company: company) }
-  let!(:coach_location) { create(:coach_location, coach: coach, location: location) }
-  let(:session) { create(:session, activity: activity, location: location, coach: coach) }
-  let(:other_session) { create(:session, activity: activity, location: location) }
+  let(:session) { create(:session, activity: activity, company: company, coach: coach) }
+  let(:other_session) { create(:session, activity: activity, company: company) }
 
   describe "coach scoping" do
     it "lets a coach mark attendance for their own session's booking" do

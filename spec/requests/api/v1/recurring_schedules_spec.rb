@@ -3,12 +3,11 @@ require "rails_helper"
 RSpec.describe "Api::V1::RecurringSchedules", type: :request do
   let(:owner) { create(:user, :owner) }
   let!(:company) { create(:company, owner: owner) }
-  let!(:location) { create(:location, company: company) }
-  let!(:activity) { create(:activity, location: location) }
+  let!(:activity) { create(:activity, company: company) }
 
   describe "GET /api/v1/recurring_schedules" do
     it "never exposes another company's recurring schedules" do
-      create(:recurring_schedule, activity: activity, location: location, company: company)
+      create(:recurring_schedule, activity: activity, company: company, company: company)
       other_schedule = create(:recurring_schedule)
 
       get "/api/v1/recurring_schedules", headers: auth_headers(owner)

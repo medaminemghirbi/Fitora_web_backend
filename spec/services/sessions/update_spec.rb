@@ -25,15 +25,13 @@ RSpec.describe Sessions::Update do
 
   it "rejects an update that would overlap another of the coach's sessions with a friendly error" do
     company = create(:company)
-    location = create(:location, company: company)
-    activity = create(:activity, location: location)
+    activity = create(:activity, company: company)
     coach = create(:coach, company: company)
-    create(:coach_location, coach: coach, location: location)
 
     starts_at = 2.days.from_now.change(hour: 18)
-    create(:session, activity: activity, location: location, coach: coach,
+    create(:session, activity: activity, company: company, coach: coach,
                       starts_at: starts_at, ends_at: starts_at + 1.hour)
-    session = create(:session, activity: activity, location: location, coach: coach,
+    session = create(:session, activity: activity, company: company, coach: coach,
                                 starts_at: starts_at + 2.hours, ends_at: starts_at + 3.hours)
 
     result = described_class.call(

@@ -3,26 +3,42 @@ module Api
     class AuthController < ApplicationController
       before_action :authenticate_request!, only: [ :me, :logout, :permissions ]
 
-      # POST /api/v1/auth/register — a gym signing up for Fitora. Every other
-      # account (manager/receptionist/coach) is created by the owner via
-      # StaffController, never self-registered.
-      def register
-        user = User.new(
+      # A gym cannot sign itself up: it asks for a demo or a quote
+      # (Api::V1::LeadsController) and a Fitora admin opens the account once
+      # the conversation has happened (Leads::Convert). The only
+      # self-registration left is a person looking for a gym.
+      #
+      # POST /api/v1/auth/register_client — a person signing themselves up.
+      # No gym involved: they pick their gyms afterwards from the directory.
+      # An email that a gym already recorded (a walk-in with no login) claims
+      # THAT account rather than making a second one, so their history at
+      # that gym follows them.
+      def register_client
+        email = params[:email].to_s.downcase.strip
+        client = Client.find_by_email(email)
+
+        if client&.login_enabled?
+          return render json: { error: "An account already exists for this email" }, status: :unprocessable_content
+        end
+
+        client ||= Client.new(email: email)
+        client.assign_attributes(
           first_name: params[:first_name],
           last_name: params[:last_name],
-          email: params[:email],
-          phone: params[:phone],
-          password: params[:password],
-          role: :owner,
-          locale: params[:locale].presence || "fr"
+          phone: params[:phone].presence || client.phone,
+          password: params[:password]
         )
 
-        if user.save
-          raw = user.generate_email_verification_token!
-          AccountMailer.email_verification(user, raw).deliver_later
-          render json: { token: JwtService.encode(user.id), user: UserSerializer.new(user).as_json }, status: :created
+        if client.save
+          raw = client.generate_email_verification_token!
+          AccountMailer.email_verification(client, raw).deliver_later
+          render json: {
+            token: JwtService.encode(client_id: client.id),
+            account_type: "client",
+            client: ClientSerializer.new(client).as_json
+          }, status: :created
         else
-          render json: { error: user.errors.full_messages.first, errors: user.errors.full_messages }, status: :unprocessable_content
+          render json: { error: client.errors.full_messages.first, errors: client.errors.full_messages }, status: :unprocessable_content
         end
       end
 

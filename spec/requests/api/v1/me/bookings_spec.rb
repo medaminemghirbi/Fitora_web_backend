@@ -3,7 +3,7 @@ require "rails_helper"
 RSpec.describe "Api::V1::Me::Bookings", type: :request do
   let(:company) { create(:company) }
   let(:client) { create(:client, company: company) }
-  let(:activity) { create(:activity, location: company.location) }
+  let(:activity) { create(:activity, company: company) }
 
   describe "authorization" do
     it "forbids a staff login" do
@@ -46,7 +46,7 @@ RSpec.describe "Api::V1::Me::Bookings", type: :request do
     it "books the client into a session covered by their contract" do
       session = create(:session, activity: activity, starts_at: 2.days.from_now)
       plan = create(:contract_type, company: company, unlimited_bookings: true)
-      create(:contract, client: client, contract_type: plan)
+      create(:contract, client: client, contract_type: plan, activity: activity)
 
       post "/api/v1/me/bookings", params: { session_id: session.id }, headers: auth_headers(client)
 

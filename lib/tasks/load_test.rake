@@ -59,9 +59,10 @@ namespace :load_test do
       coaches.each { |coach| CoachLocation.create!(coach: coach, location: location) }
 
       plan = ContractType.create!(
-        company: company, name: "Load Test Unlimited", price: 89, currency: company.currency,
-        billing_period: :monthly, unlimited_bookings: true
+        company: company, name: "Load Test Unlimited", billing_period: :monthly, unlimited_bookings: true
       )
+      # The plan is sold per activity now, so it needs a tariff for each one.
+      activities.each { |activity| plan.contract_type_activities.create!(activity: activity, price: 89) }
 
       now = Time.current
       slots = [ 7, 9, 12, 17, 18, 19, 20 ]
@@ -85,14 +86,15 @@ namespace :load_test do
       Client.insert_all(client_rows)
 
       contract_rows = client_rows.map do |c|
-        { id: SecureRandom.uuid, client_id: c[:id], contract_type_id: plan.id, company_id: company.id, created_at: now, updated_at: now }
+        { id: SecureRandom.uuid, client_id: c[:id], contract_type_id: plan.id, activity_id: activities.sample.id,
+          company_id: company.id, created_at: now, updated_at: now }
       end
       Contract.insert_all(contract_rows)
 
       period_rows = contract_rows.map do |ct|
         {
           id: SecureRandom.uuid, contract_id: ct[:id], status: 1, payment_status: 1,
-          starts_at: 1.day.ago, expires_at: 1.year.from_now, discount: 0, final_price: plan.price,
+          starts_at: 1.day.ago, expires_at: 1.year.from_now, discount: 0, base_price: 89, final_price: 89,
           created_at: now, updated_at: now
         }
       end

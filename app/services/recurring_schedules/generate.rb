@@ -58,7 +58,7 @@ module RecurringSchedules
     def session_attributes(starts_at)
       {
         activity_id: schedule.activity_id,
-        location_id: schedule.location_id,
+        company_id: schedule.company_id,
         coach_id: schedule.coach_id,
         recurring_schedule_id: schedule.id,
         starts_at: starts_at,

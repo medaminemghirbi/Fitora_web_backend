@@ -7,18 +7,17 @@ module Api
 
       # GET /api/v1/recurring_schedules
       def index
-        schedules = current_company.recurring_schedules.includes(:activity, :location, :coach).order(:starts_on)
+        schedules = current_company.recurring_schedules.includes(:activity, :coach).order(:starts_on)
         render json: { recurring_schedules: schedules.map { |s| RecurringScheduleSerializer.new(s).as_json } }
       end
 
       # POST /api/v1/recurring_schedules
       def create
-        activity = Activity.joins(:location)
-                            .where(locations: { company_id: current_company.id })
+        activity = current_company.activities
                             .find_by(id: schedule_params[:activity_id])
         return render json: { error: "Activity not found" }, status: :not_found if activity.nil?
 
-        schedule = current_company.recurring_schedules.new(schedule_params.merge(location_id: activity.location_id))
+        schedule = current_company.recurring_schedules.new(schedule_params)
 
         if schedule.save
           generation = RecurringSchedules::Generate.call(schedule: schedule)

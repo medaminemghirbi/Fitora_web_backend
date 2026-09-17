@@ -10,8 +10,8 @@ RSpec.describe Dashboard::Statistics do
     member = create(:client, company: company)
     create(:contract, client: member, contract_type: plan)
 
-    activity = create(:activity, location: company.location, name: "Yoga")
-    session = create(:session, activity: activity, location: company.location,
+    activity = create(:activity, company: company, name: "Yoga")
+    session = create(:session, activity: activity, company: company,
                                 starts_at: Time.current.change(hour: 9), ends_at: Time.current.change(hour: 10),
                                 capacity: 5)
     booking = create(:booking, session: session, client: member, status: :confirmed)
@@ -39,8 +39,8 @@ RSpec.describe Dashboard::Statistics do
     client = create(:client, company: company)
     create(:contract, client: client, contract_type: plan, discount: 20) # final_price 130, unpaid
 
-    activity = create(:activity, location: company.location)
-    session = create(:session, activity: activity, location: company.location, price: 45)
+    activity = create(:activity, company: company)
+    session = create(:session, activity: activity, company: company, price: 45)
     create(:booking, session: session, client: client, amount: 45, payment_status: :unpaid)
 
     result = described_class.call(company: company)

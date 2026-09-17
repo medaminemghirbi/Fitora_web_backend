@@ -1,6 +1,4 @@
 class Company < ApplicationRecord
-  MOBILE_AUTH_KEY_LENGTH = 8
-
   # Same allowlist/ceiling as HasPhoto — logo is the one has_one_attached in
   # the app that predates that concern and had no validation at all.
   # content_type below is Marcel-sniffed by Active Storage, not the
@@ -26,17 +24,19 @@ class Company < ApplicationRecord
   validate :logo_is_an_image
   validate :logo_is_not_too_large
 
-  has_many :locations, dependent: :destroy
   has_many :coaches, dependent: :destroy
+  has_many :activities, dependent: :destroy
+  has_many :sessions, dependent: :destroy
+  has_many :recurring_schedules, dependent: :destroy
   has_one :subscription, dependent: :destroy
-  has_many :clients, dependent: :destroy
+  has_many :memberships, dependent: :destroy
+  has_many :clients, through: :memberships
   has_many :contract_types, dependent: :destroy
   has_many :contracts, dependent: :destroy
   has_many :contract_periods, through: :contracts
   has_many :payments, dependent: :destroy
   has_many :staff_members, dependent: :destroy
   has_many :roles, dependent: :destroy
-  has_many :recurring_schedules, dependent: :destroy
   has_many :audit_logs, dependent: :destroy
   has_many :notifications, dependent: :destroy
   has_many :support_tickets, dependent: :destroy
@@ -65,27 +65,37 @@ class Company < ApplicationRecord
     ).distinct
   }
 
-  # Pairing secret for the mobile app (QR code + plain text, shown to the
-  # owner in Settings). The owner can only regenerate it (a fresh random
-  # value); only a Fitora admin can set it to a specific value by hand
-  # (Api::V1::Admin::CompaniesController#update_mobile_key) — see
-  # Api::V1::CompaniesController for why it's excluded from company_params.
-  before_validation :assign_mobile_auth_key, on: :create
   before_validation :normalize_working_days
 
-  validates :mobile_auth_key, presence: true, uniqueness: true, length: { minimum: 6, maximum: 32 },
-                               format: { with: /\A[a-z0-9]+\z/, message: "must contain only lowercase letters and numbers" }
+  # ---- public directory ----------------------------------------------------
+  # A gym is invisible until its owner publishes it: nothing about a company
+  # reaches the directory without that explicit decision.
+  # Listed by default: a gym that exists is a gym people can find. The owner
+  # can still step out from Settings → Annuaire public.
+  scope :listed, -> { where.not(listed_at: nil).where(active: true) }
 
-  # Every company has exactly one location — created automatically at
-  # signup (see Api::V1::CompaniesController#create) and never a second
-  # one. Activities, coaches, and staff all attach to it implicitly instead
-  # of asking staff to pick a location that doesn't meaningfully vary.
-  def location
-    locations.first
+
+  scope :directory_search, ->(term) {
+    return all if term.blank?
+
+    t = "%#{term.strip}%"
+    where(
+      "companies.name ILIKE :t OR companies.city ILIKE :t OR companies.address ILIKE :t OR " \
+      "EXISTS (SELECT 1 FROM activities a WHERE a.company_id = companies.id AND a.active AND a.name ILIKE :t)",
+      t: t
+    )
+  }
+
+  def listed?
+    listed_at.present?
   end
 
-  def regenerate_mobile_auth_key!
-    update!(mobile_auth_key: self.class.generate_mobile_auth_key)
+  def publish!
+    update!(listed_at: Time.current)
+  end
+
+  def unpublish!
+    update!(listed_at: nil)
   end
 
   # The short symbol shown next to amounts across the app (e.g. "DT", "€").
@@ -99,7 +109,7 @@ class Company < ApplicationRecord
   # `dismissed` hides the guide regardless; `complete` is all steps done.
   def setup_state
     steps = {
-      activity: location&.activities&.exists? || false,
+      activity: activities.exists?,
       contract_type: contract_types.exists?,
       coach: coaches.exists?
     }
@@ -138,18 +148,7 @@ class Company < ApplicationRecord
     working_days.include?(date.wday)
   end
 
-  def self.generate_mobile_auth_key
-    loop do
-      key = SecureRandom.alphanumeric(MOBILE_AUTH_KEY_LENGTH).downcase
-      break key unless exists?(mobile_auth_key: key)
-    end
-  end
-
   private
-
-  def assign_mobile_auth_key
-    self.mobile_auth_key ||= self.class.generate_mobile_auth_key
-  end
 
   def normalize_working_days
     return if working_days.nil?

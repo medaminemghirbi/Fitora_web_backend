@@ -13,7 +13,9 @@ module Sessions
     end
 
     def call
-      session = Session.new(attributes)
+      # A session runs at the gym that owns its activity — there is no other
+      # place it could be, so callers no longer have to say it.
+      session = Session.new(attributes.reverse_merge(company_id: activity_company_id))
 
       if session.save
         Result.new(success?: true, session: session, error: nil)
@@ -29,6 +31,10 @@ module Sessions
     end
 
     private
+
+    def activity_company_id
+      Activity.where(id: attributes[:activity_id]).pick(:company_id)
+    end
 
     attr_reader :attributes
   end

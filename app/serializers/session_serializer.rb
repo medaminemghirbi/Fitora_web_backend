@@ -10,8 +10,10 @@ class SessionSerializer
       activity_id: session.activity_id,
       activity_name: session.activity.name,
       activity_emoji: session.activity.emoji,
-      location_id: session.location_id,
-      location_name: session.location.name,
+      # Which gym this belongs to: a member's list now spans several of them,
+      # so a session that does not say where it is is unreadable.
+      company_id: session.company_id,
+      company_name: session.company.name,
       coach_id: session.coach_id,
       coach_name: session.coach&.full_name,
       starts_at: session.starts_at,

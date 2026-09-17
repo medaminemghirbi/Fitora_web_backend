@@ -9,8 +9,9 @@ class User < ApplicationRecord
   # Clients are business records the gym creates, never Users — see Client.
   enum :role, { owner: 0, staff: 1, admin: 2 }
 
+
   # An owner can run more than one company now (each a fully independent
-  # tenant — its own location, clients, staff); company_limit gates how
+  # tenant — its own clients, staff); company_limit gates how
   # many they may create (nil = unlimited), active_company is which one
   # their session is currently scoped to — see
   # Api::V1::BaseController#current_company and #switch.

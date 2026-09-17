@@ -1,5 +1,5 @@
 class Activity < ApplicationRecord
-  belongs_to :location
+  belongs_to :company
 
   has_many :sessions, dependent: :destroy
   has_many :contract_type_activities, dependent: :destroy
@@ -29,7 +29,6 @@ class Activity < ApplicationRecord
 
   scope :active, -> { where(active: true) }
 
-  delegate :company, to: :location
 
   private
 

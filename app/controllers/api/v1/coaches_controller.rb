@@ -18,12 +18,11 @@ module Api
         render json: { coach: CoachSerializer.new(@coach).as_json }
       end
 
-      # POST /api/v1/coaches — auto-assigned to the company's one location
+      # POST /api/v1/coaches
       def create
         coach = current_company.coaches.new(coach_params)
 
         if coach.save
-          coach.coach_locations.create!(location: current_company.location)
           render json: { coach: CoachSerializer.new(coach.reload).as_json }, status: :created
         else
           render json: { error: coach.errors.full_messages.first, errors: coach.errors.full_messages }, status: :unprocessable_content

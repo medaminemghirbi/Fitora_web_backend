@@ -18,8 +18,7 @@ class StaffMemberSerializer
         email: staff_member.user.email,
         phone: staff_member.user.phone
       },
-      coach_id: staff_member.coach_id,
-      location_ids: staff_member.location_ids
+      coach_id: staff_member.coach_id
     }
   end
 

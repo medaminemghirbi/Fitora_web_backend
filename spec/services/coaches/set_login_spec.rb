@@ -16,7 +16,6 @@ RSpec.describe Coaches::SetLogin do
     expect(staff_member.company).to eq(coach.company)
     expect(staff_member.user.email).to eq("coach@example.com")
     expect(staff_member.user.role).to eq("staff")
-    expect(staff_member.staff_member_locations.pluck(:location_id)).to eq([ coach.company.location.id ])
     expect(coach.reload.staff_member).to eq(staff_member)
   end
 

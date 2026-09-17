@@ -22,11 +22,13 @@ class CompanySerializer
       currency_symbol: company.currency_symbol,
       locale: company.locale,
       working_days: company.working_days,
+      # Opening hours used to live on the site; the company is the place now.
+      business_hours_start: company.business_hours_start&.strftime("%H:%M"),
+      business_hours_end: company.business_hours_end&.strftime("%H:%M"),
       active: company.active,
       slug: company.slug,
       primary_color: company.primary_color,
       logo_url: logo_url,
-      mobile_auth_key: company.mobile_auth_key,
       # Every feature is included — the key list the owner's subscription
       # page renders as "what's included" (names/descriptions i18n'd
       # client-side as modules.<key>.*).

@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_09_14_231826) do
+ActiveRecord::Schema[8.1].define(version: 2026_09_18_160000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "btree_gist"
   enable_extension "pg_catalog.plpgsql"
@@ -48,15 +48,15 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_14_231826) do
   create_table "activities", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
     t.boolean "active", default: true, null: false
     t.integer "capacity", default: 1, null: false
+    t.uuid "company_id", null: false
     t.datetime "created_at", null: false
     t.text "description"
     t.integer "duration", null: false
     t.string "emoji"
-    t.uuid "location_id", null: false
     t.string "name", null: false
     t.integer "session_format", default: 1, null: false
     t.datetime "updated_at", null: false
-    t.index ["location_id"], name: "index_activities_on_location_id"
+    t.index ["company_id"], name: "index_activities_on_company_id"
     t.index ["name"], name: "index_activities_on_name_trgm", opclass: :gin_trgm_ops, using: :gin
   end
 
@@ -117,7 +117,6 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_14_231826) do
   create_table "clients", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
     t.boolean "active", default: true, null: false
     t.string "address"
-    t.uuid "company_id", null: false
     t.datetime "created_at", null: false
     t.date "date_of_birth"
     t.string "email"
@@ -128,34 +127,20 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_14_231826) do
     t.string "emergency_contact_phone"
     t.string "first_name", null: false
     t.string "gender"
-    t.datetime "joined_at", null: false
     t.string "last_name", null: false
-    t.text "notes"
     t.string "password_digest"
     t.string "phone"
     t.datetime "reset_password_sent_at"
     t.string "reset_password_token_digest"
     t.integer "token_version", default: 0, null: false
     t.datetime "updated_at", null: false
-    t.index ["company_id", "created_at"], name: "index_clients_on_company_id_and_created_at"
-    t.index ["company_id", "first_name", "last_name"], name: "index_clients_on_company_id_and_first_name_and_last_name"
-    t.index ["company_id"], name: "index_clients_on_company_id"
+    t.index "lower((email)::text)", name: "index_clients_on_lower_email", unique: true, where: "(email IS NOT NULL)"
     t.index ["email"], name: "index_clients_on_email_trgm", opclass: :gin_trgm_ops, using: :gin
     t.index ["email_verification_token_digest"], name: "index_clients_on_email_verification_token_digest", unique: true
     t.index ["first_name"], name: "index_clients_on_first_name_trgm", opclass: :gin_trgm_ops, using: :gin
     t.index ["last_name"], name: "index_clients_on_last_name_trgm", opclass: :gin_trgm_ops, using: :gin
     t.index ["phone"], name: "index_clients_on_phone_trgm", opclass: :gin_trgm_ops, using: :gin
     t.index ["reset_password_token_digest"], name: "index_clients_on_reset_password_token_digest", unique: true
-  end
-
-  create_table "coach_locations", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
-    t.uuid "coach_id", null: false
-    t.datetime "created_at", null: false
-    t.uuid "location_id", null: false
-    t.datetime "updated_at", null: false
-    t.index ["coach_id", "location_id"], name: "index_coach_locations_on_coach_id_and_location_id", unique: true
-    t.index ["coach_id"], name: "index_coach_locations_on_coach_id"
-    t.index ["location_id"], name: "index_coach_locations_on_location_id"
   end
 
   create_table "coaches", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
@@ -176,6 +161,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_14_231826) do
   create_table "companies", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
     t.boolean "active", default: true, null: false
     t.string "address"
+    t.time "business_hours_end", default: "2000-01-01 22:00:00", null: false
+    t.time "business_hours_start", default: "2000-01-01 06:00:00", null: false
     t.string "city"
     t.string "country"
     t.datetime "created_at", null: false
@@ -184,10 +171,10 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_14_231826) do
     t.text "description"
     t.string "email"
     t.decimal "latitude", precision: 10, scale: 6
+    t.datetime "listed_at", default: -> { "now()" }
     t.string "locale", default: "fr", null: false
     t.integer "locations_count", default: 0, null: false
     t.decimal "longitude", precision: 10, scale: 6
-    t.string "mobile_auth_key", null: false
     t.string "name", null: false
     t.uuid "owner_id", null: false
     t.string "phone"
@@ -198,13 +185,14 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_14_231826) do
     t.datetime "updated_at", null: false
     t.integer "working_days", default: [1, 2, 3, 4, 5], null: false, array: true
     t.index ["city"], name: "index_companies_on_city_trgm", opclass: :gin_trgm_ops, using: :gin
-    t.index ["mobile_auth_key"], name: "index_companies_on_mobile_auth_key", unique: true
+    t.index ["listed_at"], name: "index_companies_on_listed_at"
     t.index ["name"], name: "index_companies_on_name_trgm", opclass: :gin_trgm_ops, using: :gin
     t.index ["owner_id"], name: "index_companies_on_owner_id"
     t.index ["slug"], name: "index_companies_on_slug", unique: true
   end
 
   create_table "contract_periods", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.decimal "base_price", precision: 10, scale: 2, null: false
     t.uuid "contract_id", null: false
     t.datetime "created_at", null: false
     t.decimal "discount", precision: 10, scale: 2, default: "0.0", null: false
@@ -225,20 +213,11 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_14_231826) do
     t.uuid "activity_id", null: false
     t.uuid "contract_type_id", null: false
     t.datetime "created_at", null: false
+    t.decimal "price", precision: 10, scale: 2, null: false
     t.datetime "updated_at", null: false
     t.index ["activity_id"], name: "index_contract_type_activities_on_activity_id"
     t.index ["contract_type_id", "activity_id"], name: "index_plan_activities_unique", unique: true
     t.index ["contract_type_id"], name: "index_contract_type_activities_on_contract_type_id"
-  end
-
-  create_table "contract_type_locations", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
-    t.uuid "contract_type_id", null: false
-    t.datetime "created_at", null: false
-    t.uuid "location_id", null: false
-    t.datetime "updated_at", null: false
-    t.index ["contract_type_id", "location_id"], name: "index_plan_locations_unique", unique: true
-    t.index ["contract_type_id"], name: "index_contract_type_locations_on_contract_type_id"
-    t.index ["location_id"], name: "index_contract_type_locations_on_location_id"
   end
 
   create_table "contract_types", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
@@ -248,10 +227,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_14_231826) do
     t.string "color", default: "#4f46e5", null: false
     t.uuid "company_id", null: false
     t.datetime "created_at", null: false
-    t.string "currency", default: "TND", null: false
     t.text "description"
     t.string "name", null: false
-    t.decimal "price", precision: 10, scale: 2, default: "0.0", null: false
     t.boolean "priority_booking", default: false, null: false
     t.integer "session_count"
     t.boolean "unlimited_bookings", default: false, null: false
@@ -261,6 +238,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_14_231826) do
   end
 
   create_table "contracts", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.uuid "activity_id", null: false
     t.boolean "auto_renew", default: false, null: false
     t.uuid "client_id", null: false
     t.uuid "company_id", null: false
@@ -268,29 +246,46 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_14_231826) do
     t.datetime "created_at", null: false
     t.uuid "created_by_id"
     t.datetime "updated_at", null: false
+    t.index ["activity_id"], name: "index_contracts_on_activity_id"
     t.index ["client_id"], name: "index_contracts_on_client_id"
     t.index ["company_id"], name: "index_contracts_on_company_id"
     t.index ["contract_type_id"], name: "index_contracts_on_contract_type_id"
     t.index ["created_by_id"], name: "index_contracts_on_created_by_id"
   end
 
-  create_table "locations", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
-    t.boolean "active", default: true, null: false
-    t.string "address"
-    t.time "business_hours_end", default: "2000-01-01 22:00:00", null: false
-    t.time "business_hours_start", default: "2000-01-01 06:00:00", null: false
+  create_table "leads", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
     t.string "city"
+    t.uuid "company_id"
+    t.string "contact_name", null: false
+    t.datetime "created_at", null: false
+    t.string "email", null: false
+    t.string "gym_name", null: false
+    t.datetime "handled_at"
+    t.uuid "handled_by_id"
+    t.text "internal_notes"
+    t.integer "kind", default: 0, null: false
+    t.string "locale", default: "fr", null: false
+    t.text "message"
+    t.string "phone"
+    t.integer "status", default: 0, null: false
+    t.datetime "updated_at", null: false
+    t.index ["company_id"], name: "index_leads_on_company_id"
+    t.index ["email"], name: "index_leads_on_email"
+    t.index ["handled_by_id"], name: "index_leads_on_handled_by_id"
+    t.index ["status", "created_at"], name: "index_leads_on_status_and_created_at"
+  end
+
+  create_table "memberships", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.boolean "active", default: true, null: false
+    t.uuid "client_id", null: false
     t.uuid "company_id", null: false
     t.datetime "created_at", null: false
-    t.text "description"
-    t.string "email"
-    t.decimal "latitude", precision: 10, scale: 6
-    t.decimal "longitude", precision: 10, scale: 6
-    t.string "name", null: false
-    t.string "phone"
-    t.string "timezone", default: "Africa/Tunis", null: false
+    t.datetime "joined_at", null: false
+    t.text "notes"
     t.datetime "updated_at", null: false
-    t.index ["company_id"], name: "index_locations_on_company_id"
+    t.index ["client_id", "company_id"], name: "index_memberships_on_client_id_and_company_id", unique: true
+    t.index ["client_id"], name: "index_memberships_on_client_id"
+    t.index ["company_id"], name: "index_memberships_on_company_id"
   end
 
   create_table "notifications", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
@@ -347,7 +342,6 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_14_231826) do
     t.uuid "company_id", null: false
     t.datetime "created_at", null: false
     t.date "ends_on", null: false
-    t.uuid "location_id", null: false
     t.integer "recurrence_type", default: 0, null: false
     t.time "start_time", null: false
     t.date "starts_on", null: false
@@ -356,7 +350,6 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_14_231826) do
     t.index ["activity_id"], name: "index_recurring_schedules_on_activity_id"
     t.index ["coach_id"], name: "index_recurring_schedules_on_coach_id"
     t.index ["company_id"], name: "index_recurring_schedules_on_company_id"
-    t.index ["location_id"], name: "index_recurring_schedules_on_location_id"
     t.index ["weekdays"], name: "index_recurring_schedules_on_weekdays", using: :gin
   end
 
@@ -374,24 +367,13 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_14_231826) do
     t.index ["company_id"], name: "index_roles_on_company_id"
   end
 
-  create_table "salles", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
-    t.boolean "active", default: true, null: false
-    t.integer "capacity", null: false
-    t.datetime "created_at", null: false
-    t.text "description"
-    t.uuid "location_id", null: false
-    t.string "name", null: false
-    t.datetime "updated_at", null: false
-    t.index ["location_id"], name: "index_salles_on_location_id"
-  end
-
   create_table "sessions", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
     t.uuid "activity_id", null: false
     t.integer "capacity", null: false
     t.uuid "coach_id"
+    t.uuid "company_id", null: false
     t.datetime "created_at", null: false
     t.datetime "ends_at", null: false
-    t.uuid "location_id", null: false
     t.decimal "price", precision: 10, scale: 2, default: "0.0", null: false
     t.uuid "recurring_schedule_id"
     t.datetime "starts_at", null: false
@@ -399,19 +381,9 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_14_231826) do
     t.datetime "updated_at", null: false
     t.index ["activity_id"], name: "index_sessions_on_activity_id"
     t.index ["coach_id", "starts_at"], name: "index_sessions_on_coach_id_and_starts_at"
-    t.index ["location_id", "starts_at"], name: "index_sessions_on_location_id_and_starts_at"
+    t.index ["company_id"], name: "index_sessions_on_company_id"
     t.index ["recurring_schedule_id"], name: "index_sessions_on_recurring_schedule_id"
     t.exclusion_constraint "coach_id WITH =, tsrange(starts_at, ends_at) WITH &&", where: "(status = 0) AND (coach_id IS NOT NULL)", using: :gist, name: "no_overlapping_coach_sessions"
-  end
-
-  create_table "staff_member_locations", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
-    t.datetime "created_at", null: false
-    t.uuid "location_id", null: false
-    t.uuid "staff_member_id", null: false
-    t.datetime "updated_at", null: false
-    t.index ["location_id"], name: "index_staff_member_locations_on_location_id"
-    t.index ["staff_member_id", "location_id"], name: "index_staff_member_locations_unique", unique: true
-    t.index ["staff_member_id"], name: "index_staff_member_locations_on_staff_member_id"
   end
 
   create_table "staff_members", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
@@ -495,7 +467,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_14_231826) do
 
   add_foreign_key "active_storage_attachments", "active_storage_blobs", column: "blob_id"
   add_foreign_key "active_storage_variant_records", "active_storage_blobs", column: "blob_id"
-  add_foreign_key "activities", "locations"
+  add_foreign_key "activities", "companies"
   add_foreign_key "app_updates", "users", column: "created_by_id"
   add_foreign_key "attendance_records", "bookings"
   add_foreign_key "attendance_records", "users", column: "marked_by_id"
@@ -504,22 +476,21 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_14_231826) do
   add_foreign_key "bookings", "clients"
   add_foreign_key "bookings", "contract_periods"
   add_foreign_key "bookings", "sessions"
-  add_foreign_key "clients", "companies"
-  add_foreign_key "coach_locations", "coaches"
-  add_foreign_key "coach_locations", "locations"
   add_foreign_key "coaches", "companies"
   add_foreign_key "companies", "users", column: "owner_id"
   add_foreign_key "contract_periods", "contracts"
   add_foreign_key "contract_type_activities", "activities"
   add_foreign_key "contract_type_activities", "contract_types"
-  add_foreign_key "contract_type_locations", "contract_types"
-  add_foreign_key "contract_type_locations", "locations"
   add_foreign_key "contract_types", "companies"
+  add_foreign_key "contracts", "activities"
   add_foreign_key "contracts", "clients"
   add_foreign_key "contracts", "companies"
   add_foreign_key "contracts", "contract_types"
   add_foreign_key "contracts", "users", column: "created_by_id"
-  add_foreign_key "locations", "companies"
+  add_foreign_key "leads", "companies"
+  add_foreign_key "leads", "users", column: "handled_by_id"
+  add_foreign_key "memberships", "clients"
+  add_foreign_key "memberships", "companies"
   add_foreign_key "notifications", "companies"
   add_foreign_key "notifications", "users", column: "recipient_id"
   add_foreign_key "payments", "bookings"
@@ -530,15 +501,11 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_14_231826) do
   add_foreign_key "recurring_schedules", "activities"
   add_foreign_key "recurring_schedules", "coaches"
   add_foreign_key "recurring_schedules", "companies"
-  add_foreign_key "recurring_schedules", "locations"
   add_foreign_key "roles", "companies"
-  add_foreign_key "salles", "locations"
   add_foreign_key "sessions", "activities"
   add_foreign_key "sessions", "coaches"
-  add_foreign_key "sessions", "locations"
+  add_foreign_key "sessions", "companies"
   add_foreign_key "sessions", "recurring_schedules"
-  add_foreign_key "staff_member_locations", "locations"
-  add_foreign_key "staff_member_locations", "staff_members"
   add_foreign_key "staff_members", "coaches"
   add_foreign_key "staff_members", "companies"
   add_foreign_key "staff_members", "roles"

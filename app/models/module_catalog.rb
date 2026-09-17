@@ -12,7 +12,7 @@ module ModuleCatalog
 
   # Permissions every company has no matter what: the dashboard and the
   # establishments/settings screens.
-  BASE_PERMISSIONS = %w[reports locations].freeze
+  BASE_PERMISSIONS = %w[reports].freeze
 
   # key => { permissions: [...] } — the Permission::CATALOG keys each
   # feature unlocks. Order is the display order on the subscription page.

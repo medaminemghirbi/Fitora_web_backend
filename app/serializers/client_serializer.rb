@@ -1,7 +1,13 @@
 class ClientSerializer
-  def initialize(client, detailed: false)
+  # `company` is the gym looking at this person. It is what scopes their
+  # contracts, money and attendance to that gym, and where "active", "joined"
+  # and the gym's private notes come from — those belong to the membership,
+  # not to the person. Passing nil is the person's own, cross-gym view.
+  def initialize(client, detailed: false, company: nil)
     @client = client
     @detailed = detailed
+    @company = company
+    @membership = company && client.membership_for(company)
   end
 
   def as_json(*)
@@ -12,11 +18,11 @@ class ClientSerializer
       full_name: client.full_name,
       email: client.email,
       phone: client.phone,
-      active: client.active,
+      active: membership ? membership.active : client.active,
       login_enabled: client.login_enabled?,
       email_verified: client.email_verified?,
-      joined_at: client.joined_at,
-      current_contract: ContractSerializer.new(client.current_contract).as_json
+      joined_at: membership&.joined_at,
+      current_contract: ContractSerializer.new(client.current_contract(company)).as_json
     }
 
     return base unless detailed
@@ -27,14 +33,14 @@ class ClientSerializer
       address: client.address,
       emergency_contact_name: client.emergency_contact_name,
       emergency_contact_phone: client.emergency_contact_phone,
-      notes: client.notes,
-      outstanding_balance: client.outstanding_balance,
-      attendance_rate: client.attendance_rate,
-      last_visit_at: client.bookings.confirmed.joins(:session).maximum("sessions.starts_at")
+      notes: membership&.notes,
+      outstanding_balance: client.outstanding_balance(company),
+      attendance_rate: client.attendance_rate(company),
+      last_visit_at: client.bookings_for(company).confirmed.joins(:session).maximum("sessions.starts_at")
     )
   end
 
   private
 
-  attr_reader :client, :detailed
+  attr_reader :client, :detailed, :company, :membership
 end

@@ -147,4 +147,32 @@ RSpec.describe "Api::V1::Clients", type: :request do
       expect(response).to have_http_status(:unprocessable_content)
     end
   end
+
+  describe "the filter rail's counts" do
+    it "reports how many clients each status holds, for the current search" do
+      create(:client, company: company, first_name: "Rania", active: true)
+      create(:client, company: company, first_name: "Dorra", active: false)
+      create(:client, company: company, first_name: "Sofiane", active: true)
+
+      get "/api/v1/clients", headers: auth_headers(owner)
+
+      counts = response.parsed_body["counts"]
+      expect(counts["all"]).to eq(3)
+      expect(counts["active"]).to eq(2)
+      expect(counts["inactive"]).to eq(1)
+      expect(counts["no_contract"]).to eq(3)
+    end
+
+    it "narrows the counts with the search term rather than the picked status" do
+      create(:client, company: company, first_name: "Rania", active: true)
+      create(:client, company: company, first_name: "Dorra", active: false)
+
+      get "/api/v1/clients", params: { search: "rania", status: "inactive" }, headers: auth_headers(owner)
+
+      counts = response.parsed_body["counts"]
+      expect(counts["all"]).to eq(1)
+      expect(counts["active"]).to eq(1)
+      expect(counts["inactive"]).to eq(0)
+    end
+  end
 end

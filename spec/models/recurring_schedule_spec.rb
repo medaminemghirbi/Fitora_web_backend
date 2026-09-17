@@ -15,11 +15,11 @@ RSpec.describe RecurringSchedule do
     expect(schedule.errors[:weekdays]).to be_present
   end
 
-  it "rejects a location that doesn't match the activity's location" do
-    schedule = build(:recurring_schedule, location: create(:location))
+  it "refuses an activity that belongs to another gym" do
+    schedule = build(:recurring_schedule, company: create(:company))
 
     expect(schedule).not_to be_valid
-    expect(schedule.errors[:location]).to be_present
+    expect(schedule.errors[:activity]).to be_present
   end
 
   describe "#generation_end_date" do
@@ -40,7 +40,7 @@ RSpec.describe RecurringSchedule do
 
   it "nullifies its sessions' reference instead of deleting them when destroyed" do
     schedule = create(:recurring_schedule)
-    session = create(:session, activity: schedule.activity, location: schedule.location, recurring_schedule: schedule)
+    session = create(:session, activity: schedule.activity, company: schedule.company, recurring_schedule: schedule)
 
     schedule.destroy
 

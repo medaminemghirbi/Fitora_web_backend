@@ -36,7 +36,6 @@ module Coaches
         email: email, password: password, role: :staff, locale: "fr"
       )
       staff_member = coach.company.staff_members.create!(user: user, role: :coach, coach: coach)
-      staff_member.staff_member_locations.create!(location: coach.company.location)
       staff_member
     end
   end

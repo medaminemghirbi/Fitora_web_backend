@@ -16,7 +16,7 @@ module Api
         render json: { staff_member: StaffMemberSerializer.new(@staff_member).as_json }
       end
 
-      # POST /api/v1/staff — auto-assigned to the company's one location
+      # POST /api/v1/staff
       def create
         user = User.new(user_params.merge(role: :staff, locale: user_params[:locale].presence || "fr"))
         staff_member = nil
@@ -29,7 +29,6 @@ module Api
             birthdate: staff_params[:birthdate],
             **role_assignment
           )
-          staff_member.staff_member_locations.create!(location: current_company.location)
         end
 
         AuditLogs::Record.call(

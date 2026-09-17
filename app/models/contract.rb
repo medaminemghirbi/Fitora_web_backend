@@ -1,6 +1,11 @@
 class Contract < ApplicationRecord
   belongs_to :client
   belongs_to :contract_type
+  # What this contract actually books — required. A plan (ContractType) may
+  # separately scope itself to a set of activities (or none = "anything"),
+  # but that's an independent, coarser check; the contract's own activity is
+  # the real, narrow answer to "what is this for" (see #usable_for? below).
+  belongs_to :activity
   belongs_to :company
   belongs_to :created_by, class_name: "User", optional: true
 
@@ -8,7 +13,9 @@ class Contract < ApplicationRecord
   has_many :payments, through: :contract_periods
   has_many :bookings, through: :contract_periods
 
-  validates :client_id, uniqueness: { scope: :contract_type_id }
+  # Scoped by activity too now: the same client can hold the same plan more
+  # than once as long as each contract is for a different activity.
+  validates :client_id, uniqueness: { scope: [ :contract_type_id, :activity_id ] }
 
   # Every reasoning about "the client's contract" (status, dates, price,
   # remaining sessions) is really about their CURRENT term — the latest
@@ -29,11 +36,12 @@ class Contract < ApplicationRecord
   # row after picking a candidate contract, closing the check-then-act
   # window a concurrent booking against the same contract could otherwise
   # slip through (same class of race the Session capacity lock exists for).
-  def usable_for?(location:, activity:, period: current_period)
+  def usable_for?(activity:, period: current_period)
     return false unless period&.active? && (period.expires_at.nil? || period.expires_at >= Time.current)
     return false if contract_type.booking_limit.present? && !contract_type.unlimited_bookings? && period.remaining_bookings.to_i <= 0
+    return false if activity_id != activity.id
 
-    contract_type.grants_access_to?(location: location, activity: activity)
+    contract_type.grants_access_to?(activity: activity)
   end
 
   def consume_booking!(period: current_period)

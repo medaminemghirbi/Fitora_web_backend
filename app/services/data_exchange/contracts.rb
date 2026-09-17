@@ -4,8 +4,8 @@ module DataExchange
   # then hands off to Contracts::Create so pricing/periods/payment status
   # stay computed the exact same way a manual "new contract" does.
   class Contracts
-    HEADERS = %w[client_email contract_type_name starts_at].freeze
-    EXAMPLE_ROW = [ "amine@example.com", "Abonnement mensuel", Date.current.to_s ].freeze
+    HEADERS = %w[client_email contract_type_name activity_name starts_at].freeze
+    EXAMPLE_ROW = [ "amine@example.com", "Abonnement mensuel", "Yoga", Date.current.to_s ].freeze
 
     def self.template_csv
       CSV.generate do |csv|
@@ -17,8 +17,8 @@ module DataExchange
     def self.export_csv(company)
       CSV.generate do |csv|
         csv << HEADERS
-        company.contracts.includes(:client, :contract_type).order(:created_at).find_each do |contract|
-          csv << [ contract.client.email, contract.contract_type.name, contract.starts_at&.to_date ]
+        company.contracts.includes(:client, :contract_type, :activity).order(:created_at).find_each do |contract|
+          csv << [ contract.client.email, contract.contract_type.name, contract.activity.name, contract.starts_at&.to_date ]
         end
       end
     end
@@ -43,13 +43,20 @@ module DataExchange
           next
         end
 
+        activity_name = row["activity_name"].to_s.strip
+        activity = Activity.where(company_id: company.id).find_by(name: activity_name)
+        unless activity
+          errors << { row: line, message: "No activity named \"#{activity_name}\"" }
+          next
+        end
+
         starts_on = parse_date(row["starts_at"])
         if starts_on == :invalid
           errors << { row: line, message: "Invalid date: #{row['starts_at']}" }
           next
         end
 
-        result = ::Contracts::Create.call(client: client, contract_type: contract_type, created_by: user, starts_on: starts_on || Date.current)
+        result = ::Contracts::Create.call(client: client, contract_type: contract_type, activity: activity, created_by: user, starts_on: starts_on || Date.current)
         if result.success?
           created += 1
         else

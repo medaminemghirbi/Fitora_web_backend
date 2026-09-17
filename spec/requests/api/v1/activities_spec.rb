@@ -6,7 +6,7 @@ RSpec.describe "Api::V1::Activities", type: :request do
 
   describe "GET /api/v1/activities" do
     it "never exposes another company's activities" do
-      mine = create(:activity, location: company.location)
+      mine = create(:activity, company: company)
       theirs = create(:activity)
 
       get "/api/v1/activities", headers: auth_headers(owner)
@@ -17,7 +17,7 @@ RSpec.describe "Api::V1::Activities", type: :request do
     end
 
     it "lets a receptionist list them — needed to fill the new-session form" do
-      create(:activity, location: company.location)
+      create(:activity, company: company)
       receptionist = create(:staff_member, company: company, role: :receptionist)
 
       get "/api/v1/activities", headers: auth_headers(receptionist.user)
@@ -55,7 +55,7 @@ RSpec.describe "Api::V1::Activities", type: :request do
            headers: auth_headers(staff.user)
 
       expect(response).to have_http_status(:created)
-      expect(company.location.activities.pluck(:name)).to include("Yoga")
+      expect(company.activities.pluck(:name)).to include("Yoga")
     end
 
     it "rejects a capacity that does not match the session format" do

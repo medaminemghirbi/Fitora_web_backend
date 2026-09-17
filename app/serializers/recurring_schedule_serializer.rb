@@ -8,8 +8,6 @@ class RecurringScheduleSerializer
       id: schedule.id,
       activity_id: schedule.activity_id,
       activity_name: schedule.activity.name,
-      location_id: schedule.location_id,
-      location_name: schedule.location.name,
       coach_id: schedule.coach_id,
       coach_name: schedule.coach&.full_name,
       weekdays: schedule.weekdays,

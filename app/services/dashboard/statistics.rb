@@ -10,7 +10,7 @@ module Dashboard
 
     def call
       {
-        total_clients: company.clients.active.count,
+        total_clients: company.memberships.active.count,
         active_contracts: company.contract_periods.currently_active.count,
         todays_bookings: todays_bookings.count,
         todays_attendance: todays_attendance_count,
@@ -27,7 +27,7 @@ module Dashboard
     attr_reader :company
 
     def base_sessions_scope
-      Session.joins(:location).where(locations: { company_id: company.id })
+      Session.where(company_id: company.id)
     end
 
     def todays_bookings
@@ -50,7 +50,7 @@ module Dashboard
       base_sessions_scope
         .where(starts_at: Time.current.all_day)
         .order(:starts_at)
-        .includes(:activity, :coach, :location)
+        .includes(:activity, :coach)
         .map do |session|
           {
             id: session.id,
@@ -58,7 +58,6 @@ module Dashboard
             activity_name: session.activity.name,
             activity_emoji: session.activity.emoji,
             coach_name: session.coach&.full_name,
-            location_name: session.location.name,
             confirmed_count: session.confirmed_bookings_count,
             capacity: session.capacity,
             status: session.status
@@ -79,8 +78,11 @@ module Dashboard
     end
 
     def recent_clients
-      company.clients.order(created_at: :desc).limit(5).map do |c|
-        { id: c.id, full_name: c.full_name, joined_at: c.joined_at }
+      # "Recent" is recently joined THIS gym, which is the membership's date,
+      # not the day the person's platform account was created.
+      company.memberships.includes(:client).order(joined_at: :desc).limit(5).map do |m|
+        c = m.client
+        { id: c.id, full_name: c.full_name, joined_at: m.joined_at }
       end
     end
   end

@@ -15,8 +15,7 @@ module Api
 
       # POST /api/v1/attendance
       def create
-        booking = Booking.joins(session: :location)
-                          .where(locations: { company_id: current_company.id })
+        booking = Booking.joins(:session).where(sessions: { company_id: current_company.id })
                           .find_by(id: params[:booking_id])
         return render json: { error: "Booking not found" }, status: :not_found if booking.nil?
         return render_forbidden unless can_mark?(booking.session)
@@ -35,7 +34,7 @@ module Api
       # Coaches only ever touch their own sessions' attendance; everyone else
       # with the `sessions` capability sees the whole company.
       def accessible_sessions
-        scope = Session.joins(:location).where(locations: { company_id: current_company.id })
+        scope = current_company.sessions
         current_staff_member&.coach? ? scope.where(coach_id: current_staff_member.coach_id) : scope
       end
 

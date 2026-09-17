@@ -1,6 +1,6 @@
 class Session < ApplicationRecord
   belongs_to :activity
-  belongs_to :location
+  belongs_to :company
   belongs_to :coach, optional: true
   belongs_to :recurring_schedule, optional: true
 
@@ -11,9 +11,9 @@ class Session < ApplicationRecord
   validates :starts_at, :ends_at, :capacity, presence: true
   validates :capacity, numericality: { greater_than: 0 }
   validates :price, numericality: { greater_than_or_equal_to: 0 }
+  validate :activity_belongs_to_company
+  validate :coach_belongs_to_company
   validate :ends_after_starts
-  validate :location_matches_activity
-  validate :coach_assigned_to_location
 
   scope :upcoming, -> { where("starts_at >= ?", Time.current) }
   scope :for_date, ->(date) { where(starts_at: date.all_day) }
@@ -34,23 +34,26 @@ class Session < ApplicationRecord
 
   private
 
+  # A session can only run an activity its own gym offers.
+  def activity_belongs_to_company
+    return if activity.blank? || company.blank?
+
+    # Compared as objects, not ids: on an unsaved record both ids are nil and
+    # an id comparison would call a mismatch a match.
+    errors.add(:activity, "must belong to this gym") if activity.company != company
+  end
+
+  # The site check this replaced was the only thing stopping another gym's
+  # coach being scheduled here; the gym itself is the boundary now.
+  def coach_belongs_to_company
+    return if coach.blank? || company.blank?
+
+    errors.add(:coach, "must belong to this gym") if coach.company != company
+  end
+
   def ends_after_starts
     return if starts_at.blank? || ends_at.blank?
 
     errors.add(:ends_at, "must be after the start time") if ends_at <= starts_at
-  end
-
-  def location_matches_activity
-    return if activity.blank? || location.blank?
-
-    errors.add(:location, "must match the activity's location") if activity.location_id != location_id
-  end
-
-  def coach_assigned_to_location
-    return if coach.blank? || location.blank?
-
-    unless coach.locations.exists?(id: location_id)
-      errors.add(:coach, "is not assigned to this location")
-    end
   end
 end

@@ -37,7 +37,7 @@ class ApplicationController < ActionController::API
   def tag_sentry_context!
     if current_client
       Sentry.set_user(id: current_client.id, email: current_client.email)
-      Sentry.set_tags(account_type: "client", company_id: current_client.company_id)
+      Sentry.set_tags(account_type: "client")
     elsif current_user
       Sentry.set_user(id: current_user.id, email: current_user.email)
       Sentry.set_tags(

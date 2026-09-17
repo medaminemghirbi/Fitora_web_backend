@@ -49,45 +49,70 @@ RSpec.describe "Api::V1::Contracts", type: :request do
 
   describe "POST /api/v1/contracts" do
     it "lets the owner give a client a contract, active immediately" do
-      plan = create(:contract_type, company: company, active: true, price: 89)
+      activity = create(:activity, company: company)
+      plan = create(:contract_type, company: company, active: true, activity: activity, price: 89)
       client = create(:client, company: company)
 
       post "/api/v1/contracts",
-           params: { client_id: client.id, contract_type_id: plan.id, collect_payment: "true", payment_method: "cash" },
+           params: { client_id: client.id, contract_type_id: plan.id, activity_id: activity.id, collect_payment: "true", payment_method: "cash" },
            headers: auth_headers(owner)
 
       expect(response).to have_http_status(:created)
       expect(response.parsed_body["contract"]["status"]).to eq("active")
       expect(response.parsed_body["contract"]["payment_status"]).to eq("paid")
+      expect(response.parsed_body["contract"]["activity"]["id"]).to eq(activity.id)
       expect(response.parsed_body["payment"]["status"]).to eq("paid")
     end
 
     it "creates the contract unpaid when no payment is recorded" do
-      plan = create(:contract_type, company: company, active: true)
+      activity = create(:activity, company: company)
+      plan = create(:contract_type, company: company, active: true, activity: activity)
       client = create(:client, company: company)
 
-      post "/api/v1/contracts", params: { client_id: client.id, contract_type_id: plan.id }, headers: auth_headers(owner)
+      post "/api/v1/contracts", params: { client_id: client.id, contract_type_id: plan.id, activity_id: activity.id }, headers: auth_headers(owner)
 
       expect(response).to have_http_status(:created)
       expect(response.parsed_body["contract"]["payment_status"]).to eq("unpaid")
       expect(response.parsed_body["payment"]).to be_nil
     end
 
-    it "forbids a coach from giving a client a contract" do
+    it "404s when activity_id is missing" do
       plan = create(:contract_type, company: company, active: true)
+      client = create(:client, company: company)
+
+      post "/api/v1/contracts", params: { client_id: client.id, contract_type_id: plan.id }, headers: auth_headers(owner)
+
+      expect(response).to have_http_status(:not_found)
+      expect(response.parsed_body["error"]).to eq("Activity not found")
+    end
+
+    it "404s for an activity that belongs to another company" do
+      plan = create(:contract_type, company: company, active: true)
+      client = create(:client, company: company)
+      other_activity = create(:activity, company: create(:company))
+
+      post "/api/v1/contracts", params: { client_id: client.id, contract_type_id: plan.id, activity_id: other_activity.id }, headers: auth_headers(owner)
+
+      expect(response).to have_http_status(:not_found)
+    end
+
+    it "forbids a coach from giving a client a contract" do
+      activity = create(:activity, company: company)
+      plan = create(:contract_type, company: company, active: true, activity: activity)
       client = create(:client, company: company)
       coach = create(:staff_member, company: company, role: :coach)
 
-      post "/api/v1/contracts", params: { client_id: client.id, contract_type_id: plan.id }, headers: auth_headers(coach.user)
+      post "/api/v1/contracts", params: { client_id: client.id, contract_type_id: plan.id, activity_id: activity.id }, headers: auth_headers(coach.user)
 
       expect(response).to have_http_status(:forbidden)
     end
 
     it "logs an audit entry for the new contract" do
-      plan = create(:contract_type, company: company, active: true)
+      activity = create(:activity, company: company)
+      plan = create(:contract_type, company: company, active: true, activity: activity)
       client = create(:client, company: company)
 
-      post "/api/v1/contracts", params: { client_id: client.id, contract_type_id: plan.id }, headers: auth_headers(owner)
+      post "/api/v1/contracts", params: { client_id: client.id, contract_type_id: plan.id, activity_id: activity.id }, headers: auth_headers(owner)
 
       log = AuditLog.last
       expect(log.action).to eq("contract.created")
@@ -273,6 +298,42 @@ RSpec.describe "Api::V1::Contracts", type: :request do
       get "/api/v1/contracts/#{contract.id}/receipt", headers: auth_headers(coach.user)
 
       expect(response).to have_http_status(:forbidden)
+    end
+  end
+
+  describe "the list's rail counts and portfolio totals" do
+    it "counts each status on the current period, and values the portfolio at the prices sold" do
+      activity = create(:activity, company: company)
+      plan = create(:contract_type, company: company, activity: activity, price: 250)
+      create(:contract, company: company, contract_type: plan, activity: activity,
+             client: create(:client, company: company), status: :active, discount: 50)
+      create(:contract, company: company, contract_type: plan, activity: activity,
+             client: create(:client, company: company), status: :expired)
+
+      get "/api/v1/contracts", headers: auth_headers(owner)
+
+      body = response.parsed_body
+      expect(body["counts"]["all"]).to eq(2)
+      expect(body["counts"]["active"]).to eq(1)
+      expect(body["counts"]["expired"]).to eq(1)
+      # 250 sold minus the 50 discount — the frozen period price, not the plan's.
+      expect(body["totals"]["portfolio_value"]).to eq(200.0)
+      expect(body["totals"]["average_basket"]).to eq(200.0)
+      expect(body["plan_counts"][plan.id]).to eq(2)
+    end
+
+    it "counts the active contracts still unpaid" do
+      activity = create(:activity, company: company)
+      plan = create(:contract_type, company: company, activity: activity, price: 100)
+      create(:contract, company: company, contract_type: plan, activity: activity,
+             client: create(:client, company: company), status: :active, payment_status: :unpaid)
+      create(:contract, company: company, contract_type: plan, activity: activity,
+             client: create(:client, company: company), status: :active, payment_status: :paid)
+
+      get "/api/v1/contracts", headers: auth_headers(owner)
+
+      expect(response.parsed_body["counts"]["unpaid"]).to eq(1)
+      expect(response.parsed_body["totals"]["unpaid_value"]).to eq(100.0)
     end
   end
 end

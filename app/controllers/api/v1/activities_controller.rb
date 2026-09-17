@@ -8,7 +8,7 @@ module Api
 
       # GET /api/v1/activities
       def index
-        scope = Activity.joins(:location).where(locations: { company_id: current_company.id })
+        scope = current_company.activities
         render json: { activities: scope.order(:name).map { |a| ActivitySerializer.new(a).as_json } }
       end
 
@@ -19,7 +19,7 @@ module Api
 
       # POST /api/v1/activities — always attaches to the company's one location
       def create
-        activity = current_company.location.activities.new(activity_params)
+        activity = current_company.activities.new(activity_params)
 
         if activity.save
           render json: { activity: ActivitySerializer.new(activity).as_json }, status: :created
@@ -46,8 +46,7 @@ module Api
       private
 
       def set_activity
-        @activity = Activity.joins(:location)
-                             .where(locations: { company_id: current_company.id })
+        @activity = current_company.activities
                              .find(params[:id])
       end
 

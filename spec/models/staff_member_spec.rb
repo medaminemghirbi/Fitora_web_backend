@@ -7,7 +7,7 @@ RSpec.describe StaffMember, type: :model do
 
       expect(staff.can?(:checkin)).to be true
       expect(staff.can?(:sessions)).to be false
-      expect(staff.can?(:locations)).to be false
+      expect(staff.can?(:contract_types)).to be false
       expect(staff.can?(:clients)).to be false
       expect(staff.can?(:payments)).to be false
     end
@@ -23,7 +23,7 @@ RSpec.describe StaffMember, type: :model do
       expect(staff.can?(:checkin)).to be true
       expect(staff.can?(:reports)).to be true
 
-      expect(staff.can?(:locations)).to be false
+      expect(staff.can?(:contract_types)).to be false
       expect(staff.can?(:activities)).to be false
       expect(staff.can?(:contract_types)).to be false
       expect(staff.can?(:coaches)).to be false

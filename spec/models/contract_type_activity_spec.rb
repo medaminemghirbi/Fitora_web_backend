@@ -12,6 +12,13 @@ RSpec.describe ContractTypeActivity do
     expect(duplicate.errors[:activity_id]).to be_present
   end
 
+  it "rejects a negative price" do
+    row = build(:contract_type_activity, price: -1)
+
+    expect(row).not_to be_valid
+    expect(row.errors[:price]).to be_present
+  end
+
   it "allows the same activity to be attached to a different contract type" do
     activity = create(:activity)
     create(:contract_type_activity, contract_type: create(:contract_type), activity: activity)

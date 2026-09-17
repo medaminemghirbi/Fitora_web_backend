@@ -4,7 +4,7 @@ class RecurringSchedule < ApplicationRecord
   GENERATION_HORIZON = 90.days
 
   belongs_to :activity
-  belongs_to :location
+  belongs_to :company
   belongs_to :coach, optional: true
   belongs_to :company
 
@@ -15,9 +15,9 @@ class RecurringSchedule < ApplicationRecord
   validates :weekdays, presence: true
   validates :start_time, presence: true
   validates :starts_on, :ends_on, presence: true
+  validate :activity_belongs_to_company
   validate :ends_after_starts
   validate :weekdays_are_valid
-  validate :location_matches_activity
 
   scope :active, -> { where(active: true) }
 
@@ -26,6 +26,13 @@ class RecurringSchedule < ApplicationRecord
   end
 
   private
+
+  # A recurring slot can only run an activity its own gym offers.
+  def activity_belongs_to_company
+    return if activity.blank? || company.blank?
+
+    errors.add(:activity, "must belong to this gym") if activity.company != company
+  end
 
   def ends_after_starts
     return if starts_on.blank? || ends_on.blank?
@@ -37,11 +44,5 @@ class RecurringSchedule < ApplicationRecord
     return if weekdays.blank?
 
     errors.add(:weekdays, "must be between 0 (Sunday) and 6 (Saturday)") unless weekdays.all? { |d| (0..6).cover?(d) }
-  end
-
-  def location_matches_activity
-    return if activity.blank? || location.blank?
-
-    errors.add(:location, "must match the activity's location") if activity.location_id != location_id
   end
 end

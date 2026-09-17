@@ -3,7 +3,7 @@ require "rails_helper"
 RSpec.describe Receipts::ContractPdf do
   def build_contract(company:, discount: 0, paid: false)
     plan = create(:contract_type, company: company, price: 100)
-    client = create(:client, company: company, email: "amina@example.com", phone: "+216 20 000000")
+    client = create(:client, company: company, phone: "+216 20 000000")
     contract = create(:contract, client: client, contract_type: plan, discount: discount,
                                   payment_status: (paid ? :paid : :unpaid))
 

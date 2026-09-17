@@ -48,8 +48,30 @@ module Api
       # staff (managers/coaches/receptionists) still have exactly one, via
       # StaffMember. Never confuse either with User#role == "admin", the
       # Fitora platform operator handled entirely by Api::V1::Admin::*.
+      # The gym the request is about, for a STAFF login. A client no longer
+      # has "their" company — they belong to as many gyms as they like — so
+      # their gym is resolved per request instead (see member_company).
       def current_company
         @current_company ||= current_user&.active_company || current_staff_member&.company
+      end
+
+      # For a client login: the gym named by ?company_id=, checked against
+      # their memberships. nil means "across every gym I belong to", which is
+      # what the member screens show by default.
+      def member_company
+        return @member_company if defined?(@member_company)
+
+        @member_company = if params[:company_id].present?
+          current_client&.companies&.find_by(id: params[:company_id])
+        end
+      end
+
+      # 404 rather than 403: a gym the person has not joined should not even
+      # be distinguishable from one that does not exist.
+      def require_member_company!
+        return if params[:company_id].blank? || member_company
+
+        render json: { error: "Gym not found" }, status: :not_found
       end
 
       def current_staff_member
@@ -93,7 +115,7 @@ module Api
       end
 
       # Read access to the reference data a session is built from (the activity
-      # catalogue, the location's opening hours): whoever owns that data
+      # catalogue, the opening hours): whoever owns that data
       # (`capability`) *plus* anyone who can edit the schedule (`:sessions`),
       # since you can't plan a week of sessions without seeing the options.
       def require_schedule_reference_read!(capability)

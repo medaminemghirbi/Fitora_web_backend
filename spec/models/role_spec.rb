@@ -50,4 +50,34 @@ RSpec.describe Role do
       expect(role.reload).not_to be_deletable
     end
   end
+
+  describe "the Modérateur role" do
+    it "is the only role below the owner that can add coaches" do
+      company = create(:company)
+      by_key = company.roles.index_by(&:key)
+
+      expect(by_key["moderator"].permissions).to include("coaches")
+      expect(by_key["receptionist"].permissions).not_to include("coaches")
+      expect(by_key["coach"].permissions).not_to include("coaches")
+    end
+
+    it "still leaves the catalogues and the plans to the owner" do
+      company = create(:company)
+      moderator = company.roles.find_by(key: "moderator")
+
+      expect(moderator.permissions).not_to include("activities")
+      expect(moderator.permissions).not_to include("contract_types")
+    end
+
+    it "reaches a company created before the role existed, without touching a re-permissioned one" do
+      company = create(:company)
+      company.roles.find_by(key: "moderator").destroy
+      company.roles.find_by(key: "receptionist").update!(permissions: %w[clients])
+
+      Role.seed_defaults_for(company)
+
+      expect(company.roles.reload.find_by(key: "moderator")).to be_present
+      expect(company.roles.find_by(key: "receptionist").permissions).to eq(%w[clients])
+    end
+  end
 end

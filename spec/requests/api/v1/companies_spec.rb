@@ -227,4 +227,41 @@ RSpec.describe "Api::V1::Companies", type: :request do
       expect(company.reload.primary_color).to be_nil
     end
   end
+
+  describe "POST /api/v1/company/publish" do
+    it "starts listed, and lets the owner step out and back in" do
+      expect(company).to be_listed
+
+      post "/api/v1/company/publish", params: { listed: false }, headers: auth_headers(owner)
+
+      expect(response).to have_http_status(:ok)
+      expect(company.reload).not_to be_listed
+      expect(Company.listed).not_to include(company)
+
+      post "/api/v1/company/publish", params: { listed: true }, headers: auth_headers(owner)
+
+      expect(company.reload).to be_listed
+      expect(Company.listed).to include(company)
+    end
+
+    it "is not something a receptionist can decide" do
+      staff = create(:staff_member, company: company, role: :receptionist)
+
+      post "/api/v1/company/publish", params: { listed: false }, headers: auth_headers(staff.user)
+
+      expect(response).to have_http_status(:forbidden)
+      expect(company.reload).to be_listed
+    end
+  end
+
+  describe "opening hours, now that the company is the place" do
+    it "exposes them and lets the owner change them" do
+      patch "/api/v1/company", params: { company: { business_hours_start: "07:30", business_hours_end: "21:00" } },
+            headers: auth_headers(owner)
+
+      expect(response).to have_http_status(:ok)
+      expect(response.parsed_body["company"]["business_hours_start"]).to eq("07:30")
+      expect(response.parsed_body["company"]["business_hours_end"]).to eq("21:00")
+    end
+  end
 end

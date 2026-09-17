@@ -11,12 +11,19 @@ class Role < ApplicationRecord
   belongs_to :company
   has_many :staff_members, foreign_key: :role_id, inverse_of: :assigned_role, dependent: :restrict_with_error
 
-  SYSTEM_KEYS = %w[owner receptionist coach].freeze
+  SYSTEM_KEYS = %w[owner moderator receptionist coach].freeze
 
   DEFAULTS = {
     "owner" => {
       name: "Propriétaire",
       permissions: Permission::ALL
+    },
+    # Runs the gym day to day AND staffs it: the one role below the owner
+    # that can add coaches. Still not the catalogues (activities, plans) or
+    # the money settings — those stay the owner's.
+    "moderator" => {
+      name: "Modérateur",
+      permissions: %w[sessions bookings clients contracts payments checkin reports coaches]
     },
     # Front desk / daily gym operations. NOT the catalogs (activities,
     # membership plans), the coach roster, or opening hours — the owner can

@@ -2,34 +2,13 @@ require "rails_helper"
 
 RSpec.describe "Api::V1::Auth", type: :request do
   describe "POST /api/v1/auth/register" do
-    it "creates an owner account and returns a token — this is how a gym signs up for Fitora" do
+    it "no longer exists — a gym asks for a demo or a quote instead of signing itself up" do
       post "/api/v1/auth/register", params: {
-        first_name: "Jane", last_name: "Doe", email: "jane@example.com", password: "password123"
+        first_name: "Amine", last_name: "M", email: "new@example.com", password: "password123"
       }
 
-      expect(response).to have_http_status(:created)
-      body = response.parsed_body
-      expect(body["token"]).to be_present
-      expect(body["user"]["email"]).to eq("jane@example.com")
-      expect(body["user"]["role"]).to eq("owner")
-    end
-
-    it "rejects a duplicate email" do
-      create(:user, email: "dup@example.com")
-
-      post "/api/v1/auth/register", params: {
-        first_name: "Jane", last_name: "Doe", email: "dup@example.com", password: "password123"
-      }
-
-      expect(response).to have_http_status(:unprocessable_content)
-    end
-
-    it "never allows self-registering as admin or staff — always owner" do
-      post "/api/v1/auth/register", params: {
-        first_name: "Jane", last_name: "Doe", email: "jane2@example.com", password: "password123", role: "admin"
-      }
-
-      expect(response.parsed_body["user"]["role"]).to eq("owner")
+      expect(response).to have_http_status(:not_found)
+      expect(User.find_by(email: "new@example.com")).to be_nil
     end
   end
 

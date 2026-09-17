@@ -3,14 +3,13 @@ require "rails_helper"
 RSpec.describe "Api::V1::Bookings", type: :request do
   let(:owner) { create(:user, :owner) }
   let(:company) { create(:company, owner: owner) }
-  let(:location) { create(:location, company: company) }
-  let(:activity) { create(:activity, location: location) }
-  let(:session) { create(:session, activity: activity, location: location, capacity: 1) }
+  let(:activity) { create(:activity, company: company) }
+  let(:session) { create(:session, activity: activity, company: company, capacity: 1) }
   let(:client) { create(:client, company: company) }
   # Booking is always settled against a contract — give the client a plan
   # that covers every activity in the company.
   let!(:client_plan) do
-    create(:contract, client: client, contract_type: create(:contract_type, company: company, unlimited_bookings: true))
+    create(:contract, client: client, contract_type: create(:contract_type, company: company, unlimited_bookings: true), activity: activity)
   end
 
   describe "POST /api/v1/bookings" do
@@ -104,11 +103,10 @@ RSpec.describe "Api::V1::Bookings", type: :request do
 
     it "narrows a coach (granted the bookings capability) to bookings on their own sessions" do
       coach_profile = create(:coach, company: company)
-      create(:coach_location, coach: coach_profile, location: location)
       bookings_role = create(:role, company: company, permissions: %w[bookings])
       coach_staff = create(:staff_member, company: company, role: :coach, coach: coach_profile, assigned_role: bookings_role)
-      own_session = create(:session, activity: activity, location: location, coach: coach_profile)
-      other_session = create(:session, activity: activity, location: location)
+      own_session = create(:session, activity: activity, company: company, coach: coach_profile)
+      other_session = create(:session, activity: activity, company: company)
       create(:booking, client: client, session: own_session)
       create(:booking, client: client, session: other_session)
 
@@ -154,6 +152,40 @@ RSpec.describe "Api::V1::Bookings", type: :request do
       post "/api/v1/bookings/#{booking.id}/remind", headers: auth_headers(coach_staff.user)
 
       expect(response).to have_http_status(:forbidden)
+    end
+  end
+
+  describe "the list's filters and rail counts" do
+    it "filters by status and reports how many each status holds" do
+      confirmed = create(:booking, session: session, client: create(:client, company: company), status: :confirmed)
+      create(:booking, session: session, client: create(:client, company: company), status: :cancelled)
+
+      get "/api/v1/bookings", params: { status: "confirmed" }, headers: auth_headers(owner)
+
+      expect(response.parsed_body["bookings"].map { |b| b["id"] }).to eq([ confirmed.id ])
+      expect(response.parsed_body["counts"]["confirmed"]).to eq(1)
+      expect(response.parsed_body["counts"]["cancelled"]).to eq(1)
+      expect(response.parsed_body["counts"]["all"]).to eq(2)
+    end
+
+    it "filters by the session's day" do
+      today = create(:booking, session: session, client: create(:client, company: company))
+      other_session = create(:session, company: session.company, activity: session.activity,
+                             starts_at: 10.days.from_now.change(hour: 9), ends_at: 10.days.from_now.change(hour: 10))
+      create(:booking, session: other_session, client: create(:client, company: company))
+
+      get "/api/v1/bookings", params: { date: session.starts_at.to_date.to_s }, headers: auth_headers(owner)
+
+      expect(response.parsed_body["bookings"].map { |b| b["id"] }).to eq([ today.id ])
+    end
+
+    it "ignores an unparseable date rather than blowing up" do
+      create(:booking, session: session, client: create(:client, company: company))
+
+      get "/api/v1/bookings", params: { date: "pas-une-date" }, headers: auth_headers(owner)
+
+      expect(response).to have_http_status(:ok)
+      expect(response.parsed_body["bookings"].size).to eq(1)
     end
   end
 end

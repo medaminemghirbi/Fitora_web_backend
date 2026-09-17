@@ -47,7 +47,7 @@ RSpec.describe "Api::V1::DataExchange", type: :request do
     end
 
     it "exports the company's activities as CSV" do
-      create(:activity, location: company.locations.first, name: "Yoga")
+      create(:activity, company: company, name: "Yoga")
 
       get "/api/v1/data_exchange/activities/export", headers: auth_headers(owner)
 
@@ -58,13 +58,15 @@ RSpec.describe "Api::V1::DataExchange", type: :request do
     it "exports the company's contracts as CSV" do
       client = create(:client, company: company)
       contract_type = create(:contract_type, company: company, name: "Mensuel")
-      create(:contract, client: client, contract_type: contract_type, company: company)
+      activity = create(:activity, company: company, name: "Yoga")
+      create(:contract, client: client, contract_type: contract_type, company: company, activity: activity)
 
       get "/api/v1/data_exchange/contracts/export", headers: auth_headers(owner)
 
       rows = CSV.parse(response.body, headers: true)
       expect(rows.first["client_email"]).to eq(client.email)
       expect(rows.first["contract_type_name"]).to eq("Mensuel")
+      expect(rows.first["activity_name"]).to eq("Yoga")
     end
 
     it "exports the company's payments as CSV" do
@@ -107,21 +109,22 @@ RSpec.describe "Api::V1::DataExchange", type: :request do
     end
 
     context "activities" do
-      it "creates an activity for the company's location" do
+      it "creates an activity for the company's company" do
         csv = "name,session_format,duration_minutes,capacity,emoji,description\nYoga,collective,60,20,🧘,\n"
 
         post "/api/v1/data_exchange/activities/import", params: { file: upload(csv) }, headers: auth_headers(owner)
 
         expect(response.parsed_body["created"]).to eq(1)
-        expect(company.locations.first.activities.find_by(name: "Yoga")).to be_present
+        expect(company.activities.find_by(name: "Yoga")).to be_present
       end
     end
 
     context "contracts" do
-      it "creates a contract when the client and plan both exist" do
+      it "creates a contract when the client, plan, and activity all exist" do
         client = create(:client, company: company, email: "amine@example.com")
-        create(:contract_type, company: company, name: "Abonnement mensuel")
-        csv = "client_email,contract_type_name,starts_at\namine@example.com,Abonnement mensuel,2026-01-01\n"
+        yoga = create(:activity, company: company, name: "Yoga")
+        create(:contract_type, company: company, name: "Abonnement mensuel", activity: yoga)
+        csv = "client_email,contract_type_name,activity_name,starts_at\namine@example.com,Abonnement mensuel,Yoga,2026-01-01\n"
 
         post "/api/v1/data_exchange/contracts/import", params: { file: upload(csv) }, headers: auth_headers(owner)
 
@@ -131,13 +134,26 @@ RSpec.describe "Api::V1::DataExchange", type: :request do
 
       it "reports a row whose client email doesn't exist" do
         create(:contract_type, company: company, name: "Abonnement mensuel")
-        csv = "client_email,contract_type_name,starts_at\nghost@example.com,Abonnement mensuel,2026-01-01\n"
+        create(:activity, company: company, name: "Yoga")
+        csv = "client_email,contract_type_name,activity_name,starts_at\nghost@example.com,Abonnement mensuel,Yoga,2026-01-01\n"
 
         post "/api/v1/data_exchange/contracts/import", params: { file: upload(csv) }, headers: auth_headers(owner)
 
         body = response.parsed_body
         expect(body["created"]).to eq(0)
         expect(body["errors"].first["message"]).to include("ghost@example.com")
+      end
+
+      it "reports a row whose activity doesn't exist" do
+        create(:client, company: company, email: "amine@example.com")
+        create(:contract_type, company: company, name: "Abonnement mensuel")
+        csv = "client_email,contract_type_name,activity_name,starts_at\namine@example.com,Abonnement mensuel,Ghost Activity,2026-01-01\n"
+
+        post "/api/v1/data_exchange/contracts/import", params: { file: upload(csv) }, headers: auth_headers(owner)
+
+        body = response.parsed_body
+        expect(body["created"]).to eq(0)
+        expect(body["errors"].first["message"]).to include("Ghost Activity")
       end
     end
 

@@ -17,8 +17,7 @@ module Permission
     "contract_types"  => "Membership plans",
     "payments"        => "Payments",
     "reports"         => "Dashboard & reports",
-    "checkin"         => "Attendance check-in",
-    "locations"       => "Locations"
+    "checkin"         => "Attendance check-in"
   }.freeze
 
   ALL = CATALOG.keys.freeze

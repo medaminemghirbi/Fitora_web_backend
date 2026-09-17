@@ -25,8 +25,6 @@ class StaffMember < ApplicationRecord
   belongs_to :assigned_role, class_name: "Role", foreign_key: :role_id, optional: true, inverse_of: :staff_members,
                               counter_cache: :staff_members_count
 
-  has_many :staff_member_locations, dependent: :destroy
-  has_many :locations, through: :staff_member_locations
 
   enum :role, ROLES
 

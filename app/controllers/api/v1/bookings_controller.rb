@@ -8,20 +8,21 @@ module Api
       # GET /api/v1/bookings — filterable list of the company's bookings (coaches
       # narrowed to their own sessions)
       def index
-        scope = org_scope.order(created_at: :desc)
-
-        if params[:q].present?
-          t = "%#{params[:q].strip}%"
-          scope = scope.joins(:client).joins(session: :activity)
-            .where("clients.first_name ILIKE :t OR clients.last_name ILIKE :t OR activities.name ILIKE :t", t: t)
-        end
+        searched = searched_scope
+        # status and date come from the list's filter rail. They used to be
+        # sent by the frontend and dropped here, so the rail showed a filter
+        # that changed nothing.
+        scope = searched
+        scope = scope.where(status: params[:status]) if params[:status].present?
+        scope = on_day(scope, params[:date]) if params[:date].present?
 
         if params[:format] == "csv"
           send_data bookings_csv(scope), filename: "bookings-#{Date.current}.csv"
         else
           render json: {
             bookings: paginate(scope).map { |b| BookingSerializer.new(b).as_json },
-            meta: pagination_meta(scope)
+            meta: pagination_meta(scope),
+            counts: status_counts(searched)
           }
         end
       end
@@ -40,7 +41,7 @@ module Api
         client = current_company.clients.find_by(id: params[:client_id])
         return render json: { error: "Client not found" }, status: :not_found if client.nil?
 
-        session = Session.joins(:location).where(locations: { company_id: current_company.id }).find_by(id: params[:session_id])
+        session = current_company.sessions.find_by(id: params[:session_id])
         return render json: { error: "Session not found" }, status: :not_found if session.nil?
 
         result = Bookings::Create.call(client: client, session: session)
@@ -60,7 +61,7 @@ module Api
 
         if result.success?
           AuditLogs::Record.call(
-            company: @booking.session.location.company, user: current_user, action: "booking.cancelled",
+            company: @booking.session.company, user: current_user, action: "booking.cancelled",
             auditable: @booking, metadata: { client: @booking.client.full_name, activity: @booking.session.activity.name }
           )
           render json: { booking: BookingSerializer.new(@booking.reload).as_json }
@@ -78,7 +79,7 @@ module Api
 
         if result.success?
           AuditLogs::Record.call(
-            company: @booking.session.location.company, user: current_user, action: "booking.reminder_sent",
+            company: @booking.session.company, user: current_user, action: "booking.reminder_sent",
             auditable: @booking, metadata: { client: @booking.client.full_name }
           )
           render json: { status: "sent" }
@@ -93,8 +94,31 @@ module Api
       # org_scope is. set_booking uses this, not org_scope: a coach hitting
       # another coach's booking is a BookingPolicy#show? 403 (a role check),
       # not a 404 — only a booking truly outside the company should 404.
+      def searched_scope
+        scope = org_scope.order(created_at: :desc)
+        return scope if params[:q].blank?
+
+        t = "%#{params[:q].strip}%"
+        scope.joins(:client).joins(session: :activity)
+             .where("clients.first_name ILIKE :t OR clients.last_name ILIKE :t OR activities.name ILIKE :t", t: t)
+      end
+
+      def on_day(scope, date)
+        day = Date.parse(date)
+        scope.joins(:session).where(sessions: { starts_at: day.all_day })
+      rescue Date::Error
+        scope
+      end
+
+      # Counted on the searched set so the rail's numbers follow the search
+      # box, not the status already picked.
+      def status_counts(searched)
+        counted = params[:date].present? ? on_day(searched, params[:date]) : searched
+        counted.reorder(nil).group(:status).count.merge("all" => counted.reorder(nil).count)
+      end
+
       def company_scope
-        Booking.joins(session: :location).where(locations: { company_id: current_company.id })
+        Booking.joins(:session).where(sessions: { company_id: current_company.id })
       end
 
       def org_scope

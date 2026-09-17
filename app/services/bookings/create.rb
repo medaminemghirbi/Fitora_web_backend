@@ -18,7 +18,7 @@ module Bookings
       ActiveRecord::Base.transaction do
         locked_session = Session.lock.find(session.id)
         activity = locked_session.activity
-        company = activity.location.company
+        company = activity.company
 
         if locked_session.cancelled?
           error = "This session has been cancelled."
@@ -29,12 +29,12 @@ module Bookings
         elsif locked_session.held_bookings_count >= locked_session.capacity
           error = "This session is full."
         else
-          contract = find_contract_coverage(company: company, location: locked_session.location, activity: activity)
+          contract = find_contract_coverage(company: company, activity: activity)
 
           if contract
             locked_period = contract.contract_periods.lock.find(contract.current_period.id)
 
-            if contract.usable_for?(location: locked_session.location, activity: activity, period: locked_period)
+            if contract.usable_for?(activity: activity, period: locked_period)
               booking = confirm_with_contract(locked_session, contract, locked_period)
             else
               error = "This client needs an active contract to book this activity."
@@ -60,10 +60,10 @@ module Bookings
 
     attr_reader :client, :session
 
-    def find_contract_coverage(company:, location:, activity:)
+    def find_contract_coverage(company:, activity:)
       client.contracts.joins(:contract_periods).merge(ContractPeriod.currently_active)
             .where(company: company).distinct
-            .find { |c| c.usable_for?(location: location, activity: activity) }
+            .find { |c| c.usable_for?(activity: activity) }
     end
 
     def confirm_with_contract(locked_session, contract, period)
@@ -71,7 +71,7 @@ module Bookings
         client: client,
         status: :confirmed,
         amount: 0,
-        currency: locked_session.activity.location.company.currency,
+        currency: locked_session.activity.company.currency,
         payment_status: :paid,
         contract_period: period
       )

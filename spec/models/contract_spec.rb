@@ -1,16 +1,36 @@
 require "rails_helper"
 
 RSpec.describe Contract do
-  describe "validations" do
-    it "rejects a second contract for the same client and contract type" do
-      client = create(:client)
-      contract_type = create(:contract_type, company: client.company)
-      create(:contract, client: client, contract_type: contract_type)
+  let(:company) { create(:company) }
 
-      duplicate = build(:contract, client: client, contract_type: contract_type, company: client.company)
+  describe "validations" do
+    it "requires an activity" do
+      contract = build(:contract, activity: nil)
+
+      expect(contract).not_to be_valid
+      expect(contract.errors[:activity]).to be_present
+    end
+
+    it "rejects a second contract for the same client, contract type, and activity" do
+      client = create(:client, company: company)
+      contract_type = create(:contract_type, company: company)
+      activity = create(:activity, company: company)
+      create(:contract, client: client, contract_type: contract_type, company: company, activity: activity)
+
+      duplicate = build(:contract, client: client, contract_type: contract_type, company: company, activity: activity)
 
       expect(duplicate).not_to be_valid
       expect(duplicate.errors[:client_id]).to be_present
+    end
+
+    it "allows the same client and contract type again for a different activity" do
+      client = create(:client, company: company)
+      contract_type = create(:contract_type, company: company)
+      create(:contract, client: client, contract_type: contract_type, company: company, activity: create(:activity, company: company))
+
+      second = build(:contract, client: client, contract_type: contract_type, company: company, activity: create(:activity, company: company))
+
+      expect(second).to be_valid
     end
   end
 
@@ -38,46 +58,39 @@ RSpec.describe Contract do
   describe "#usable_for?" do
     it "is false when the current period isn't active" do
       contract = create(:contract, status: :pending)
-      location = create(:location, company: contract.company)
-      activity = create(:activity, location: location)
+      company = contract.activity.company
 
-      expect(contract.usable_for?(location: location, activity: activity)).to be false
+      expect(contract.usable_for?(activity: contract.activity)).to be false
     end
 
     it "is false once the period has expired, even if its status is still active" do
       contract = create(:contract, status: :active, expires_at: 1.day.ago)
-      location = create(:location, company: contract.company)
-      activity = create(:activity, location: location)
+      company = contract.activity.company
 
-      expect(contract.usable_for?(location: location, activity: activity)).to be false
+      expect(contract.usable_for?(activity: contract.activity)).to be false
     end
 
     it "is false when the plan is limited and no bookings remain" do
       contract_type = create(:contract_type, unlimited_bookings: false, booking_limit: 10)
       contract = create(:contract, contract_type: contract_type, remaining_bookings: 0)
-      location = create(:location, company: contract.company)
-      activity = create(:activity, location: location)
+      company = contract.activity.company
 
-      expect(contract.usable_for?(location: location, activity: activity)).to be false
+      expect(contract.usable_for?(activity: contract.activity)).to be false
     end
 
     it "is true for an active, unexpired contract with bookings left, delegating to the plan's access rules" do
       contract_type = create(:contract_type, unlimited_bookings: false, booking_limit: 10)
       contract = create(:contract, contract_type: contract_type, remaining_bookings: 3)
-      location = create(:location, company: contract.company)
-      activity = create(:activity, location: location)
+      company = contract.activity.company
 
-      expect(contract.usable_for?(location: location, activity: activity)).to be true
+      expect(contract.usable_for?(activity: contract.activity)).to be true
     end
 
-    it "defers location/activity access checks to the contract type" do
+    it "is false for any activity other than the one the contract itself was issued for, even one the plan would otherwise allow" do
       contract = create(:contract)
-      allowed_location = create(:location, company: contract.company)
-      other_location = create(:location, company: contract.company)
-      create(:contract_type_location, contract_type: contract.contract_type, location: allowed_location)
-      activity = create(:activity, location: other_location)
+      other_activity = create(:activity, company: contract.company)
 
-      expect(contract.usable_for?(location: other_location, activity: activity)).to be false
+      expect(contract.usable_for?(activity: other_activity)).to be false
     end
   end
 

@@ -19,7 +19,7 @@ Rails.application.routes.draw do
 
   namespace :api do
     namespace :v1 do
-      post "auth/register", to: "auth#register"
+      post "auth/register_client", to: "auth#register_client"
       post "auth/login", to: "auth#login"
       post "auth/logout", to: "auth#logout"
       get "auth/me", to: "auth#me"
@@ -40,8 +40,7 @@ Rails.application.routes.draw do
       end
 
       resource :company, only: [ :show, :update ] do
-        post :regenerate_mobile_key
-        get :mobile_key_qr
+        post :publish
       end
       # Plural: an owner can run more than one company now (see
       # User#company_limit) — :show/:update above always act on whichever
@@ -50,11 +49,13 @@ Rails.application.routes.draw do
         member { post :switch }
       end
       get "branding", to: "branding#show"
-      get "pairing/:mobile_auth_key", to: "pairing#show"
-      post "onboarding/dismiss", to: "onboarding#dismiss"
 
-      resource :location, only: [ :show, :update ]
-      resources :salles
+      # Public directory — no login: this is how someone finds a gym.
+      resources :gyms, only: [ :index, :show ]
+
+      # A gym asking for a demo or a quote — also no login, by definition.
+      resources :leads, only: [ :create ]
+      post "onboarding/dismiss", to: "onboarding#dismiss"
       resources :activities
       resources :coaches do
         member do
@@ -118,6 +119,7 @@ Rails.application.routes.draw do
           member { post :cancel }
         end
         resources :sessions, only: [ :index ]
+        resources :gyms, only: [ :index, :create, :destroy ]
       end
 
       namespace :owner do
@@ -131,7 +133,6 @@ Rails.application.routes.draw do
           member do
             patch :subscription, to: "companies#update_subscription"
             patch :settings, to: "companies#update_settings"
-            patch :mobile_key, to: "companies#update_mobile_key"
             patch :debt, to: "companies#update_debt"
             patch :company_limit, to: "companies#update_company_limit"
             post :impersonate, to: "companies#impersonate"
@@ -140,6 +141,9 @@ Rails.application.routes.draw do
         get "subscription_pricing", to: "subscription_pricing#show"
         patch "subscription_pricing", to: "subscription_pricing#update"
         resources :app_updates, only: [ :index, :create ]
+        resources :leads, only: [ :index, :update ] do
+          member { post :convert }
+        end
         resources :support_tickets, only: [ :index ] do
           member do
             patch :resolve

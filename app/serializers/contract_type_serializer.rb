@@ -9,7 +9,6 @@ class ContractTypeSerializer
       company_id: plan.company_id,
       name: plan.name,
       description: plan.description,
-      price: plan.price,
       currency: plan.currency,
       billing_period: plan.billing_period,
       duration_days: plan.duration_days,
@@ -19,8 +18,11 @@ class ContractTypeSerializer
       priority_booking: plan.priority_booking,
       color: plan.color,
       active: plan.active,
-      location_ids: plan.location_ids,
-      activity_ids: plan.activity_ids
+      activity_ids: plan.activity_ids,
+      # The pricing grid: what each activity costs under this plan.
+      activity_prices: plan.contract_type_activities.includes(:activity).map { |row|
+        { activity_id: row.activity_id, activity_name: row.activity.name, activity_emoji: row.activity.emoji, price: row.price }
+      }
     }
   end
 

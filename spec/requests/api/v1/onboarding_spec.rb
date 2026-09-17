@@ -29,7 +29,7 @@ RSpec.describe "Api::V1::Onboarding", type: :request do
         activity: false, contract_type: false, coach: false, complete: false
       )
 
-      create(:activity, location: company.location)
+      create(:activity, company: company)
       create(:contract_type, company: company)
       create(:coach, company: company)
 
