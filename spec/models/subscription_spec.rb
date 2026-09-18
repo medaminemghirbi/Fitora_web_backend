@@ -123,5 +123,18 @@ RSpec.describe Subscription do
       subscription = paid_until(Date.current.prev_month.end_of_month)
       expect(subscription.arrears_cents).to eq(company.monthly_subscription_cents)
     end
+
+    # Reporting zero here read as "nothing due" right beside "paid through:
+    # never", which is the pair of figures an admin acts on.
+    it "owes the period in progress when nothing was ever invoiced" do
+      subscription = create(:subscription, company: company, billing_period: :monthly)
+      expect(subscription.arrears_cents).to eq(company.monthly_subscription_cents)
+    end
+
+    it "owes a year at a time on a yearly plan" do
+      other = create(:company)
+      subscription = create(:subscription, company: other, billing_period: :yearly)
+      expect(subscription.arrears_cents).to eq(other.annual_subscription_cents)
+    end
   end
 end

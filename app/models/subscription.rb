@@ -83,11 +83,20 @@ class Subscription < ApplicationRecord
   # figure that used to be typed in by hand and could contradict the history
   # beside it.
   def arrears_cents
-    return 0 if paid_through.nil? || current_period_paid?
+    return 0 if current_period_paid?
+
+    # Never invoiced at all: the period in progress is owed. Reporting zero
+    # here read as "nothing due" right beside "paid through: never".
+    return period_cents if paid_through.nil?
 
     months = ((Date.current.year * 12 + Date.current.month) - (paid_through.year * 12 + paid_through.month))
     periods = yearly? ? (months / 12.0).ceil : months
-    [ periods, 0 ].max * (company.monthly_subscription_cents || 0) * (yearly? ? 12 : 1)
+    [ periods, 1 ].max * period_cents
+  end
+
+  def period_cents
+    monthly = company.monthly_subscription_cents.to_i
+    yearly? ? company.annual_subscription_cents.to_i : monthly
   end
 
   def suspend!
