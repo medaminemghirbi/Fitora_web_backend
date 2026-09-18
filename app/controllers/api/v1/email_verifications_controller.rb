@@ -8,7 +8,7 @@ module Api
       # POST /api/v1/email_verifications — resend, for the signed-in
       # user/client.
       def create
-        record = current_user
+        record = current_client || current_user
         return render_forbidden if record.nil? || (record.is_a?(User) && record.admin?)
         return render(json: { error: "no_email" }, status: :unprocessable_content) if record.email.blank?
         return render(json: { error: "already_verified" }, status: :unprocessable_content) if record.email_verified?
@@ -21,7 +21,8 @@ module Api
       # PATCH /api/v1/email_verifications/:token — unauthenticated: the
       # token itself, from the emailed link, is the proof.
       def update
-        record = User.where.not(role: :admin).find_by_email_verification_token(params[:token])
+        record = User.where.not(role: :admin).find_by_email_verification_token(params[:token]) ||
+                 Client.find_by_email_verification_token(params[:token])
 
         return render(json: { error: "invalid_or_expired_token" }, status: :unprocessable_content) if record.nil?
 

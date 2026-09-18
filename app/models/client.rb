@@ -1,12 +1,21 @@
-# A person a gym trains. Fitora is sold to gyms, so a Client has no account
-# and no way in: the record exists because staff created it, and only staff
-# ever read or write it.
+# A person a gym trains. The record exists because staff created it, and the
+# gym is what the person joined — there is no directory to find one in and no
+# way to sign yourself up.
 #
-# The record is still global rather than owned by one gym — the same person
+# They may still be given a way in, from their own file: an account the gym
+# enables so they can read their gym's schedule, book a slot, cancel it, and
+# see their own subscription and attendance. Off by default, and the gym's to
+# grant — which is why there is no pairing key. A key exists to attach a
+# device that has no account; these have one.
+#
+# The record is global rather than owned by one gym — the same person
 # training at two gyms is one Client with two Memberships — so that a gym
 # recording an existing email adopts the person instead of duplicating them.
 # Each gym still only ever sees its own membership, contracts and payments.
 class Client < ApplicationRecord
+  include PasswordResettable
+  include EmailVerifiable
+
   has_many :memberships, dependent: :destroy
   has_many :companies, through: :memberships
 
@@ -15,6 +24,11 @@ class Client < ApplicationRecord
   has_many :contract_periods, through: :contracts
   has_many :payments, dependent: :destroy
 
+  # Optional, unlike User's: a walk-in the gym wrote down is a perfectly
+  # valid member with no login at all. Enabling one is what sets a password
+  # (Api::V1::ClientsController#update).
+  has_secure_password validations: false
+
   before_validation { self.email = email.to_s.downcase.strip if email.present? }
   validates :first_name, :last_name, :phone, presence: true
   validates :email, format: { with: URI::MailTo::EMAIL_REGEXP }, allow_blank: true
@@ -22,6 +36,10 @@ class Client < ApplicationRecord
   # signing up at a second gym lands on their existing account instead of a
   # duplicate. A walk-in a gym recorded with no email is still valid.
   validates :email, uniqueness: { case_sensitive: false }, allow_blank: true
+  # An account has to be reachable: the email is both the identifier and
+  # where the invitation goes.
+  validates :email, presence: true, if: -> { password_digest.present? }
+  validates :password, length: { minimum: 8 }, if: -> { password.present? }
 
   scope :active, -> { where(active: true) }
   scope :search, ->(term) {
@@ -39,6 +57,10 @@ class Client < ApplicationRecord
 
   def full_name
     "#{first_name} #{last_name}"
+  end
+
+  def login_enabled?
+    password_digest.present?
   end
 
   def membership_for(company)

@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_09_18_180000) do
+ActiveRecord::Schema[8.1].define(version: 2026_09_18_190000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "btree_gist"
   enable_extension "pg_catalog.plpgsql"
@@ -120,18 +120,26 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_18_180000) do
     t.datetime "created_at", null: false
     t.date "date_of_birth"
     t.string "email"
+    t.datetime "email_verification_sent_at"
+    t.string "email_verification_token_digest"
+    t.datetime "email_verified_at"
     t.string "emergency_contact_name"
     t.string "emergency_contact_phone"
     t.string "first_name", null: false
     t.string "gender"
     t.string "last_name", null: false
+    t.string "password_digest"
     t.string "phone"
+    t.datetime "reset_password_sent_at"
+    t.string "reset_password_token_digest"
     t.datetime "updated_at", null: false
     t.index "lower((email)::text)", name: "index_clients_on_lower_email", unique: true, where: "(email IS NOT NULL)"
     t.index ["email"], name: "index_clients_on_email_trgm", opclass: :gin_trgm_ops, using: :gin
+    t.index ["email_verification_token_digest"], name: "index_clients_on_email_verification_token_digest", unique: true
     t.index ["first_name"], name: "index_clients_on_first_name_trgm", opclass: :gin_trgm_ops, using: :gin
     t.index ["last_name"], name: "index_clients_on_last_name_trgm", opclass: :gin_trgm_ops, using: :gin
     t.index ["phone"], name: "index_clients_on_phone_trgm", opclass: :gin_trgm_ops, using: :gin
+    t.index ["reset_password_token_digest"], name: "index_clients_on_reset_password_token_digest", unique: true
   end
 
   create_table "coaches", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|

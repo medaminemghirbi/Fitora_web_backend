@@ -69,10 +69,29 @@ RSpec.describe Client do
     end
   end
 
-  it "cannot be signed in as — a member is a record, not an account" do
-    client = create(:client, company: company)
-    expect(client).not_to respond_to(:authenticate)
-    expect(Client.column_names).not_to include("password_digest")
+  describe "the account a gym may enable" do
+    it "is off by default — a walk-in the gym wrote down is still a member" do
+      expect(create(:client, company: company).login_enabled?).to be false
+    end
+
+    it "is on once the gym sets a password" do
+      client = create(:client, company: company)
+      client.update!(password: "password123")
+      expect(client.reload.login_enabled?).to be true
+      expect(client.authenticate("password123")).to be_truthy
+    end
+
+    it "refuses a password too short to be one" do
+      client = build(:client, company: company, password: "short")
+      expect(client).not_to be_valid
+      expect(client.errors[:password]).to be_present
+    end
+
+    it "refuses an account with no email — that is where the invitation goes" do
+      client = build(:client, company: company, email: nil, password: "password123")
+      expect(client).not_to be_valid
+      expect(client.errors[:email]).to be_present
+    end
   end
 
   it "builds the full name from first and last name" do

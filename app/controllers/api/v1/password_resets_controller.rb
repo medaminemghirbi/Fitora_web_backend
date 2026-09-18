@@ -20,7 +20,8 @@ module Api
 
       # PATCH /api/v1/password_resets/:token — { password: }
       def update
-        record = User.active.where.not(role: :admin).find_by_reset_password_token(params[:token])
+        record = User.active.where.not(role: :admin).find_by_reset_password_token(params[:token]) ||
+                 Client.active.find_by_reset_password_token(params[:token])
 
         return render(json: { error: "invalid_or_expired_token" }, status: :unprocessable_content) if record.nil?
 
@@ -38,7 +39,8 @@ module Api
         normalized = email.to_s.downcase.strip
         return nil if normalized.blank?
 
-        User.active.where.not(role: :admin).find_by(email: normalized)
+        User.active.where.not(role: :admin).find_by(email: normalized) ||
+          Client.active.where.not(password_digest: nil).find_by(email: normalized)
       end
     end
   end

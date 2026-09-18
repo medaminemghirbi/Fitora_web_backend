@@ -16,6 +16,7 @@ class ClientSerializer
       first_name: client.first_name,
       last_name: client.last_name,
       full_name: client.full_name,
+      login_enabled: client.login_enabled?,
       email: client.email,
       phone: client.phone,
       active: membership ? membership.active : client.active,

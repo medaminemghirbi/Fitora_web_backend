@@ -5,7 +5,8 @@ module Api
 
       # GET /api/v1/branding — any authenticated company member (owner or
       # staff) reads their own company's; full company settings stay behind
-      # CompaniesController's require_owner!.
+      # CompaniesController's require_owner!. A member's own app reads the
+      # gym named by ?company_id=, checked against their memberships.
       def show
         render json: { branding: CompanyBrandingSerializer.new(@company).as_json }
       end
@@ -13,7 +14,7 @@ module Api
       private
 
       def set_company
-        @company = current_company
+        @company = current_client ? member_company : current_company
         render json: { error: "No company found for this account" }, status: :unprocessable_content if @company.nil?
       end
     end

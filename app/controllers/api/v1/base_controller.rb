@@ -21,6 +21,11 @@ module Api
       private_constant :OWNER_ALLOWED_WHEN_LOCKED
 
       def enforce_trial_lock!
+        # A member's own login carries no current_user. Their gym's trial
+        # status is not their problem to see: the member app has no "locked"
+        # screen, and leaving them stranded mid-booking would teach them
+        # nothing they can act on.
+        return if current_client
         return if current_user.admin?
 
         subscription = current_company&.subscription
@@ -45,6 +50,25 @@ module Api
         @current_company ||= current_user&.active_company || current_staff_member&.company
       end
 
+      # For a member's login: the gym named by ?company_id=, checked against
+      # their own memberships. nil means "every gym I belong to" — almost
+      # always exactly one.
+      def member_company
+        return @member_company if defined?(@member_company)
+
+        @member_company = if params[:company_id].present?
+          current_client&.companies&.find_by(id: params[:company_id])
+        end
+      end
+
+      # 404 rather than 403: a gym the person has not joined should not even
+      # be distinguishable from one that does not exist.
+      def require_member_company!
+        return if params[:company_id].blank? || member_company
+
+        render json: { error: "Gym not found" }, status: :not_found
+      end
+
       def current_staff_member
         return nil unless current_user&.staff?
 
@@ -57,6 +81,12 @@ module Api
 
       def require_admin!
         render_forbidden unless current_user.admin?
+      end
+
+      # Gates the member endpoints (Api::V1::Me::*) — the counterpart to
+      # require_owner!/require_admin!, for the other kind of login.
+      def require_client!
+        render_forbidden if current_client.nil?
       end
 
       # True for the owner (always) or for staff whose role grants this

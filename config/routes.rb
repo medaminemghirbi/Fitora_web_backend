@@ -108,6 +108,17 @@ Rails.application.routes.draw do
         end
       end
 
+      # A member's own app: their gym's schedule, their bookings, their file.
+      # No directory and no self-signup — the gym enables the account from
+      # the member's own record (Api::V1::ClientsController#update).
+      namespace :me do
+        resource :profile, only: [ :show ]
+        resources :sessions, only: [ :index ]
+        resources :bookings, only: [ :index, :create ] do
+          member { post :cancel }
+        end
+      end
+
       namespace :owner do
         get "dashboard", to: "dashboard#show"
         get "revenue", to: "revenue#show"
