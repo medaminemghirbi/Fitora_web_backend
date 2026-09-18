@@ -21,6 +21,9 @@ class Role < ApplicationRecord
     # Runs the gym day to day AND staffs it: the one role below the owner
     # that can add coaches. Still not the catalogues (activities, plans) or
     # the money settings — those stay the owner's.
+    #
+    # "payments" without "revenue" is the distinction that matters: taking
+    # money at the desk is the job, reading what the gym earns is not.
     "moderator" => {
       name: "Modérateur",
       permissions: %w[sessions bookings clients contracts payments checkin reports coaches]

@@ -150,4 +150,25 @@ RSpec.describe Dashboard::Statistics do
       expect(result[:attention].map { |r| r[:count] }).to all(eq(0))
     end
   end
+
+  describe "revenue: false" do
+    it "keeps the volumes and drops every figure in money" do
+      company = create(:company)
+      plan = create(:contract_type, company: company, price: 100)
+      client = create(:client, company: company)
+      contract = create(:contract, client: client, contract_type: plan)
+      contract.current_period.update!(status: :active, payment_status: :unpaid, expires_at: 90.days.from_now)
+      create(:payment, client: client, company: company, status: :paid, amount: 100)
+
+      result = described_class.call(company: company, revenue: false)
+
+      expect(result[:total_clients]).to eq(1)
+      expect(result[:outstanding_payments]).to be_nil
+      expect(result[:recent_payments]).to eq([])
+
+      unpaid = result[:attention].find { |r| r[:key] == "unpaid" }
+      expect(unpaid[:count]).to eq(1)
+      expect(unpaid[:amount]).to be_nil
+    end
+  end
 end

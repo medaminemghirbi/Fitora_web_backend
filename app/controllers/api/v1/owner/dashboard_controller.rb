@@ -7,7 +7,7 @@ module Api
 
         # GET /api/v1/owner/dashboard
         def show
-          stats = Dashboard::Statistics.call(company: current_company)
+          stats = Dashboard::Statistics.call(company: current_company, revenue: capability?(:revenue))
 
           render json: {
             company: CompanySerializer.new(current_company).as_json,

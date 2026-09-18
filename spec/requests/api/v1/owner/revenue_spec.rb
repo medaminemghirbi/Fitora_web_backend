@@ -28,10 +28,19 @@ RSpec.describe "Api::V1::Owner::Revenue", type: :request do
       expect(response.parsed_body["today"].to_f).to eq(50)
     end
 
-    it "lets a receptionist (reports capability) view revenue" do
+    it "forbids a receptionist: taking money at the desk is not reading what the gym earns" do
       receptionist = create(:staff_member, company: company, role: :receptionist)
 
       get "/api/v1/owner/revenue", headers: auth_headers(receptionist.user)
+
+      expect(response).to have_http_status(:forbidden)
+    end
+
+    it "lets a role the owner granted 'revenue' through" do
+      accountant = create(:role, company: company, key: "comptable", name: "Comptable", permissions: %w[reports revenue])
+      staff = create(:staff_member, company: company, role: :receptionist, assigned_role: accountant)
+
+      get "/api/v1/owner/revenue", headers: auth_headers(staff.user)
 
       expect(response).to have_http_status(:ok)
     end

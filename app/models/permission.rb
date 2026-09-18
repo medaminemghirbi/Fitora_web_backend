@@ -17,6 +17,7 @@ module Permission
     "contract_types"  => "Membership plans",
     "payments"        => "Payments",
     "reports"         => "Dashboard & reports",
+    "revenue"         => "Revenue & financial totals",
     "checkin"         => "Attendance check-in"
   }.freeze
 

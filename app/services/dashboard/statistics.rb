@@ -1,11 +1,15 @@
 module Dashboard
   class Statistics
-    def self.call(company:)
-      new(company: company).call
+    # `revenue: false` keeps the volumes and drops every figure in money.
+    # A moderator or a receptionist chases the eight subscriptions running
+    # out this week; what the gym earns is the owner's to read.
+    def self.call(company:, revenue: true)
+      new(company: company, revenue: revenue).call
     end
 
-    def initialize(company:)
+    def initialize(company:, revenue: true)
       @company = company
+      @revenue = revenue
     end
 
     def call
@@ -14,11 +18,11 @@ module Dashboard
         active_contracts: company.contract_periods.currently_active.count,
         todays_bookings: todays_bookings.count,
         todays_attendance: todays_attendance_count,
-        outstanding_payments: outstanding_payments_total,
+        outstanding_payments: revenue? ? outstanding_payments_total : nil,
         todays_schedule: todays_schedule,
         attention: attention,
         contracts_expiring: contracts_expiring,
-        recent_payments: recent_payments,
+        recent_payments: revenue? ? recent_payments : [],
         recent_clients: recent_clients
       }
     end
@@ -26,6 +30,10 @@ module Dashboard
     private
 
     attr_reader :company
+
+    def revenue?
+      @revenue
+    end
 
     def base_sessions_scope
       Session.where(company_id: company.id)
@@ -82,7 +90,7 @@ module Dashboard
 
       [
         { key: "expiring", count: expiring.count, amount: nil },
-        { key: "unpaid", count: unpaid.count, amount: unpaid.sum(:final_price).to_f },
+        { key: "unpaid", count: unpaid.count, amount: revenue? ? unpaid.sum(:final_price).to_f : nil },
         { key: "expired", count: expired.count, amount: nil },
         { key: "sessions_without_coach", count: todays_sessions.where(coach_id: nil).count, amount: nil }
       ]
