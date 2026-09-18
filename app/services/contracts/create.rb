@@ -29,8 +29,11 @@ module Contracts
       # client can't be subscribed at a price the frontend made up.
       base_price = contract_type.price_for(activity)
       if base_price.nil?
+        # Says what to do, not only what is wrong: whoever hits this is at a
+        # desk with someone waiting, and the fix is two screens away.
         return Result.new(success?: false, contract: nil, payment: nil,
-                          error: "This plan has no price set for #{activity.name}.")
+                          error: "\"#{contract_type.name}\" has no price for #{activity.name}. " \
+                                 "Set one in Abonnements → Formules before selling it.")
       end
 
       ActiveRecord::Base.transaction do
