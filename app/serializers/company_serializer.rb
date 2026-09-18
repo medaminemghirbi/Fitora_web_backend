@@ -35,10 +35,8 @@ class CompanySerializer
       included_modules: ModuleCatalog::KEYS,
       monthly_subscription_cents: company.monthly_subscription_cents,
       annual_subscription_cents: company.annual_subscription_cents,
-      annual_discount_percent: company.annual_discount_percent,
+      annual_discount_percent: company.annual_discount_percent
       # What the company currently owes Fitora — set by hand by an admin,
-      # shown read-only on the owner's subscription page.
-      debt_cents: company.debt_cents
     }
   end
 

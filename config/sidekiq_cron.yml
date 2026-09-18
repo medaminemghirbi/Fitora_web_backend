@@ -11,3 +11,11 @@ scan_employee_birthdays:
   cron: "10 7 * * *"
   class: "Notifications::ScanEmployeeBirthdaysJob"
   queue: default
+
+# Access is a boolean, and this is what turns it off: a gym whose last
+# invoice ran out more than three days ago. Idempotent, so a missed night is
+# caught up by the next one with no difference in outcome.
+close_unpaid_subscriptions:
+  cron: "20 2 * * *"
+  class: "Subscriptions::CloseUnpaidJob"
+  queue: default

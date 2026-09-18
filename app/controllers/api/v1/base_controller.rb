@@ -12,10 +12,11 @@ module Api
       # any access, and only to this much, until a platform admin manually
       # grants access again (Api::V1::Admin::CompaniesController#update_subscription).
       OWNER_ALLOWED_WHEN_LOCKED = {
-        # Asking to be activated is the one thing a locked owner must still
-        # be able to do — it is how the lock gets lifted. Blocking it left
-        # the only way out behind the door it closed.
-        "Api::V1::SubscriptionController" => %w[show request_upgrade cancel_upgrade],
+        # A locked owner still sees what they owe and can download the
+        # invoices they already have: the way out is settling, and both of
+        # these are how they work out what settling means.
+        "Api::V1::SubscriptionController" => %w[show],
+        "Api::V1::InvoicesController" => %w[index show],
         # One of an owner's companies being locked must never trap them —
         # they still need to see the list, switch to an unlocked one, or
         # create a fresh one (its own independent trial).
@@ -48,13 +49,10 @@ module Api
       def lock_message(reason)
         return "This gym's account is locked. Contact your gym owner." unless current_user.owner?
 
-        case reason
-        when :trial_expired
-          "Your free trial has ended. Ask Fitora to activate your account to carry on."
-        when :payment_overdue
-          "This month has not been settled. Access closed #{Subscription::GRACE_DAYS} days after the period you paid for ran out."
+        if reason == :unpaid
+          "The period you paid for has run out. Access closed #{Subscription::GRACE_DAYS} days later; settle with Fitora to reopen it."
         else
-          "Your account is closed. Contact Fitora."
+          "Your access has been suspended by Fitora. Get in touch to find out why."
         end
       end
 

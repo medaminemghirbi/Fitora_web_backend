@@ -29,6 +29,7 @@ class Company < ApplicationRecord
   has_many :sessions, dependent: :destroy
   has_many :recurring_schedules, dependent: :destroy
   has_one :subscription, dependent: :destroy
+  has_many :invoices, dependent: :destroy
   has_many :memberships, dependent: :destroy
   has_many :clients, through: :memberships
   has_many :contract_types, dependent: :destroy
@@ -51,7 +52,6 @@ class Company < ApplicationRecord
   validates :slug, uniqueness: true, allow_nil: true,
                     format: { with: /\A[a-z0-9]+(?:-[a-z0-9]+)*\z/, message: "must contain only lowercase letters, numbers, and hyphens" }
   validates :primary_color, format: { with: /\A#[0-9a-fA-F]{6}\z/, message: "must be a hex color like #4f46e5" }, allow_nil: true
-  validates :debt_cents, numericality: { only_integer: true, greater_than_or_equal_to: 0 }
 
   # Admin company search — name / city, plus the owner's name and email.
   scope :search, ->(term) {

@@ -97,74 +97,6 @@ RSpec.describe "Api::V1::Admin::Companies", type: :request do
     end
   end
 
-  describe "PATCH /api/v1/admin/companies/:id/subscription" do
-    it "overrides a company's access status directly, with no payment involved" do
-      company = create(:company)
-      create(:subscription, company: company, status: :inactive)
-
-      patch "/api/v1/admin/companies/#{company.id}/subscription",
-            params: { status: "active" },
-            headers: auth_headers(admin)
-
-      expect(response).to have_http_status(:ok)
-      expect(company.reload.subscription.status).to eq("active")
-      expect(Payment.count).to eq(0)
-    end
-
-    it "creates a subscription when the company has none yet" do
-      company = create(:company)
-
-      patch "/api/v1/admin/companies/#{company.id}/subscription",
-            params: { status: "active" },
-            headers: auth_headers(admin)
-
-      expect(response).to have_http_status(:ok)
-      expect(company.reload.subscription).to be_present
-      expect(company.subscription.status).to eq("active")
-    end
-
-    it "activates a real subscription with a billing period and clears the owner's request" do
-      company = create(:company)
-      sub = create(:subscription, company: company, status: :active, expires_at: 5.days.from_now)
-      sub.request_upgrade!(period: "yearly")
-
-      patch "/api/v1/admin/companies/#{company.id}/subscription",
-            params: { status: "active", billing_period: "yearly", expires_at: "2027-09-09" },
-            headers: auth_headers(admin)
-
-      expect(response).to have_http_status(:ok)
-      sub.reload
-      expect(sub.billing_period).to eq("yearly")
-      expect(sub.on_trial?).to be false
-      expect(sub.upgrade_requested?).to be false
-      expect(response.parsed_body["company"]["subscription"]).to include("billing_period" => "yearly", "on_trial" => false)
-    end
-  end
-
-  describe "PATCH /api/v1/admin/companies/:id/debt" do
-    it "records the company's outstanding balance" do
-      company = create(:company)
-
-      patch "/api/v1/admin/companies/#{company.id}/debt",
-            params: { debt_cents: 15_000 },
-            headers: auth_headers(admin)
-
-      expect(response).to have_http_status(:ok)
-      expect(company.reload.debt_cents).to eq(15_000)
-      expect(response.parsed_body["company"]["debt_cents"]).to eq(15_000)
-    end
-
-    it "rejects a negative balance" do
-      company = create(:company)
-
-      patch "/api/v1/admin/companies/#{company.id}/debt",
-            params: { debt_cents: -100 },
-            headers: auth_headers(admin)
-
-      expect(response).to have_http_status(:unprocessable_content)
-    end
-  end
-
   describe "PATCH /api/v1/admin/companies/:id/company_limit" do
     it "raises the owner's tier, affecting every company they run" do
       company = create(:company)
@@ -268,54 +200,6 @@ RSpec.describe "Api::V1::Admin::Companies", type: :request do
     end
   end
 
-  describe "GET /api/v1/admin/companies?awaiting=1" do
-    def asked!(company, at:, period: nil)
-      company.subscription.update!(upgrade_requested_at: at, upgrade_requested_period: period)
-    end
-
-    it "narrows to the gyms waiting on an answer, longest wait first" do
-      quiet = create(:company, name: "Quiet")
-      create(:subscription, company: quiet)
-
-      longest = create(:company, name: "Longest")
-      create(:subscription, company: longest)
-      asked!(longest, at: 5.days.ago)
-
-      recent = create(:company, name: "Recent")
-      create(:subscription, company: recent)
-      asked!(recent, at: 1.hour.ago)
-
-      get "/api/v1/admin/companies", params: { awaiting: "1" }, headers: auth_headers(admin)
-
-      expect(response).to have_http_status(:ok)
-      expect(response.parsed_body["companies"].map { |c| c["name"] }).to eq([ "Longest", "Recent" ])
-    end
-
-    it "counts them even when the list is not narrowed, so nothing has to be opened to notice" do
-      waiting = create(:company, name: "Waiting")
-      create(:subscription, company: waiting)
-      asked!(waiting, at: 2.days.ago)
-      create(:subscription, company: create(:company, name: "Quiet"))
-
-      get "/api/v1/admin/companies", headers: auth_headers(admin)
-
-      expect(response.parsed_body["awaiting_count"]).to eq(1)
-      expect(response.parsed_body["companies"].map { |c| c["name"] }).to eq([ "Quiet", "Waiting" ])
-      expect(response.parsed_body["companies"].find { |c| c["name"] == "Waiting" }["awaiting_activation"]).to be true
-    end
-
-    it "stops counting a request once it is answered" do
-      company = create(:company)
-      create(:subscription, company: company)
-      asked!(company, at: 1.day.ago)
-      company.subscription.cancel_upgrade_request!
-
-      get "/api/v1/admin/companies", headers: auth_headers(admin)
-
-      expect(response.parsed_body["awaiting_count"]).to eq(0)
-    end
-  end
-
   describe "what an activation decision needs to know" do
     it "reports what the gym is actually doing with Fitora" do
       company = create(:company)
@@ -346,51 +230,105 @@ RSpec.describe "Api::V1::Admin::Companies", type: :request do
       expect(usage["last_session_at"]).to be_nil
     end
   end
-  describe "recording the money arriving" do
-    let(:company) { create(:company) }
+  describe "PATCH /api/v1/admin/companies/:id/subscription" do
+    it "opens and closes access, because access is a boolean" do
+      company = create(:company)
+      create(:subscription, company: company)
 
-    def paying!(paid_through:)
-      create(:subscription, company: company, billing_period: :monthly,
-                            status: :active, expires_at: nil, paid_through: paid_through)
-    end
-
-    it "moves coverage on by a period and says so in the audit log" do
-      paying!(paid_through: Date.new(2026, 1, 31))
-
-      travel_to(Date.new(2026, 2, 10)) do
-        post "/api/v1/admin/companies/#{company.id}/record_payment", headers: auth_headers(admin)
-      end
+      patch "/api/v1/admin/companies/#{company.id}/subscription",
+            params: { active: false }, headers: auth_headers(admin)
 
       expect(response).to have_http_status(:ok)
-      expect(company.subscription.reload.paid_through).to eq(Date.new(2026, 2, 28))
-      expect(response.parsed_body["company"]["subscription"]["current_period_paid"]).to be true
-      expect(AuditLog.last.action).to eq("subscription.payment_recorded")
+      expect(company.subscription.reload).not_to be_active
+      expect(AuditLog.last.action).to eq("subscription.access_suspended")
     end
 
-    it "refuses a gym still on its trial — there is nothing to pay yet" do
-      create(:subscription, company: company, billing_period: nil, status: :active)
+    it "creates a subscription for a company that has none yet" do
+      company = create(:company)
 
-      post "/api/v1/admin/companies/#{company.id}/record_payment", headers: auth_headers(admin)
+      patch "/api/v1/admin/companies/#{company.id}/subscription",
+            params: { billing_period: "yearly" }, headers: auth_headers(admin)
 
-      expect(response).to have_http_status(:unprocessable_content)
-      expect(response.parsed_body["error"]).to eq("on_trial")
+      expect(response).to have_http_status(:ok)
+      expect(company.reload.subscription.billing_period).to eq("yearly")
     end
 
-    it "takes a payment back that never arrived" do
-      paying!(paid_through: Date.new(2026, 3, 31))
+    it "is admin-only" do
+      company = create(:company)
+      create(:subscription, company: company)
 
-      travel_to(Date.new(2026, 3, 10)) do
-        delete "/api/v1/admin/companies/#{company.id}/record_payment", headers: auth_headers(admin)
-      end
+      patch "/api/v1/admin/companies/#{company.id}/subscription",
+            params: { active: false }, headers: auth_headers(company.owner)
 
-      expect(company.subscription.reload.paid_through).to eq(Date.new(2026, 2, 28))
+      expect(response).to have_http_status(:forbidden)
+    end
+  end
+
+  describe "GET /api/v1/admin/companies?closed=1" do
+    it "narrows to the gyms whose access is shut, and counts them either way" do
+      create(:subscription, company: create(:company, name: "Ouverte"))
+      create(:subscription, :closed, company: create(:company, name: "Fermée"))
+
+      get "/api/v1/admin/companies", headers: auth_headers(admin)
+      expect(response.parsed_body["closed_count"]).to eq(1)
+      expect(response.parsed_body["companies"].map { |c| c["name"] }).to eq([ "Fermée", "Ouverte" ])
+
+      get "/api/v1/admin/companies", params: { closed: "1" }, headers: auth_headers(admin)
+      expect(response.parsed_body["companies"].map { |c| c["name"] }).to eq([ "Fermée" ])
+    end
+  end
+
+  describe "the money arriving" do
+    let(:company) { create(:company) }
+
+    it "issues one invoice for the next uncovered period and reopens access" do
+      subscription = create(:subscription, :closed, company: company, billing_period: :monthly)
+      create(:invoice, company: company, period_start: Date.new(2026, 7, 1), period_end: Date.new(2026, 7, 31))
+
+      expect {
+        post "/api/v1/admin/companies/#{company.id}/invoices", headers: auth_headers(admin)
+      }.to change(Invoice, :count).by(1)
+
+      expect(response).to have_http_status(:created)
+      issued = company.invoices.newest_first.first
+      expect(issued.period_start).to eq(Date.new(2026, 8, 1))
+      expect(issued.period_end).to eq(Date.new(2026, 8, 31))
+      expect(subscription.reload).to be_active
+      expect(AuditLog.last.action).to eq("subscription.invoice_issued")
+    end
+
+    it "freezes the amount, so a later price change cannot rewrite it" do
+      create(:subscription, company: company, billing_period: :monthly)
+
+      post "/api/v1/admin/companies/#{company.id}/invoices", headers: auth_headers(admin)
+      issued_cents = response.parsed_body["invoice"]["amount"] * 100
+
+      expect(issued_cents.round).to eq(company.monthly_subscription_cents)
+    end
+
+    it "tells the gym's owner it was issued" do
+      create(:subscription, company: company)
+
+      expect {
+        post "/api/v1/admin/companies/#{company.id}/invoices", headers: auth_headers(admin)
+      }.to change { company.owner.notifications.where(kind: "invoice_issued").count }.by(1)
+    end
+
+    it "voids one issued in error" do
+      create(:subscription, company: company)
+      invoice = create(:invoice, company: company)
+
+      expect {
+        delete "/api/v1/admin/companies/#{company.id}/invoices/#{invoice.id}", headers: auth_headers(admin)
+      }.to change(Invoice, :count).by(-1)
+
+      expect(AuditLog.last.action).to eq("subscription.invoice_voided")
     end
 
     it "is closed to anyone who is not a Fitora admin" do
-      paying!(paid_through: Date.current.end_of_month)
-      owner = create(:user, :owner)
+      create(:subscription, company: company)
 
-      post "/api/v1/admin/companies/#{company.id}/record_payment", headers: auth_headers(owner)
+      post "/api/v1/admin/companies/#{company.id}/invoices", headers: auth_headers(company.owner)
 
       expect(response).to have_http_status(:forbidden)
     end

@@ -48,7 +48,7 @@ namespace :load_test do
       owner.update!(active_company: company)
 
       Role.seed_defaults_for(company)
-      company.create_subscription!(status: :active, starts_at: Time.current, expires_at: 1.year.from_now)
+      company.create_subscription!(active: true, billing_period: :monthly)
       location = company.locations.create!(name: company.name, timezone: company.timezone)
 
       activities = 6.times.map do |a|

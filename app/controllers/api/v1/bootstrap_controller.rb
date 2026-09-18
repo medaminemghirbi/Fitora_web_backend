@@ -39,15 +39,13 @@ module Api
         return nil if subscription.nil?
 
         {
-          status: subscription.status,
+          active: subscription.active,
           locked: subscription.locked?,
-          on_trial: subscription.on_trial?,
-          trial_days_remaining: subscription.days_remaining,
+          lock_reason: subscription.lock_reason,
           # Enough for the shell to warn before the door shuts, rather than
           # leaving the owner to discover it mid-task.
           current_period_paid: subscription.current_period_paid?,
-          days_before_lock: subscription.days_before_lock,
-          lock_reason: subscription.lock_reason
+          days_before_lock: subscription.days_before_lock
         }
       end
     end

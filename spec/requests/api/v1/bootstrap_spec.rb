@@ -3,7 +3,8 @@ require "rails_helper"
 RSpec.describe "Api::V1 GET /api/v1/bootstrap", type: :request do
   let(:owner) { create(:user, :owner) }
   let!(:company) { create(:company, owner: owner) }
-  let!(:subscription) { create(:subscription, company: company, expires_at: 5.days.from_now) }
+  let!(:subscription) { create(:subscription, company: company) }
+  let!(:invoice) { create(:invoice, :current, company: company) }
 
   it "hydrates the owner shell in one call" do
     get "/api/v1/bootstrap", headers: auth_headers(owner)
@@ -20,7 +21,7 @@ RSpec.describe "Api::V1 GET /api/v1/bootstrap", type: :request do
     expect(body["roles"].map { |r| r["key"] }).to match_array(Role::SYSTEM_KEYS)
     expect(body["roles"].first).to include("id", "permissions", "builtin")
     expect(body["permission_catalog"]).to include("contract_types")
-    expect(body["subscription"]).to include("status", "locked", "trial_days_remaining")
+    expect(body["subscription"]).to include("active", "locked", "days_before_lock")
     expect(body["setup"]).to include(
       "activity" => false, "contract_type" => false, "coach" => false,
       "dismissed" => false, "complete" => false
@@ -60,7 +61,7 @@ RSpec.describe "Api::V1 GET /api/v1/bootstrap", type: :request do
   end
 
   it "still bootstraps a locked company (for the trial-expired screen)" do
-    subscription.update!(status: :active, expires_at: 2.days.ago)
+    subscription.update!(active: false)
 
     get "/api/v1/bootstrap", headers: auth_headers(owner)
 

@@ -76,8 +76,8 @@ Rails.application.routes.draw do
       post "data_exchange/:entity/import", to: "data_exchange#import"
 
       get "subscription", to: "subscription#show"
-      post "subscription/request_upgrade", to: "subscription#request_upgrade"
-      delete "subscription/request_upgrade", to: "subscription#cancel_upgrade"
+      # The gym's own invoices; :show is the PDF.
+      resources :invoices, only: [ :index, :show ]
 
       resources :contract_types, only: [ :index, :show, :create, :update ]
       resources :contracts, only: [ :index, :show, :create, :update, :destroy ] do
@@ -128,11 +128,11 @@ Rails.application.routes.draw do
           member do
             patch :subscription, to: "companies#update_subscription"
             patch :settings, to: "companies#update_settings"
-            patch :debt, to: "companies#update_debt"
             patch :company_limit, to: "companies#update_company_limit"
             post :impersonate, to: "companies#impersonate"
-            post :record_payment, to: "companies#record_payment"
-            delete :record_payment, to: "companies#undo_payment"
+            get :invoices, to: "companies#invoices"
+            post :invoices, to: "companies#create_invoice"
+            delete "invoices/:invoice_id", to: "companies#destroy_invoice", as: :invoice
           end
         end
         get "subscription_pricing", to: "subscription_pricing#show"

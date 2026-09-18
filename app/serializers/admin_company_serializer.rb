@@ -14,8 +14,7 @@ class AdminCompanySerializer
       locale: company.locale,
       active: company.active,
       created_at: company.created_at,
-      trial_locked: company.subscription&.locked? || false,
-      trial_days_remaining: company.subscription&.days_remaining,
+      access_open: company.subscription&.active || false,
       owner: {
         id: company.owner.id,
         full_name: company.owner.full_name,
@@ -27,9 +26,9 @@ class AdminCompanySerializer
         companies_count: company.owner.companies.count
       },
       subscription: SubscriptionSerializer.new(company.subscription).as_json,
-      # Whether this gym is waiting on an answer — the list flags it, so an
-      # admin never has to open a page to find out.
-      awaiting_activation: company.subscription&.upgrade_requested? || false,
+      # Owed: periods with no invoice behind them, times the tariff. No
+      # longer typed in by hand, so it cannot contradict the history.
+      arrears_cents: company.subscription&.arrears_cents || 0,
       # What the gym is actually doing with Fitora. An activation decision
       # rests on this far more than on the subscription row: a gym with 180
       # members and a full week of sessions is a different conversation from
@@ -40,7 +39,6 @@ class AdminCompanySerializer
       monthly_subscription_cents: company.monthly_subscription_cents,
       annual_subscription_cents: company.annual_subscription_cents,
       annual_discount_percent: company.annual_discount_percent,
-      debt_cents: company.debt_cents,
       # Every feature is included for every company.
       included_modules: ModuleCatalog::KEYS
     }

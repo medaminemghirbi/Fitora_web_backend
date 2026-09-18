@@ -120,10 +120,10 @@ RSpec.describe "Api::V1::Companies", type: :request do
       expect(response).to have_http_status(:not_found)
     end
 
-    it "is unaffected by another of the owner's companies being trial-locked" do
+    it "is unaffected by another of the owner's companies being locked out" do
       owner.update!(company_limit: nil)
       second = create(:company, owner: owner)
-      create(:subscription, company: company, expires_at: 1.day.ago)
+      create(:subscription, :closed, company: company)
 
       post "/api/v1/companies/#{second.id}/switch", headers: auth_headers(owner)
 

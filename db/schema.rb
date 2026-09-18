@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_09_18_210000) do
+ActiveRecord::Schema[8.1].define(version: 2026_09_18_220000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "btree_gist"
   enable_extension "pg_catalog.plpgsql"
@@ -166,7 +166,6 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_18_210000) do
     t.string "country"
     t.datetime "created_at", null: false
     t.string "currency", default: "TND", null: false
-    t.integer "debt_cents", default: 0, null: false
     t.text "description"
     t.string "email"
     t.decimal "latitude", precision: 10, scale: 6
@@ -248,6 +247,25 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_18_210000) do
     t.index ["company_id"], name: "index_contracts_on_company_id"
     t.index ["contract_type_id"], name: "index_contracts_on_contract_type_id"
     t.index ["created_by_id"], name: "index_contracts_on_created_by_id"
+  end
+
+  create_table "invoices", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.integer "amount_cents", null: false
+    t.integer "billing_period", default: 0, null: false
+    t.uuid "company_id", null: false
+    t.datetime "created_at", null: false
+    t.string "currency", null: false
+    t.datetime "issued_at", null: false
+    t.uuid "issued_by_id"
+    t.string "notes"
+    t.string "number", null: false
+    t.date "period_end", null: false
+    t.date "period_start", null: false
+    t.datetime "updated_at", null: false
+    t.index ["company_id", "period_start"], name: "index_invoices_on_company_id_and_period_start"
+    t.index ["company_id"], name: "index_invoices_on_company_id"
+    t.index ["issued_by_id"], name: "index_invoices_on_issued_by_id"
+    t.index ["number"], name: "index_invoices_on_number", unique: true
   end
 
   create_table "memberships", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
@@ -387,16 +405,11 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_18_210000) do
   end
 
   create_table "subscriptions", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.boolean "active", default: true, null: false
     t.integer "billing_period"
     t.uuid "company_id", null: false
     t.datetime "created_at", null: false
-    t.datetime "expires_at"
-    t.date "paid_through"
-    t.datetime "starts_at", null: false
-    t.integer "status", default: 0, null: false
     t.datetime "updated_at", null: false
-    t.datetime "upgrade_requested_at"
-    t.string "upgrade_requested_period"
     t.index ["company_id"], name: "index_subscriptions_on_company_id", unique: true
   end
 
@@ -463,6 +476,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_18_210000) do
   add_foreign_key "contracts", "companies"
   add_foreign_key "contracts", "contract_types"
   add_foreign_key "contracts", "users", column: "created_by_id"
+  add_foreign_key "invoices", "companies"
+  add_foreign_key "invoices", "users", column: "issued_by_id"
   add_foreign_key "memberships", "clients"
   add_foreign_key "memberships", "companies"
   add_foreign_key "notifications", "companies"

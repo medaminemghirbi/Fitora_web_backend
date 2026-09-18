@@ -44,16 +44,20 @@ module Api
           # re-permission them or add its own from Settings.
           Role.seed_defaults_for(company)
 
-          # 14-day free trial, full access, no plan to pick. Subscription#locked?
-          # flips on once expires_at passes, unless a platform admin grants
-          # ongoing access first (which clears it). See
-          # Api::V1::BaseController#enforce_trial_lock! — this is entirely
-          # independent per company, so one of an owner's companies being
-          # locked never blocks them from creating or using another.
-          company.create_subscription!(
-            status: :active,
-            starts_at: Time.current,
-            expires_at: 14.days.from_now
+          # The 14 days are not a special state any more: they are the first
+          # period, given away, recorded like any other. Access is open
+          # because the invoice covers today.
+          subscription = company.create_subscription!(active: true, billing_period: :monthly)
+          Invoice.create!(
+            company: company,
+            number: Invoice.next_number,
+            period_start: Date.current,
+            period_end: Date.current + 13,
+            amount_cents: 0,
+            currency: company.currency,
+            billing_period: subscription.billing_period,
+            issued_at: Time.current,
+            notes: "Période d'essai — 14 jours offerts"
           )
 
 
