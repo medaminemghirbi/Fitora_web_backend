@@ -85,4 +85,69 @@ RSpec.describe Dashboard::Statistics do
     expect(result[:recent_payments].map { |p| p[:client_name] }).to contain_exactly("Amina Ben Ali", "Youssef Ben Ali")
     expect(result[:recent_clients].map { |c| c[:full_name] }).to contain_exactly("Amina Ben Ali", "Youssef Ben Ali")
   end
+
+  describe "the attention block" do
+    def row(result, key)
+      result[:attention].find { |r| r[:key] == key }
+    end
+
+    it "counts only work that is still live, and prices the unpaid" do
+      company = create(:company)
+      plan = create(:contract_type, company: company, price: 100)
+
+      # expires in a fortnight, paid — chase the renewal, not the money
+      soon = create(:contract, client: create(:client, company: company), contract_type: plan)
+      soon.current_period.update!(expires_at: 14.days.from_now, payment_status: :paid)
+
+      # live but never paid
+      owing = create(:contract, client: create(:client, company: company), contract_type: plan)
+      owing.current_period.update!(expires_at: 60.days.from_now, payment_status: :unpaid)
+
+      # ran out yesterday and nobody noticed
+      lapsed = create(:contract, client: create(:client, company: company), contract_type: plan)
+      lapsed.current_period.update!(expires_at: 1.day.ago, payment_status: :paid)
+
+      result = described_class.call(company: company)
+
+      expect(row(result, "expiring")[:count]).to eq(1)
+      expect(row(result, "unpaid")[:count]).to eq(1)
+      expect(row(result, "unpaid")[:amount]).to eq(owing.current_period.final_price.to_f)
+      expect(row(result, "expired")[:count]).to eq(1)
+    end
+
+    it "ignores a superseded period — last season's expiry is history, not work" do
+      company = create(:company)
+      plan = create(:contract_type, company: company, price: 100)
+      contract = create(:contract, client: create(:client, company: company), contract_type: plan)
+      contract.current_period.update!(starts_at: 1.year.ago, expires_at: 6.months.ago, payment_status: :unpaid)
+      create(:contract_period, contract: contract, starts_at: 1.day.ago,
+                                expires_at: 1.year.from_now, status: :active, payment_status: :paid)
+
+      result = described_class.call(company: company)
+
+      expect(row(result, "expired")[:count]).to eq(0)
+      expect(row(result, "unpaid")[:count]).to eq(0)
+    end
+
+    it "flags today's sessions that nobody is running" do
+      company = create(:company)
+      activity = create(:activity, company: company)
+      create(:session, activity: activity, company: company, coach: nil,
+                        starts_at: Time.current.change(hour: 9), ends_at: Time.current.change(hour: 10))
+      create(:session, activity: activity, company: company, coach: create(:coach, company: company),
+                        starts_at: Time.current.change(hour: 11), ends_at: Time.current.change(hour: 12))
+
+      result = described_class.call(company: company)
+
+      expect(row(result, "sessions_without_coach")[:count]).to eq(1)
+    end
+
+    it "keeps a row at zero rather than dropping it, so the caller can say all clear" do
+      result = described_class.call(company: create(:company))
+
+      expect(result[:attention].map { |r| r[:key] })
+        .to eq(%w[expiring unpaid expired sessions_without_coach])
+      expect(result[:attention].map { |r| r[:count] }).to all(eq(0))
+    end
+  end
 end

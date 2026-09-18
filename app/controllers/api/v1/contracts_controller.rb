@@ -5,12 +5,17 @@ module Api
       before_action -> { require_capability!(:contracts) }
       before_action :set_contract, only: [ :show, :update, :renew, :cancel, :destroy, :receipt ]
 
-      # GET /api/v1/contracts — the company's contracts (filterable by status
-      # and/or contract_type_id)
+      # GET /api/v1/contracts — the company's contracts, filterable by
+      # status, payment and/or contract_type_id.
+      #
+      # status=expiring is not one of ContractPeriod's four states: it is
+      # "active, and running out within the month", which is what the
+      # dashboard sends people here to act on.
       def index
         searched = searched_scope
         contracts = searched
-        contracts = on_current_period(contracts, params[:status]) if params[:status].present?
+        contracts = apply_status(contracts, params[:status]) if params[:status].present?
+        contracts = on_current_period(contracts, :active).where(contract_periods: { payment_status: params[:payment] }) if params[:payment].present?
         contracts = contracts.where(contract_type_id: params[:contract_type_id]) if params[:contract_type_id].present?
 
         render json: {
@@ -20,29 +25,6 @@ module Api
           plan_counts: plan_counts(searched),
           totals: portfolio_totals(searched)
         }
-      end
-
-      # The list's status filter, and its counts, both look at each contract's
-      # CURRENT (latest) period only — not any period in its history.
-      def on_current_period(scope, status)
-        scope.joins(:contract_periods)
-             .where(contract_periods: { status: status })
-             .where(<<~SQL.squish)
-               contract_periods.id = (
-                 SELECT cp2.id FROM contract_periods cp2
-                 WHERE cp2.contract_id = contracts.id
-                 ORDER BY cp2.starts_at DESC, cp2.created_at DESC LIMIT 1
-               )
-             SQL
-      end
-
-      def searched_scope
-        scope = current_company.contracts.includes(:contract_type, :client, :contract_periods).order(created_at: :desc)
-        return scope if params[:q].blank?
-
-        t = "%#{params[:q].strip}%"
-        scope.joins(:client).joins(:contract_type)
-             .where("clients.first_name ILIKE :t OR clients.last_name ILIKE :t OR contract_types.name ILIKE :t", t: t)
       end
 
       # GET /api/v1/contracts/:id
@@ -138,8 +120,27 @@ module Api
         head :no_content
       end
 
+      # GET /api/v1/contracts/:id/receipt — available to anyone who can
+      # already see this contract (require_capability!(:contracts)).
+      def receipt
+        pdf_data = Receipts::ContractPdf.call(contract: @contract)
+
+        send_data pdf_data,
+                   filename: "recu-#{@contract.client.full_name.parameterize}-#{@contract.id.split('-').first}.pdf",
+                   type: "application/pdf",
+                   disposition: "attachment"
+      end
+
+      private
+
       # The list's status filter, and its counts, both look at each contract's
       # CURRENT (latest) period only — not any period in its history.
+      def apply_status(scope, status)
+        return on_current_period(scope, :active).where(contract_periods: { expires_at: Time.current..30.days.from_now }) if status == "expiring"
+
+        on_current_period(scope, status)
+      end
+
       def on_current_period(scope, status)
         scope.joins(:contract_periods)
              .where(contract_periods: { status: status })
@@ -160,19 +161,6 @@ module Api
         scope.joins(:client).joins(:contract_type)
              .where("clients.first_name ILIKE :t OR clients.last_name ILIKE :t OR contract_types.name ILIKE :t", t: t)
       end
-
-      # GET /api/v1/contracts/:id/receipt — available to anyone who can
-      # already see this contract (require_capability!(:contracts)).
-      def receipt
-        pdf_data = Receipts::ContractPdf.call(contract: @contract)
-
-        send_data pdf_data,
-                   filename: "recu-#{@contract.client.full_name.parameterize}-#{@contract.id.split('-').first}.pdf",
-                   type: "application/pdf",
-                   disposition: "attachment"
-      end
-
-      private
 
       # What the filter rail and the stats strip read. Everything here follows
       # the search term but ignores the status/plan already picked, so the

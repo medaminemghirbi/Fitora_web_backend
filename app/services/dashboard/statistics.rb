@@ -16,6 +16,7 @@ module Dashboard
         todays_attendance: todays_attendance_count,
         outstanding_payments: outstanding_payments_total,
         todays_schedule: todays_schedule,
+        attention: attention,
         contracts_expiring: contracts_expiring,
         recent_payments: recent_payments,
         recent_clients: recent_clients
@@ -63,6 +64,44 @@ module Dashboard
             status: session.status
           }
         end
+    end
+
+    # What a gym owner has to DO today, as opposed to what happened.
+    #
+    # One row per kind of overdue work, each with the count that makes it
+    # worth looking at and — where money is involved — what it is worth. A
+    # zero row is still emitted so the caller decides whether to show "all
+    # clear" or hide the line; filtering here would make that impossible.
+    #
+    # `key` names the screen the row opens, so adding a row never means
+    # touching the frontend's routing.
+    def attention
+      expiring = current_periods.expiring_soon(within: 30.days)
+      unpaid = current_periods.active.unpaid
+      expired = current_periods.active.where(expires_at: ...Time.current)
+
+      [
+        { key: "expiring", count: expiring.count, amount: nil },
+        { key: "unpaid", count: unpaid.count, amount: unpaid.sum(:final_price).to_f },
+        { key: "expired", count: expired.count, amount: nil },
+        { key: "sessions_without_coach", count: todays_sessions.where(coach_id: nil).count, amount: nil }
+      ]
+    end
+
+    # Only a contract's LATEST period counts: an expired period from last
+    # season is history, not work.
+    def current_periods
+      company.contract_periods.where(<<~SQL.squish)
+        contract_periods.id = (
+          SELECT cp2.id FROM contract_periods cp2
+          WHERE cp2.contract_id = contract_periods.contract_id
+          ORDER BY cp2.starts_at DESC, cp2.created_at DESC LIMIT 1
+        )
+      SQL
+    end
+
+    def todays_sessions
+      base_sessions_scope.where(starts_at: Time.current.all_day).where.not(status: :cancelled)
     end
 
     def contracts_expiring

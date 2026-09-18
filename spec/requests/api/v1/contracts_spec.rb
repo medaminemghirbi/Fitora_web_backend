@@ -336,4 +336,36 @@ RSpec.describe "Api::V1::Contracts", type: :request do
       expect(response.parsed_body["totals"]["unpaid_value"]).to eq(100.0)
     end
   end
+
+  describe "GET /api/v1/contracts — the filters the dashboard links to" do
+    let(:plan) { create(:contract_type, company: company) }
+
+    it "status=expiring returns only live contracts running out within the month" do
+      soon = create(:contract, client: create(:client, company: company), contract_type: plan)
+      soon.current_period.update!(status: :active, expires_at: 10.days.from_now)
+
+      later = create(:contract, client: create(:client, company: company), contract_type: plan)
+      later.current_period.update!(status: :active, expires_at: 90.days.from_now)
+
+      gone = create(:contract, client: create(:client, company: company), contract_type: plan)
+      gone.current_period.update!(status: :expired, expires_at: 1.day.ago)
+
+      get "/api/v1/contracts", params: { status: "expiring" }, headers: auth_headers(owner)
+
+      expect(response).to have_http_status(:ok)
+      expect(response.parsed_body["contracts"].map { |c| c["id"] }).to eq([ soon.id ])
+    end
+
+    it "payment=unpaid returns live contracts nobody has paid for" do
+      owing = create(:contract, client: create(:client, company: company), contract_type: plan)
+      owing.current_period.update!(status: :active, payment_status: :unpaid, expires_at: 90.days.from_now)
+
+      settled = create(:contract, client: create(:client, company: company), contract_type: plan)
+      settled.current_period.update!(status: :active, payment_status: :paid, expires_at: 90.days.from_now)
+
+      get "/api/v1/contracts", params: { payment: "unpaid" }, headers: auth_headers(owner)
+
+      expect(response.parsed_body["contracts"].map { |c| c["id"] }).to eq([ owing.id ])
+    end
+  end
 end
