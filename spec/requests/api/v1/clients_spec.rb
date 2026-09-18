@@ -126,4 +126,76 @@ RSpec.describe "Api::V1::Clients", type: :request do
       expect(counts["inactive"]).to eq(0)
     end
   end
+
+  describe "POST /api/v1/clients — signing someone up in one go" do
+    let(:activity) { create(:activity, company: company) }
+    let(:plan) { create(:contract_type, company: company) }
+
+    before { create(:contract_type_activity, contract_type: plan, activity: activity, price: 120) }
+
+    def sign_up(subscription, user: owner)
+      post "/api/v1/clients",
+           params: {
+             client: { first_name: "Rania", last_name: "Ferjani", phone: "20000001" },
+             subscription: subscription
+           },
+           headers: auth_headers(user)
+    end
+
+    it "records the member, sells the plan and takes the money in one request" do
+      sign_up({ contract_type_id: plan.id, activity_id: activity.id, collect_payment: true, payment_method: "cash" })
+
+      expect(response).to have_http_status(:created)
+      body = response.parsed_body
+      expect(body["client"]["first_name"]).to eq("Rania")
+      expect(body["contract"]["id"]).to be_present
+      expect(body["payment"]["amount"].to_f).to eq(120.0)
+
+      client = Client.find(body["client"]["id"])
+      expect(client.current_contract(company)).to be_present
+      expect(client.current_contract(company).current_period).to be_paid
+    end
+
+    it "sells the plan without taking money when the desk is not collecting yet" do
+      sign_up({ contract_type_id: plan.id, activity_id: activity.id })
+
+      expect(response).to have_http_status(:created)
+      expect(response.parsed_body["payment"]).to be_nil
+      expect(Client.find(response.parsed_body["client"]["id"]).current_contract(company).current_period).to be_unpaid
+    end
+
+    it "still records a member on their own when no plan is picked" do
+      post "/api/v1/clients",
+           params: { client: { first_name: "Sans", last_name: "Abonnement", phone: "20000002" } },
+           headers: auth_headers(owner)
+
+      expect(response).to have_http_status(:created)
+      expect(response.parsed_body["contract"]).to be_nil
+    end
+
+    it "leaves no half-signed-up member behind when the plan has no price for that activity" do
+      other = create(:activity, company: company, name: "Pilates")
+
+      expect { sign_up({ contract_type_id: plan.id, activity_id: other.id }) }.not_to change(Client, :count)
+
+      expect(response).to have_http_status(:unprocessable_content)
+      expect(response.parsed_body["error"]).to include("Pilates")
+    end
+
+    it "refuses another gym's plan without creating anyone" do
+      elsewhere = create(:contract_type, company: create(:company))
+
+      expect { sign_up({ contract_type_id: elsewhere.id, activity_id: activity.id }) }.not_to change(Client, :count)
+      expect(response).to have_http_status(:unprocessable_content)
+    end
+
+    it "refuses the sale to a login that may record members but not sell plans" do
+      limited = create(:role, company: company, key: "front-desk", name: "Accueil", permissions: %w[clients])
+      staff = create(:staff_member, company: company, role: :receptionist, assigned_role: limited)
+
+      expect { sign_up({ contract_type_id: plan.id, activity_id: activity.id }, user: staff.user) }
+        .not_to change(Client, :count)
+      expect(response).to have_http_status(:forbidden)
+    end
+  end
 end

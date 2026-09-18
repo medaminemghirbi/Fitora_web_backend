@@ -7,6 +7,11 @@ module Api
 
       STATUS_FILTERS = %w[active inactive contract_active contract_expired no_contract].freeze
 
+      # Raised to unwind #create's transaction when the subscription half
+      # fails: Contracts::Create reports a refused sale by returning, not by
+      # raising, and the member must not survive it.
+      Enrolment = Class.new(StandardError)
+
       # GET /api/v1/clients?search=&status=&page=
       # status: active | inactive | contract_active | contract_expired | no_contract
       def index
@@ -39,15 +44,33 @@ module Api
       # account joins that person rather than creating a second one. Their
       # identity is theirs: we only fill in what the account left blank, and
       # never overwrite a name or a phone the person set themselves.
+      #
+      # An optional `subscription` sells them a plan in the same breath, and
+      # an optional collect_payment inside it takes the money — which is what
+      # actually happens at a front desk. All three land in one transaction:
+      # a member who exists but has no subscription because the plan had no
+      # price for that activity is exactly the mess this avoids.
       def create
+        return render_forbidden if subscription_params.present? && !capability?(:contracts)
+
         existing = Client.find_by_email(client_params[:email])
         client = existing || Client.new
         client.assign_attributes(existing ? fill_blanks_only(client, person_params) : person_params)
+        contract = nil
+        payment = nil
 
         ActiveRecord::Base.transaction do
           client.save!
           membership = client.join!(current_company)
           membership.update!(membership_params) if membership_params.any?
+
+          if subscription_params.present?
+            result = sell_subscription(client)
+            raise Enrolment, result.error unless result.success?
+
+            contract = result.contract
+            payment = result.payment
+          end
         end
 
         AuditLogs::Record.call(
@@ -55,7 +78,13 @@ module Api
           action: existing ? "client.joined" : "client.created",
           auditable: client, metadata: { name: client.full_name }
         )
-        render json: { client: ClientSerializer.new(client, company: current_company).as_json }, status: :created
+        render json: {
+          client: ClientSerializer.new(client, company: current_company).as_json,
+          contract: contract && ContractSerializer.new(contract).as_json,
+          payment: payment && PaymentSerializer.new(payment).as_json
+        }, status: :created
+      rescue Enrolment => e
+        render json: { error: e.message, errors: [ e.message ] }, status: :unprocessable_content
       rescue ActiveRecord::RecordInvalid => e
         render json: { error: e.record.errors.full_messages.first, errors: e.record.errors.full_messages }, status: :unprocessable_content
       end
@@ -131,6 +160,37 @@ module Api
 
       # "active" and the gym's notes describe the MEMBERSHIP; everything else
       # describes the person and is shared across their gyms.
+      # The capability check for this half lives at the top of #create:
+      # selling a plan is a different permission from recording a member, and
+      # it has to be refused before anything is written.
+      def sell_subscription(client)
+        sub = subscription_params
+
+        plan = current_company.contract_types.find_by(id: sub[:contract_type_id])
+        raise Enrolment, "Plan not found" if plan.nil?
+
+        activity = current_company.activities.find_by(id: sub[:activity_id])
+        raise Enrolment, "Activity not found" if activity.nil?
+
+        Contracts::Create.call(
+          client: client, contract_type: plan, activity: activity, created_by: current_user,
+          starts_on: sub[:starts_on].presence&.to_date || Date.current,
+          discount: sub[:discount].presence || 0,
+          collect_payment: sub[:collect_payment],
+          payment_method: sub[:payment_method],
+          payment_notes: sub[:payment_notes]
+        )
+      end
+
+      def subscription_params
+        return {} if params[:subscription].blank?
+
+        params.require(:subscription).permit(
+          :contract_type_id, :activity_id, :starts_on, :discount,
+          :collect_payment, :payment_method, :payment_notes
+        )
+      end
+
       def membership_params
         client_params.slice(:notes, :active).to_h.symbolize_keys
       end

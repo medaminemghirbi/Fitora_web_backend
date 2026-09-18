@@ -62,10 +62,17 @@ module Api
       # True for the owner (always) or for staff whose role grants this
       # capability — the only two ways into any endpoint gated by this check.
       def require_capability!(capability)
-        return if current_user.owner?
-        return if current_staff_member&.active? && current_staff_member.can?(capability)
+        render_forbidden unless capability?(capability)
+      end
 
-        render_forbidden
+      # The same test without the rendering, for an action that has to make
+      # the check somewhere other than a before_action — render_forbidden
+      # does not halt, so calling require_capability! mid-action would render
+      # twice.
+      def capability?(capability)
+        return true if current_user.owner?
+
+        current_staff_member&.active? && current_staff_member.can?(capability) || false
       end
 
       # Anyone with a seat in the company can see the calendar — the schedule is
