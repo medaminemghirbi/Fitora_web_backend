@@ -27,6 +27,14 @@ class AdminCompanySerializer
         companies_count: company.owner.companies.count
       },
       subscription: SubscriptionSerializer.new(company.subscription).as_json,
+      # Whether this gym is waiting on an answer — the list flags it, so an
+      # admin never has to open a page to find out.
+      awaiting_activation: company.subscription&.upgrade_requested? || false,
+      # What the gym is actually doing with Fitora. An activation decision
+      # rests on this far more than on the subscription row: a gym with 180
+      # members and a full week of sessions is a different conversation from
+      # one that signed up and never came back.
+      usage: usage,
       # The company's subscription price in its own currency — read-only
       # here; the admin edits prices per currency in the pricing screen.
       monthly_subscription_cents: company.monthly_subscription_cents,
@@ -41,4 +49,14 @@ class AdminCompanySerializer
   private
 
   attr_reader :company
+
+  def usage
+    {
+      clients: company.memberships.active.count,
+      staff: company.staff_members.count,
+      activities: company.activities.active.count,
+      sessions_last_30_days: company.sessions.where(starts_at: 30.days.ago..).count,
+      last_session_at: company.sessions.maximum(:starts_at)
+    }
+  end
 end

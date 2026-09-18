@@ -268,60 +268,82 @@ RSpec.describe "Api::V1::Admin::Companies", type: :request do
     end
   end
 
-  describe "GET /api/v1/admin/companies/activation_requests" do
+  describe "GET /api/v1/admin/companies?awaiting=1" do
     def asked!(company, at:, period: nil)
       company.subscription.update!(upgrade_requested_at: at, upgrade_requested_period: period)
     end
 
-    it "returns only the gyms waiting on an answer, longest wait first" do
+    it "narrows to the gyms waiting on an answer, longest wait first" do
       quiet = create(:company, name: "Quiet")
       create(:subscription, company: quiet)
 
-      waiting_longest = create(:company, name: "Longest")
-      create(:subscription, company: waiting_longest)
-      asked!(waiting_longest, at: 5.days.ago)
+      longest = create(:company, name: "Longest")
+      create(:subscription, company: longest)
+      asked!(longest, at: 5.days.ago)
 
-      waiting_recent = create(:company, name: "Recent")
-      create(:subscription, company: waiting_recent)
-      asked!(waiting_recent, at: 1.hour.ago)
+      recent = create(:company, name: "Recent")
+      create(:subscription, company: recent)
+      asked!(recent, at: 1.hour.ago)
 
-      get "/api/v1/admin/companies/activation_requests", headers: auth_headers(admin)
+      get "/api/v1/admin/companies", params: { awaiting: "1" }, headers: auth_headers(admin)
 
       expect(response).to have_http_status(:ok)
       expect(response.parsed_body["companies"].map { |c| c["name"] }).to eq([ "Longest", "Recent" ])
     end
 
-    it "carries what the owner asked for, so it can be answered without opening the gym" do
-      company = create(:company, name: "Gym Club")
-      create(:subscription, company: company)
-      asked!(company, at: 2.days.ago, period: "yearly")
+    it "counts them even when the list is not narrowed, so nothing has to be opened to notice" do
+      waiting = create(:company, name: "Waiting")
+      create(:subscription, company: waiting)
+      asked!(waiting, at: 2.days.ago)
+      create(:subscription, company: create(:company, name: "Quiet"))
 
-      get "/api/v1/admin/companies/activation_requests", headers: auth_headers(admin)
+      get "/api/v1/admin/companies", headers: auth_headers(admin)
 
-      row = response.parsed_body["companies"].first
-      expect(row["subscription"]["upgrade_requested_period"]).to eq("yearly")
-      expect(row["owner"]["email"]).to eq(company.owner.email)
+      expect(response.parsed_body["awaiting_count"]).to eq(1)
+      expect(response.parsed_body["companies"].map { |c| c["name"] }).to eq([ "Quiet", "Waiting" ])
+      expect(response.parsed_body["companies"].find { |c| c["name"] == "Waiting" }["awaiting_activation"]).to be true
     end
 
-    it "empties as requests are answered" do
+    it "stops counting a request once it is answered" do
       company = create(:company)
       create(:subscription, company: company)
       asked!(company, at: 1.day.ago)
-
       company.subscription.cancel_upgrade_request!
 
-      get "/api/v1/admin/companies/activation_requests", headers: auth_headers(admin)
+      get "/api/v1/admin/companies", headers: auth_headers(admin)
 
-      expect(response.parsed_body["companies"]).to be_empty
+      expect(response.parsed_body["awaiting_count"]).to eq(0)
+    end
+  end
+
+  describe "what an activation decision needs to know" do
+    it "reports what the gym is actually doing with Fitora" do
+      company = create(:company)
+      create(:subscription, company: company)
+      activity = create(:activity, company: company)
+      create(:session, company: company, activity: activity, starts_at: 3.days.ago, ends_at: 3.days.ago + 1.hour)
+      create(:session, company: company, activity: activity, starts_at: 90.days.ago, ends_at: 90.days.ago + 1.hour)
+      create(:client, company: company)
+
+      get "/api/v1/admin/companies/#{company.id}", headers: auth_headers(admin)
+
+      usage = response.parsed_body["company"]["usage"]
+      expect(usage["clients"]).to eq(1)
+      expect(usage["activities"]).to eq(1)
+      # The old session counts towards "ever", never towards the last month.
+      expect(usage["sessions_last_30_days"]).to eq(1)
+      expect(usage["last_session_at"]).to be_present
     end
 
-    it "is closed to anyone who is not a Fitora admin" do
-      owner = create(:user, :owner)
-      create(:company, owner: owner)
+    it "reads zero for a gym that signed up and never came back" do
+      company = create(:company)
+      create(:subscription, company: company)
 
-      get "/api/v1/admin/companies/activation_requests", headers: auth_headers(owner)
+      get "/api/v1/admin/companies/#{company.id}", headers: auth_headers(admin)
 
-      expect(response).to have_http_status(:forbidden)
+      usage = response.parsed_body["company"]["usage"]
+      expect(usage.values_at("clients", "staff", "activities", "sessions_last_30_days")).to all(eq(0))
+      expect(usage["last_session_at"]).to be_nil
     end
   end
 end

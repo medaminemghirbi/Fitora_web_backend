@@ -48,9 +48,6 @@ Rails.application.routes.draw do
       end
       get "branding", to: "branding#show"
 
-      # A gym asking for a demo or a quote — no login, by definition: this
-      # is how an account gets opened at all (see Leads::Convert).
-      resources :leads, only: [ :create ]
       post "onboarding/dismiss", to: "onboarding#dismiss"
       resources :activities
       resources :coaches do
@@ -128,9 +125,6 @@ Rails.application.routes.draw do
 
       namespace :admin do
         resources :companies, only: [ :index, :show ] do
-          collection do
-            get :activation_requests
-          end
           member do
             patch :subscription, to: "companies#update_subscription"
             patch :settings, to: "companies#update_settings"
@@ -142,9 +136,6 @@ Rails.application.routes.draw do
         get "subscription_pricing", to: "subscription_pricing#show"
         patch "subscription_pricing", to: "subscription_pricing#update"
         resources :app_updates, only: [ :index, :create ]
-        resources :leads, only: [ :index, :update ] do
-          member { post :convert }
-        end
         resources :support_tickets, only: [ :index ] do
           member do
             patch :resolve

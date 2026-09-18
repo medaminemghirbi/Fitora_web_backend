@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_09_18_190000) do
+ActiveRecord::Schema[8.1].define(version: 2026_09_18_200000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "btree_gist"
   enable_extension "pg_catalog.plpgsql"
@@ -250,28 +250,6 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_18_190000) do
     t.index ["created_by_id"], name: "index_contracts_on_created_by_id"
   end
 
-  create_table "leads", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
-    t.string "city"
-    t.uuid "company_id"
-    t.string "contact_name", null: false
-    t.datetime "created_at", null: false
-    t.string "email", null: false
-    t.string "gym_name", null: false
-    t.datetime "handled_at"
-    t.uuid "handled_by_id"
-    t.text "internal_notes"
-    t.integer "kind", default: 0, null: false
-    t.string "locale", default: "fr", null: false
-    t.text "message"
-    t.string "phone"
-    t.integer "status", default: 0, null: false
-    t.datetime "updated_at", null: false
-    t.index ["company_id"], name: "index_leads_on_company_id"
-    t.index ["email"], name: "index_leads_on_email"
-    t.index ["handled_by_id"], name: "index_leads_on_handled_by_id"
-    t.index ["status", "created_at"], name: "index_leads_on_status_and_created_at"
-  end
-
   create_table "memberships", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
     t.boolean "active", default: true, null: false
     t.uuid "client_id", null: false
@@ -484,8 +462,6 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_18_190000) do
   add_foreign_key "contracts", "companies"
   add_foreign_key "contracts", "contract_types"
   add_foreign_key "contracts", "users", column: "created_by_id"
-  add_foreign_key "leads", "companies"
-  add_foreign_key "leads", "users", column: "handled_by_id"
   add_foreign_key "memberships", "clients"
   add_foreign_key "memberships", "companies"
   add_foreign_key "notifications", "companies"

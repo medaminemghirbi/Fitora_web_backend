@@ -35,9 +35,8 @@ module Api
       # A platform account first (owner, staff, Fitora admin), then a member
       # whose gym enabled their access. account_type says which came back, so
       # the caller sends them to the right home without asking who they are
-      # first. Nobody signs themselves up either way: a gym asks for a demo or
-      # a quote (Leads::Convert), and a member's access is switched on from
-      # their own file by the gym.
+      # first. A gym signs itself up (#register); a member never does — their
+      # access is switched on from their own file by the gym.
       def login
         email = params[:email].to_s.downcase.strip
 

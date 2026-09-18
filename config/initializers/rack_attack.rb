@@ -63,12 +63,6 @@ Rack::Attack.throttle("register/ip", limit: 5, period: 10.minutes) do |req|
   req.ip if req.post? && req.path == "/api/v1/auth/register"
 end
 
-# Demo / quote requests take no login either, and nothing else stands between
-# a script and an inbox full of fake prospects.
-Rack::Attack.throttle("leads/ip", limit: 5, period: 10.minutes) do |req|
-  req.ip if req.post? && req.path == "/api/v1/leads"
-end
-
 Rack::Attack.throttled_responder = lambda do |_request|
   [ 429, { "Content-Type" => "application/json" }, [ { error: "rate_limited" }.to_json ] ]
 end

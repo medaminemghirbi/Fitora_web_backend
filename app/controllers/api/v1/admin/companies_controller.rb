@@ -5,27 +5,26 @@ module Api
         before_action :require_admin!
         before_action :set_company, only: [ :show, :update_subscription, :update_settings, :update_debt, :update_company_limit, :impersonate ]
 
-        # GET /api/v1/admin/companies
+        # GET /api/v1/admin/companies?q=&awaiting=1
+        #
+        # `awaiting` narrows to the gyms asking to carry on past their trial.
+        # The count comes back either way, so the list can say how many are
+        # waiting without a screen of its own — nobody should have to open a
+        # gym's page to discover it asked.
         def index
-          companies = Company.includes(:owner, :subscription).search(params[:q]).order(:name)
+          companies = Company.includes(:owner, :subscription).search(params[:q])
+          awaiting = companies.joins(:subscription).where.not(subscriptions: { upgrade_requested_at: nil })
+
+          scope = ActiveModel::Type::Boolean.new.cast(params[:awaiting]) ? awaiting : companies
+          # Longest wait first when that is what is being asked for;
+          # alphabetical otherwise, which is how you look a gym up.
+          scope = scope.reorder(ActiveModel::Type::Boolean.new.cast(params[:awaiting]) ? "subscriptions.upgrade_requested_at ASC" : :name)
 
           render json: {
-            companies: paginate(companies).map { |o| AdminCompanySerializer.new(o).as_json },
-            meta: pagination_meta(companies)
+            companies: paginate(scope).map { |o| AdminCompanySerializer.new(o).as_json },
+            meta: pagination_meta(scope),
+            awaiting_count: awaiting.count
           }
-        end
-
-        # GET /api/v1/admin/companies/activation_requests — the gyms asking
-        # to carry on past their trial.
-        #
-        # Lives beside the company list rather than inside it because this is
-        # an inbox, not a directory: it answers "who is waiting on me", and
-        # it empties as they are answered.
-        def activation_requests
-          subscriptions = Subscription.awaiting_activation.includes(company: :owner)
-          companies = subscriptions.filter_map(&:company)
-
-          render json: { companies: companies.map { |c| AdminCompanySerializer.new(c).as_json } }
         end
 
         # GET /api/v1/admin/companies/:id
