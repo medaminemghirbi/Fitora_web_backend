@@ -42,7 +42,12 @@ module Api
           status: subscription.status,
           locked: subscription.locked?,
           on_trial: subscription.on_trial?,
-          trial_days_remaining: subscription.days_remaining
+          trial_days_remaining: subscription.days_remaining,
+          # Enough for the shell to warn before the door shuts, rather than
+          # leaving the owner to discover it mid-task.
+          current_period_paid: subscription.current_period_paid?,
+          days_before_lock: subscription.days_before_lock,
+          lock_reason: subscription.lock_reason
         }
       end
     end
