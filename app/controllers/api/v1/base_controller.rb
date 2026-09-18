@@ -12,7 +12,10 @@ module Api
       # any access, and only to this much, until a platform admin manually
       # grants access again (Api::V1::Admin::CompaniesController#update_subscription).
       OWNER_ALLOWED_WHEN_LOCKED = {
-        "Api::V1::SubscriptionController" => %w[show],
+        # Asking to be activated is the one thing a locked owner must still
+        # be able to do — it is how the lock gets lifted. Blocking it left
+        # the only way out behind the door it closed.
+        "Api::V1::SubscriptionController" => %w[show request_upgrade cancel_upgrade],
         # One of an owner's companies being locked must never trap them —
         # they still need to see the list, switch to an unlocked one, or
         # create a fresh one (its own independent trial).

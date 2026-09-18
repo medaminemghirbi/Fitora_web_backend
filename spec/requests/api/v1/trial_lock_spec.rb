@@ -165,4 +165,35 @@ RSpec.describe "Free trial lock", type: :request do
       expect(response.parsed_body["error"]).to eq("trial_expired")
     end
   end
+
+  # The lock must never close the door on the way out of it.
+  describe "asking to be activated while locked out" do
+    it "is still allowed, and is how the lock gets lifted" do
+      create(:subscription, company: company, status: :active, expires_at: 1.day.ago)
+
+      post "/api/v1/subscription/request_upgrade", params: { period: "monthly" }, headers: auth_headers(owner)
+
+      expect(response).to have_http_status(:ok)
+      expect(company.subscription.reload).to be_upgrade_requested
+    end
+
+    it "is still allowed when it is the month that went unpaid" do
+      create(:subscription, company: company, billing_period: :monthly, status: :active,
+                            expires_at: nil, paid_through: Date.current - 10)
+
+      post "/api/v1/subscription/request_upgrade", headers: auth_headers(owner)
+
+      expect(response).to have_http_status(:ok)
+    end
+
+    it "lets them take the request back too" do
+      subscription = create(:subscription, company: company, status: :active, expires_at: 1.day.ago)
+      subscription.request_upgrade!
+
+      delete "/api/v1/subscription/request_upgrade", headers: auth_headers(owner)
+
+      expect(response).to have_http_status(:ok)
+      expect(subscription.reload).not_to be_upgrade_requested
+    end
+  end
 end
