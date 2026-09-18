@@ -165,9 +165,15 @@ module Api
       # What the filter rail and the stats strip read. Everything here follows
       # the search term but ignores the status/plan already picked, so the
       # numbers stay comparable while the operator clicks around.
+      # The four period states, plus the two the filter rail offers that are
+      # not states at all: everything, and what is running out.
       def status_counts(searched)
         ContractPeriod.statuses.keys.index_with { |status| on_current_period(searched, status).distinct.count }
-                      .merge("all" => searched.distinct.count, "unpaid" => unpaid_scope(searched).distinct.count)
+                      .merge(
+                        "all" => searched.distinct.count,
+                        "unpaid" => unpaid_scope(searched).distinct.count,
+                        "expiring" => apply_status(searched, "expiring").distinct.count
+                      )
       end
 
       def plan_counts(searched)
