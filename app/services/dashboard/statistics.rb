@@ -64,6 +64,9 @@ module Dashboard
           {
             id: session.id,
             starts_at: session.starts_at,
+            # The caller decides which row is "now" — it knows the clock in
+            # the reader's own timezone, which this process does not.
+            ends_at: session.ends_at,
             activity_name: session.activity.name,
             activity_emoji: session.activity.emoji,
             coach_name: session.coach&.full_name,
