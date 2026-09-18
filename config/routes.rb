@@ -131,6 +131,8 @@ Rails.application.routes.draw do
             patch :debt, to: "companies#update_debt"
             patch :company_limit, to: "companies#update_company_limit"
             post :impersonate, to: "companies#impersonate"
+            post :record_payment, to: "companies#record_payment"
+            delete :record_payment, to: "companies#undo_payment"
           end
         end
         get "subscription_pricing", to: "subscription_pricing#show"

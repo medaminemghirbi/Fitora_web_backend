@@ -3,7 +3,7 @@ module Api
     module Admin
       class CompaniesController < BaseController
         before_action :require_admin!
-        before_action :set_company, only: [ :show, :update_subscription, :update_settings, :update_debt, :update_company_limit, :impersonate ]
+        before_action :set_company, only: [ :show, :update_subscription, :update_settings, :update_debt, :update_company_limit, :impersonate, :record_payment, :undo_payment ]
 
         # GET /api/v1/admin/companies?q=&awaiting=1
         #
@@ -138,6 +138,35 @@ module Api
           )
 
           render json: { token: JwtService.encode(owner.id, impersonator_id: current_user.id), user: UserSerializer.new(owner).as_json }
+        end
+
+        # POST /api/v1/admin/companies/:id/record_payment — the money for one
+        # period arrived. DELETE undoes a payment recorded in error.
+        #
+        # Payment happens off-app, so this is the only record that it did.
+        def record_payment
+          subscription = @company.subscription
+          return render(json: { error: "no_subscription" }, status: :unprocessable_content) if subscription.nil?
+          return render(json: { error: "on_trial" }, status: :unprocessable_content) if subscription.on_trial?
+
+          subscription.record_payment!
+          AuditLogs::Record.call(
+            company: @company, user: current_user, action: "subscription.payment_recorded",
+            auditable: subscription, metadata: { paid_through: subscription.paid_through }
+          )
+          render json: { company: AdminCompanySerializer.new(@company.reload).as_json }
+        end
+
+        def undo_payment
+          subscription = @company.subscription
+          return render(json: { error: "no_subscription" }, status: :unprocessable_content) if subscription.nil?
+
+          subscription.undo_payment!
+          AuditLogs::Record.call(
+            company: @company, user: current_user, action: "subscription.payment_undone",
+            auditable: subscription, metadata: { paid_through: subscription.paid_through }
+          )
+          render json: { company: AdminCompanySerializer.new(@company.reload).as_json }
         end
 
         private

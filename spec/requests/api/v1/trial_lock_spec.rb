@@ -99,4 +99,70 @@ RSpec.describe "Free trial lock", type: :request do
       end
     end
   end
+
+  # Access is paid for off-app, month by month. A gym gets three days past
+  # the period it paid for to settle, and then the door shuts.
+  describe "a gym that has not settled the month" do
+    let(:staff) { create(:staff_member, company: company, role: :receptionist).user }
+
+    def paid_through!(date)
+      create(:subscription, company: company, billing_period: :monthly,
+                            status: :active, expires_at: nil, paid_through: date)
+    end
+
+    it "is not blocked on the first day after the paid period ran out" do
+      paid_through!(Date.current.prev_day)
+
+      get "/api/v1/clients", headers: auth_headers(owner)
+
+      expect(response).to have_http_status(:ok)
+    end
+
+    it "is still not blocked on the third day" do
+      paid_through!(Date.current - 3)
+
+      get "/api/v1/clients", headers: auth_headers(owner)
+
+      expect(response).to have_http_status(:ok)
+    end
+
+    it "is blocked on the fourth, and told it is the money" do
+      paid_through!(Date.current - 4)
+
+      get "/api/v1/clients", headers: auth_headers(owner)
+
+      expect(response).to have_http_status(:payment_required)
+      expect(response.parsed_body["error"]).to eq("payment_overdue")
+      expect(response.parsed_body["message"]).to include("settled")
+    end
+
+    it "tells staff to talk to their owner, never what is owed" do
+      paid_through!(Date.current - 4)
+
+      get "/api/v1/clients", headers: auth_headers(staff)
+
+      expect(response).to have_http_status(:payment_required)
+      expect(response.parsed_body["message"]).to include("gym owner")
+      expect(response.parsed_body["message"]).not_to include("settled")
+    end
+
+    it "opens again the moment the payment is recorded" do
+      subscription = paid_through!(Date.current - 4)
+
+      subscription.record_payment!
+      subscription.record_payment! until subscription.current_period_paid?
+
+      get "/api/v1/clients", headers: auth_headers(owner)
+
+      expect(response).to have_http_status(:ok)
+    end
+
+    it "still reports an expired trial as a trial, not as money owed" do
+      create(:subscription, company: company, billing_period: nil, status: :active, expires_at: 1.day.ago)
+
+      get "/api/v1/clients", headers: auth_headers(owner)
+
+      expect(response.parsed_body["error"]).to eq("trial_expired")
+    end
+  end
 end

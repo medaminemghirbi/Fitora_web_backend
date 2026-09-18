@@ -346,4 +346,53 @@ RSpec.describe "Api::V1::Admin::Companies", type: :request do
       expect(usage["last_session_at"]).to be_nil
     end
   end
+  describe "recording the money arriving" do
+    let(:company) { create(:company) }
+
+    def paying!(paid_through:)
+      create(:subscription, company: company, billing_period: :monthly,
+                            status: :active, expires_at: nil, paid_through: paid_through)
+    end
+
+    it "moves coverage on by a period and says so in the audit log" do
+      paying!(paid_through: Date.new(2026, 1, 31))
+
+      travel_to(Date.new(2026, 2, 10)) do
+        post "/api/v1/admin/companies/#{company.id}/record_payment", headers: auth_headers(admin)
+      end
+
+      expect(response).to have_http_status(:ok)
+      expect(company.subscription.reload.paid_through).to eq(Date.new(2026, 2, 28))
+      expect(response.parsed_body["company"]["subscription"]["current_period_paid"]).to be true
+      expect(AuditLog.last.action).to eq("subscription.payment_recorded")
+    end
+
+    it "refuses a gym still on its trial — there is nothing to pay yet" do
+      create(:subscription, company: company, billing_period: nil, status: :active)
+
+      post "/api/v1/admin/companies/#{company.id}/record_payment", headers: auth_headers(admin)
+
+      expect(response).to have_http_status(:unprocessable_content)
+      expect(response.parsed_body["error"]).to eq("on_trial")
+    end
+
+    it "takes a payment back that never arrived" do
+      paying!(paid_through: Date.new(2026, 3, 31))
+
+      travel_to(Date.new(2026, 3, 10)) do
+        delete "/api/v1/admin/companies/#{company.id}/record_payment", headers: auth_headers(admin)
+      end
+
+      expect(company.subscription.reload.paid_through).to eq(Date.new(2026, 2, 28))
+    end
+
+    it "is closed to anyone who is not a Fitora admin" do
+      paying!(paid_through: Date.current.end_of_month)
+      owner = create(:user, :owner)
+
+      post "/api/v1/admin/companies/#{company.id}/record_payment", headers: auth_headers(owner)
+
+      expect(response).to have_http_status(:forbidden)
+    end
+  end
 end

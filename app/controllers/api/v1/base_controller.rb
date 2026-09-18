@@ -34,9 +34,25 @@ module Api
         return if current_user.owner? && OWNER_ALLOWED_WHEN_LOCKED[self.class.name]&.include?(action_name)
 
         render json: {
-          error: "trial_expired",
-          message: current_user.owner? ? "Your free trial has ended. Contact Fitora to keep using your account." : "This company's account is locked. Contact your gym owner."
+          error: subscription.lock_reason.to_s,
+          message: lock_message(subscription.lock_reason)
         }, status: :payment_required
+      end
+
+      # Why the door is shut, in words the person reading them can act on.
+      # Staff are told to talk to their owner whatever the reason: the money
+      # is not theirs to settle and the detail is not theirs to see.
+      def lock_message(reason)
+        return "This gym's account is locked. Contact your gym owner." unless current_user.owner?
+
+        case reason
+        when :trial_expired
+          "Your free trial has ended. Ask Fitora to activate your account to carry on."
+        when :payment_overdue
+          "This month has not been settled. Access closed #{Subscription::GRACE_DAYS} days after the period you paid for ran out."
+        else
+          "Your account is closed. Contact Fitora."
+        end
       end
 
       # Never trust a company_id supplied by the client — always derive
