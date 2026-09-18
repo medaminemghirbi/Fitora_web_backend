@@ -56,9 +56,15 @@ Rack::Attack.throttle("password_resets/ip", limit: 5, period: 1.minute) do |req|
   req.ip if req.post? && req.path == "/api/v1/password_resets"
 end
 
-# Demo / quote requests are the only unauthenticated write left, and they are
-# the front door: nothing else stands between a script and an inbox full of
-# fake prospects.
+# Signing up is unauthenticated, creates a User and emails the address given,
+# with no ownership check. Unthrottled, a script could mass-create accounts or
+# use Fitora's own mailer to bomb a third party's inbox.
+Rack::Attack.throttle("register/ip", limit: 5, period: 10.minutes) do |req|
+  req.ip if req.post? && req.path == "/api/v1/auth/register"
+end
+
+# Demo / quote requests take no login either, and nothing else stands between
+# a script and an inbox full of fake prospects.
 Rack::Attack.throttle("leads/ip", limit: 5, period: 10.minutes) do |req|
   req.ip if req.post? && req.path == "/api/v1/leads"
 end

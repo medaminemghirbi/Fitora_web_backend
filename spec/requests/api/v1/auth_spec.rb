@@ -1,17 +1,6 @@
 require "rails_helper"
 
 RSpec.describe "Api::V1::Auth", type: :request do
-  describe "POST /api/v1/auth/register" do
-    it "no longer exists — a gym asks for a demo or a quote instead of signing itself up" do
-      post "/api/v1/auth/register", params: {
-        first_name: "Amine", last_name: "M", email: "new@example.com", password: "password123"
-      }
-
-      expect(response).to have_http_status(:not_found)
-      expect(User.find_by(email: "new@example.com")).to be_nil
-    end
-  end
-
   describe "POST /api/v1/auth/login" do
     it "returns a token for valid credentials" do
       create(:user, email: "login@example.com", password: "password123")
@@ -53,6 +42,50 @@ RSpec.describe "Api::V1::Auth", type: :request do
 
       expect(response).to have_http_status(:ok)
       expect(response.parsed_body["user"]["id"]).to eq(user.id)
+    end
+  end
+
+  describe "POST /api/v1/auth/register" do
+    let(:payload) do
+      { user: { first_name: "Amine", last_name: "Mghirbi", email: "new@gym.test", password: "password123" } }
+    end
+
+    it "opens an owner login and nothing else — the gym is named on the next screen" do
+      expect { post "/api/v1/auth/register", params: payload }.to change(User, :count).by(1)
+
+      expect(response).to have_http_status(:created)
+      expect(response.parsed_body["account_type"]).to eq("user")
+      expect(response.parsed_body["token"]).to be_present
+
+      user = User.find_by(email: "new@gym.test")
+      expect(user.role).to eq("owner")
+      expect(user.active_company).to be_nil
+      expect(Company.count).to eq(0)
+    end
+
+    it "sends them a confirmation email" do
+      expect { post "/api/v1/auth/register", params: payload }
+        .to have_enqueued_mail(AccountMailer, :email_verification)
+    end
+
+    it "never lets the form choose its own role" do
+      post "/api/v1/auth/register", params: { user: payload[:user].merge(role: "admin") }
+
+      expect(User.find_by(email: "new@gym.test").role).to eq("owner")
+    end
+
+    it "refuses an address that already has an account" do
+      create(:user, email: "new@gym.test")
+
+      expect { post "/api/v1/auth/register", params: payload }.not_to change(User, :count)
+      expect(response).to have_http_status(:unprocessable_content)
+    end
+
+    it "refuses a password too short to be one" do
+      post "/api/v1/auth/register", params: { user: payload[:user].merge(password: "short") }
+
+      expect(response).to have_http_status(:unprocessable_content)
+      expect(response.parsed_body["error"]).to be_present
     end
   end
 end

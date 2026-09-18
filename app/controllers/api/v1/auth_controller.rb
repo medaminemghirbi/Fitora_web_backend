@@ -3,6 +3,33 @@ module Api
     class AuthController < ApplicationController
       before_action :authenticate_request!, only: [ :me, :logout, :permissions ]
 
+      # POST /api/v1/auth/register — a gym opening its own account.
+      #
+      # Creates the owner's login and nothing else: the gym itself is named
+      # on the next screen (Api::V1::CompaniesController#create), which is
+      # also where the 14 days start. Splitting it that way keeps this form
+      # to three fields for someone who has not seen the product yet.
+      #
+      # The 14 days are all this grants. Carrying on past them still means
+      # asking Fitora to activate the account (SubscriptionController
+      # #request_upgrade) — signing up moves that conversation after the
+      # trial, it does not remove it.
+      def register
+        user = User.new(register_params.merge(role: :owner))
+
+        if user.save
+          raw = user.generate_email_verification_token!
+          AccountMailer.email_verification(user, raw).deliver_later
+          render json: {
+            token: JwtService.encode(user.id),
+            account_type: "user",
+            user: UserSerializer.new(user).as_json
+          }, status: :created
+        else
+          render json: { error: user.errors.full_messages.first, errors: user.errors.full_messages }, status: :unprocessable_content
+        end
+      end
+
       # POST /api/v1/auth/login — one door for both kinds of account.
       #
       # A platform account first (owner, staff, Fitora admin), then a member
@@ -50,6 +77,14 @@ module Api
       def permissions
         resolved = Permissions::Resolve.call(user: current_user)
         render json: { role: resolved.role, permissions: resolved.permissions }
+      end
+
+      private
+
+      # `role` is never taken from the form: everyone who signs up here is an
+      # owner, and a staff login is created by their gym.
+      def register_params
+        params.require(:user).permit(:first_name, :last_name, :email, :password, :phone, :locale)
       end
     end
   end
