@@ -15,6 +15,19 @@ module Api
           }
         end
 
+        # GET /api/v1/admin/companies/activation_requests — the gyms asking
+        # to carry on past their trial.
+        #
+        # Lives beside the company list rather than inside it because this is
+        # an inbox, not a directory: it answers "who is waiting on me", and
+        # it empties as they are answered.
+        def activation_requests
+          subscriptions = Subscription.awaiting_activation.includes(company: :owner)
+          companies = subscriptions.filter_map(&:company)
+
+          render json: { companies: companies.map { |c| AdminCompanySerializer.new(c).as_json } }
+        end
+
         # GET /api/v1/admin/companies/:id
         def show
           render json: {

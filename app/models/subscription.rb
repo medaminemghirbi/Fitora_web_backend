@@ -39,6 +39,10 @@ class Subscription < ApplicationRecord
     billing_period.blank?
   end
 
+  # The ones Fitora has to answer. Oldest first: whoever has been waiting
+  # longest is the one being kept waiting.
+  scope :awaiting_activation, -> { where.not(upgrade_requested_at: nil).order(:upgrade_requested_at) }
+
   def upgrade_requested?
     upgrade_requested_at.present?
   end

@@ -128,6 +128,9 @@ Rails.application.routes.draw do
 
       namespace :admin do
         resources :companies, only: [ :index, :show ] do
+          collection do
+            get :activation_requests
+          end
           member do
             patch :subscription, to: "companies#update_subscription"
             patch :settings, to: "companies#update_settings"

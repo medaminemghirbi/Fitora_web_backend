@@ -267,4 +267,61 @@ RSpec.describe "Api::V1::Admin::Companies", type: :request do
       expect(response).to have_http_status(:forbidden)
     end
   end
+
+  describe "GET /api/v1/admin/companies/activation_requests" do
+    def asked!(company, at:, period: nil)
+      company.subscription.update!(upgrade_requested_at: at, upgrade_requested_period: period)
+    end
+
+    it "returns only the gyms waiting on an answer, longest wait first" do
+      quiet = create(:company, name: "Quiet")
+      create(:subscription, company: quiet)
+
+      waiting_longest = create(:company, name: "Longest")
+      create(:subscription, company: waiting_longest)
+      asked!(waiting_longest, at: 5.days.ago)
+
+      waiting_recent = create(:company, name: "Recent")
+      create(:subscription, company: waiting_recent)
+      asked!(waiting_recent, at: 1.hour.ago)
+
+      get "/api/v1/admin/companies/activation_requests", headers: auth_headers(admin)
+
+      expect(response).to have_http_status(:ok)
+      expect(response.parsed_body["companies"].map { |c| c["name"] }).to eq([ "Longest", "Recent" ])
+    end
+
+    it "carries what the owner asked for, so it can be answered without opening the gym" do
+      company = create(:company, name: "Gym Club")
+      create(:subscription, company: company)
+      asked!(company, at: 2.days.ago, period: "yearly")
+
+      get "/api/v1/admin/companies/activation_requests", headers: auth_headers(admin)
+
+      row = response.parsed_body["companies"].first
+      expect(row["subscription"]["upgrade_requested_period"]).to eq("yearly")
+      expect(row["owner"]["email"]).to eq(company.owner.email)
+    end
+
+    it "empties as requests are answered" do
+      company = create(:company)
+      create(:subscription, company: company)
+      asked!(company, at: 1.day.ago)
+
+      company.subscription.cancel_upgrade_request!
+
+      get "/api/v1/admin/companies/activation_requests", headers: auth_headers(admin)
+
+      expect(response.parsed_body["companies"]).to be_empty
+    end
+
+    it "is closed to anyone who is not a Fitora admin" do
+      owner = create(:user, :owner)
+      create(:company, owner: owner)
+
+      get "/api/v1/admin/companies/activation_requests", headers: auth_headers(owner)
+
+      expect(response).to have_http_status(:forbidden)
+    end
+  end
 end
