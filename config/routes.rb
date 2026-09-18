@@ -19,7 +19,6 @@ Rails.application.routes.draw do
 
   namespace :api do
     namespace :v1 do
-      post "auth/register_client", to: "auth#register_client"
       post "auth/login", to: "auth#login"
       post "auth/logout", to: "auth#logout"
       get "auth/me", to: "auth#me"
@@ -39,9 +38,7 @@ Rails.application.routes.draw do
         end
       end
 
-      resource :company, only: [ :show, :update ] do
-        post :publish
-      end
+      resource :company, only: [ :show, :update ]
       # Plural: an owner can run more than one company now (see
       # User#company_limit) — :show/:update above always act on whichever
       # one is currently active; these list/create/switch between them.
@@ -50,10 +47,8 @@ Rails.application.routes.draw do
       end
       get "branding", to: "branding#show"
 
-      # Public directory — no login: this is how someone finds a gym.
-      resources :gyms, only: [ :index, :show ]
-
-      # A gym asking for a demo or a quote — also no login, by definition.
+      # A gym asking for a demo or a quote — no login, by definition: this
+      # is how an account gets opened at all (see Leads::Convert).
       resources :leads, only: [ :create ]
       post "onboarding/dismiss", to: "onboarding#dismiss"
       resources :activities
@@ -111,15 +106,6 @@ Rails.application.routes.draw do
         member do
           get "attachments/:attachment_id", action: :attachment, as: :attachment
         end
-      end
-
-      # Mobile client (Client login) self-service.
-      namespace :me do
-        resources :bookings, only: [ :index, :create ] do
-          member { post :cancel }
-        end
-        resources :sessions, only: [ :index ]
-        resources :gyms, only: [ :index, :create, :destroy ]
       end
 
       namespace :owner do

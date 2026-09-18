@@ -1,7 +1,6 @@
 class SessionSerializer
-  def initialize(session, current_client: nil)
+  def initialize(session)
     @session = session
-    @current_client = current_client
   end
 
   def as_json(*)
@@ -10,8 +9,6 @@ class SessionSerializer
       activity_id: session.activity_id,
       activity_name: session.activity.name,
       activity_emoji: session.activity.emoji,
-      # Which gym this belongs to: a member's list now spans several of them,
-      # so a session that does not say where it is is unreadable.
       company_id: session.company_id,
       company_name: session.company.name,
       coach_id: session.coach_id,
@@ -22,28 +19,18 @@ class SessionSerializer
       confirmed_count: session.confirmed_bookings_count,
       price: session.price,
       status: session.status,
-      availability: availability,
-      already_booked: already_booked?
+      availability: availability
     }
   end
 
   private
 
-  attr_reader :session, :current_client
+  attr_reader :session
 
   def availability
     return "cancelled" if session.cancelled?
     return "full" if session.full?
 
     "available"
-  end
-
-  # Was previously querying bookings.user_id — a column that doesn't exist
-  # (Booking belongs_to :client, never :user); this parameter had no working
-  # caller, so nothing regresses in fixing it for Api::V1::Client::SessionsController.
-  def already_booked?
-    return false if current_client.nil?
-
-    session.bookings.held.where(client_id: current_client.id).exists?
   end
 end

@@ -13,16 +13,6 @@ RSpec.describe "Api::V1::PasswordResets", type: :request do
       expect(owner.reload.reset_password_token_digest).to be_present
     end
 
-    it "sends a reset email for a matching client with login enabled" do
-      client = create(:client, email: "client@example.test", password: "password123")
-
-      expect {
-        post "/api/v1/password_resets", params: { email: "client@example.test" }
-      }.to have_enqueued_mail(AccountMailer, :password_reset)
-
-      expect(response).to have_http_status(:no_content)
-    end
-
     it "never sends anything for a platform admin, but still returns 204" do
       create(:user, :admin, email: "admin@example.test")
 

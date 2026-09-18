@@ -99,55 +99,6 @@ RSpec.describe "Api::V1::Clients", type: :request do
     end
   end
 
-  describe "PATCH /api/v1/clients/:id — setting a mobile login" do
-    it "lets the owner set a login for a client" do
-      client = create(:client, company: company, email: "gymgoer@example.com")
-
-      patch "/api/v1/clients/#{client.id}", params: { client: { password: "password123" } }, headers: auth_headers(owner)
-
-      expect(response).to have_http_status(:ok)
-      expect(response.parsed_body["client"]["login_enabled"]).to be true
-      expect(client.reload.authenticate("password123")).to be_truthy
-    end
-
-    it "lets a receptionist set a client's login" do
-      receptionist = create(:staff_member, company: company, role: :receptionist)
-      client = create(:client, company: company, email: "gymgoer2@example.com")
-
-      patch "/api/v1/clients/#{client.id}", params: { client: { password: "password123" } }, headers: auth_headers(receptionist.user)
-
-      expect(response).to have_http_status(:ok)
-      expect(client.reload.login_enabled?).to be true
-    end
-
-    it "logs an audit entry noting login was enabled" do
-      client = create(:client, company: company, email: "gymgoer3@example.com")
-
-      patch "/api/v1/clients/#{client.id}", params: { client: { password: "password123" } }, headers: auth_headers(owner)
-
-      log = AuditLog.last
-      expect(log.action).to eq("client.updated")
-      expect(log.company_id).to eq(company.id)
-      expect(log.metadata["login_enabled"]).to be true
-    end
-
-    it "rejects enabling login without an email on file" do
-      client = create(:client, company: company, email: nil)
-
-      patch "/api/v1/clients/#{client.id}", params: { client: { password: "password123" } }, headers: auth_headers(owner)
-
-      expect(response).to have_http_status(:unprocessable_content)
-    end
-
-    it "rejects a too-short password" do
-      client = create(:client, company: company, email: "gymgoer3@example.com")
-
-      patch "/api/v1/clients/#{client.id}", params: { client: { password: "short" } }, headers: auth_headers(owner)
-
-      expect(response).to have_http_status(:unprocessable_content)
-    end
-  end
-
   describe "the filter rail's counts" do
     it "reports how many clients each status holds, for the current search" do
       create(:client, company: company, first_name: "Rania", active: true)

@@ -21,13 +21,6 @@ module Api
       private_constant :OWNER_ALLOWED_WHEN_LOCKED
 
       def enforce_trial_lock!
-        # A Client's own mobile login carries no current_user at all (see
-        # ApplicationController#authenticate_request!) — nothing client-facing
-        # existed when trial-lock was written, so it never had to account for
-        # that. Not gating clients on the gym's trial status here is a
-        # deliberate simplification: the client app has no "locked" screen of
-        # its own to show them yet.
-        return if current_client
         return if current_user.admin?
 
         subscription = current_company&.subscription
@@ -48,30 +41,8 @@ module Api
       # staff (managers/coaches/receptionists) still have exactly one, via
       # StaffMember. Never confuse either with User#role == "admin", the
       # Fitora platform operator handled entirely by Api::V1::Admin::*.
-      # The gym the request is about, for a STAFF login. A client no longer
-      # has "their" company — they belong to as many gyms as they like — so
-      # their gym is resolved per request instead (see member_company).
       def current_company
         @current_company ||= current_user&.active_company || current_staff_member&.company
-      end
-
-      # For a client login: the gym named by ?company_id=, checked against
-      # their memberships. nil means "across every gym I belong to", which is
-      # what the member screens show by default.
-      def member_company
-        return @member_company if defined?(@member_company)
-
-        @member_company = if params[:company_id].present?
-          current_client&.companies&.find_by(id: params[:company_id])
-        end
-      end
-
-      # 404 rather than 403: a gym the person has not joined should not even
-      # be distinguishable from one that does not exist.
-      def require_member_company!
-        return if params[:company_id].blank? || member_company
-
-        render json: { error: "Gym not found" }, status: :not_found
       end
 
       def current_staff_member
@@ -86,13 +57,6 @@ module Api
 
       def require_admin!
         render_forbidden unless current_user.admin?
-      end
-
-      # Gates the client-facing mobile endpoints (Api::V1::Client::*) —
-      # the counterpart to require_owner!/require_admin!, for the OTHER
-      # kind of mobile login (see ApplicationController#current_client).
-      def require_client!
-        render_forbidden if current_client.nil?
       end
 
       # True for the owner (always) or for staff whose role grants this

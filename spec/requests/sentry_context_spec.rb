@@ -15,15 +15,6 @@ RSpec.describe "Sentry request context", type: :request do
     get "/api/v1/auth/me", headers: auth_headers(owner)
   end
 
-  it "tags a client login with their own id, never a user role or a single gym" do
-    client = create(:client, password: "password123")
-
-    expect(Sentry).to receive(:set_user).with(id: client.id, email: client.email)
-    expect(Sentry).to receive(:set_tags).with(account_type: "client")
-
-    get "/api/v1/auth/me", headers: auth_headers(client)
-  end
-
   it "never raises for a platform admin, who has no company" do
     admin = create(:user, :admin)
 

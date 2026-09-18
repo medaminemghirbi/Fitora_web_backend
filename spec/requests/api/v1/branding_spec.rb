@@ -38,23 +38,5 @@ RSpec.describe "Api::V1::Branding", type: :request do
 
       expect(response).to have_http_status(:unauthorized)
     end
-
-    it "is readable by a client's own login for a gym they belong to" do
-      client = create(:client, company: company)
-
-      get "/api/v1/branding", params: { company_id: company.id }, headers: auth_headers(client)
-
-      expect(response).to have_http_status(:ok)
-      expect(response.parsed_body["branding"]["name"]).to eq("Power Gym")
-    end
-
-    it "refuses a gym the client has not joined" do
-      client = create(:client, company: company)
-      other = create(:company, name: "Autre salle")
-
-      get "/api/v1/branding", params: { company_id: other.id }, headers: auth_headers(client)
-
-      expect(response).to have_http_status(:unprocessable_content)
-    end
   end
 end

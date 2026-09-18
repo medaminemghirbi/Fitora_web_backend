@@ -69,20 +69,10 @@ RSpec.describe Client do
     end
   end
 
-  it "requires a minimum password length only when a password is set" do
-    client = build(:client, company: company, password: "short")
-    expect(client).not_to be_valid
-    expect(client.errors[:password]).to be_present
-  end
-
-  describe "#login_enabled?" do
-    it "is only true once a password has been set" do
-      client = create(:client, company: company)
-      expect(client.login_enabled?).to be false
-
-      client.update!(password: "password123")
-      expect(client.login_enabled?).to be true
-    end
+  it "cannot be signed in as — a member is a record, not an account" do
+    client = create(:client, company: company)
+    expect(client).not_to respond_to(:authenticate)
+    expect(Client.column_names).not_to include("password_digest")
   end
 
   it "builds the full name from first and last name" do

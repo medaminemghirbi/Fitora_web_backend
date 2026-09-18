@@ -62,18 +62,13 @@ module Api
 
       # PATCH /api/v1/clients/:id
       def update
-        login_newly_enabled = @client.password_digest.blank? && client_params[:password].present?
         membership = @client.membership_for(current_company)
         membership&.update(membership_params) if membership_params.any?
 
         if @client.update(person_params)
-          if login_newly_enabled && @client.email.present?
-            raw = @client.generate_email_verification_token!
-            AccountMailer.email_verification(@client, raw).deliver_later
-          end
           AuditLogs::Record.call(
             company: current_company, user: current_user, action: "client.updated",
-            auditable: @client, metadata: { name: @client.full_name, login_enabled: login_newly_enabled }
+            auditable: @client, metadata: { name: @client.full_name }
           )
           render json: { client: ClientSerializer.new(@client, company: current_company).as_json }
         else
@@ -151,8 +146,7 @@ module Api
       def client_params
         params.require(:client).permit(
           :first_name, :last_name, :email, :phone, :date_of_birth, :gender,
-          :address, :emergency_contact_name, :emergency_contact_phone, :notes, :active,
-          :password
+          :address, :emergency_contact_name, :emergency_contact_phone, :notes, :active
         )
       end
     end

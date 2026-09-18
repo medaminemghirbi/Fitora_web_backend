@@ -67,37 +67,6 @@ class Company < ApplicationRecord
 
   before_validation :normalize_working_days
 
-  # ---- public directory ----------------------------------------------------
-  # A gym is invisible until its owner publishes it: nothing about a company
-  # reaches the directory without that explicit decision.
-  # Listed by default: a gym that exists is a gym people can find. The owner
-  # can still step out from Settings → Annuaire public.
-  scope :listed, -> { where.not(listed_at: nil).where(active: true) }
-
-
-  scope :directory_search, ->(term) {
-    return all if term.blank?
-
-    t = "%#{term.strip}%"
-    where(
-      "companies.name ILIKE :t OR companies.city ILIKE :t OR companies.address ILIKE :t OR " \
-      "EXISTS (SELECT 1 FROM activities a WHERE a.company_id = companies.id AND a.active AND a.name ILIKE :t)",
-      t: t
-    )
-  }
-
-  def listed?
-    listed_at.present?
-  end
-
-  def publish!
-    update!(listed_at: Time.current)
-  end
-
-  def unpublish!
-    update!(listed_at: nil)
-  end
-
   # The short symbol shown next to amounts across the app (e.g. "DT", "€").
   def currency_symbol
     CurrencyCatalog.symbol(currency)

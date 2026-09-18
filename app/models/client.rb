@@ -1,7 +1,12 @@
+# A person a gym trains. Fitora is sold to gyms, so a Client has no account
+# and no way in: the record exists because staff created it, and only staff
+# ever read or write it.
+#
+# The record is still global rather than owned by one gym — the same person
+# training at two gyms is one Client with two Memberships — so that a gym
+# recording an existing email adopts the person instead of duplicating them.
+# Each gym still only ever sees its own membership, contracts and payments.
 class Client < ApplicationRecord
-  include PasswordResettable
-  include EmailVerifiable
-
   has_many :memberships, dependent: :destroy
   has_many :companies, through: :memberships
 
@@ -10,13 +15,6 @@ class Client < ApplicationRecord
   has_many :contract_periods, through: :contracts
   has_many :payments, dependent: :destroy
 
-  # Mobile-app login for the client themselves — off by default (no
-  # password_digest), turned on when the owner or a receptionist sets a
-  # password from the client's profile (Api::V1::ClientsController#update).
-  # Reuses the same has_secure_password/bcrypt setup as User, but optional:
-  # a Client is still a valid business record with no login at all.
-  has_secure_password validations: false
-
   before_validation { self.email = email.to_s.downcase.strip if email.present? }
   validates :first_name, :last_name, :phone, presence: true
   validates :email, format: { with: URI::MailTo::EMAIL_REGEXP }, allow_blank: true
@@ -24,8 +22,6 @@ class Client < ApplicationRecord
   # signing up at a second gym lands on their existing account instead of a
   # duplicate. A walk-in a gym recorded with no email is still valid.
   validates :email, uniqueness: { case_sensitive: false }, allow_blank: true
-  validates :email, presence: true, if: -> { password_digest.present? }
-  validates :password, length: { minimum: 8 }, if: -> { password.present? }
 
   scope :active, -> { where(active: true) }
   scope :search, ->(term) {
@@ -45,16 +41,12 @@ class Client < ApplicationRecord
     "#{first_name} #{last_name}"
   end
 
-  def login_enabled?
-    password_digest.present?
-  end
-
   def membership_for(company)
     memberships.find_by(company_id: company.is_a?(Company) ? company.id : company)
   end
 
-  # Joining is instant — there is nothing for the gym to approve. Called both
-  # by the gym adding someone and by the person joining from the directory.
+  # Joining is instant — there is nothing to approve. Called when a gym adds
+  # someone, and when a gym records an email another gym already has.
   def join!(company)
     memberships.find_or_create_by!(company_id: company.id)
   end

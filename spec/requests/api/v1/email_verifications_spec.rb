@@ -12,16 +12,6 @@ RSpec.describe "Api::V1::EmailVerifications", type: :request do
       expect(response).to have_http_status(:no_content)
     end
 
-    it "sends a verification email to a signed-in client" do
-      client = create(:client, password: "password123")
-
-      expect {
-        post "/api/v1/email_verifications", headers: auth_headers(client)
-      }.to have_enqueued_mail(AccountMailer, :email_verification)
-
-      expect(response).to have_http_status(:no_content)
-    end
-
     it "refuses a platform admin" do
       admin = create(:user, :admin)
 
@@ -56,16 +46,6 @@ RSpec.describe "Api::V1::EmailVerifications", type: :request do
 
       expect(response).to have_http_status(:no_content)
       expect(owner.reload.email_verified?).to be true
-    end
-
-    it "verifies a client with a valid token" do
-      client = create(:client)
-      raw = client.generate_email_verification_token!
-
-      patch "/api/v1/email_verifications/#{raw}"
-
-      expect(response).to have_http_status(:no_content)
-      expect(client.reload.email_verified?).to be true
     end
 
     it "rejects an invalid token" do

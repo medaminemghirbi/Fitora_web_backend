@@ -88,22 +88,6 @@ module Api
         render json: { company: CompanySerializer.new(@company).as_json }
       end
 
-      # POST /api/v1/company/publish — puts the gym in the public directory,
-      # or takes it back out. Nothing about a company is discoverable until
-      # an owner does this.
-      def publish
-        require_company!
-        return if performed?
-
-        listed = ActiveModel::Type::Boolean.new.cast(params[:listed])
-        listed ? current_company.publish! : current_company.unpublish!
-        AuditLogs::Record.call(
-          company: current_company, user: current_user,
-          action: listed ? "company.published" : "company.unpublished", auditable: current_company
-        )
-        render json: { company: CompanySerializer.new(current_company).as_json }
-      end
-
       private
 
       def set_owned_company

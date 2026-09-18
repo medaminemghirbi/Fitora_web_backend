@@ -56,17 +56,9 @@ Rack::Attack.throttle("password_resets/ip", limit: 5, period: 1.minute) do |req|
   req.ip if req.post? && req.path == "/api/v1/password_resets"
 end
 
-# Member self-signup — unauthenticated, creates a Client and immediately
-# emails the address given (no ownership check). With no limit an attacker
-# could script mass account creation or use it to email-bomb a third party
-# through Fitora's own mailer at will. (This replaced the gym self-signup
-# throttle: gyms no longer register themselves, they request a demo below.)
-Rack::Attack.throttle("register_client/ip", limit: 5, period: 10.minutes) do |req|
-  req.ip if req.post? && req.path == "/api/v1/auth/register_client"
-end
-
-# Demo / quote requests are the B2B front door and take no login at all, so
-# nothing else stands between a script and an inbox full of fake prospects.
+# Demo / quote requests are the only unauthenticated write left, and they are
+# the front door: nothing else stands between a script and an inbox full of
+# fake prospects.
 Rack::Attack.throttle("leads/ip", limit: 5, period: 10.minutes) do |req|
   req.ip if req.post? && req.path == "/api/v1/leads"
 end

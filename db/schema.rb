@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_09_18_160000) do
+ActiveRecord::Schema[8.1].define(version: 2026_09_18_170000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "btree_gist"
   enable_extension "pg_catalog.plpgsql"
@@ -120,27 +120,18 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_18_160000) do
     t.datetime "created_at", null: false
     t.date "date_of_birth"
     t.string "email"
-    t.datetime "email_verification_sent_at"
-    t.string "email_verification_token_digest"
-    t.datetime "email_verified_at"
     t.string "emergency_contact_name"
     t.string "emergency_contact_phone"
     t.string "first_name", null: false
     t.string "gender"
     t.string "last_name", null: false
-    t.string "password_digest"
     t.string "phone"
-    t.datetime "reset_password_sent_at"
-    t.string "reset_password_token_digest"
-    t.integer "token_version", default: 0, null: false
     t.datetime "updated_at", null: false
     t.index "lower((email)::text)", name: "index_clients_on_lower_email", unique: true, where: "(email IS NOT NULL)"
     t.index ["email"], name: "index_clients_on_email_trgm", opclass: :gin_trgm_ops, using: :gin
-    t.index ["email_verification_token_digest"], name: "index_clients_on_email_verification_token_digest", unique: true
     t.index ["first_name"], name: "index_clients_on_first_name_trgm", opclass: :gin_trgm_ops, using: :gin
     t.index ["last_name"], name: "index_clients_on_last_name_trgm", opclass: :gin_trgm_ops, using: :gin
     t.index ["phone"], name: "index_clients_on_phone_trgm", opclass: :gin_trgm_ops, using: :gin
-    t.index ["reset_password_token_digest"], name: "index_clients_on_reset_password_token_digest", unique: true
   end
 
   create_table "coaches", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
@@ -171,7 +162,6 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_18_160000) do
     t.text "description"
     t.string "email"
     t.decimal "latitude", precision: 10, scale: 6
-    t.datetime "listed_at", default: -> { "now()" }
     t.string "locale", default: "fr", null: false
     t.integer "locations_count", default: 0, null: false
     t.decimal "longitude", precision: 10, scale: 6
@@ -185,7 +175,6 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_18_160000) do
     t.datetime "updated_at", null: false
     t.integer "working_days", default: [1, 2, 3, 4, 5], null: false, array: true
     t.index ["city"], name: "index_companies_on_city_trgm", opclass: :gin_trgm_ops, using: :gin
-    t.index ["listed_at"], name: "index_companies_on_listed_at"
     t.index ["name"], name: "index_companies_on_name_trgm", opclass: :gin_trgm_ops, using: :gin
     t.index ["owner_id"], name: "index_companies_on_owner_id"
     t.index ["slug"], name: "index_companies_on_slug", unique: true

@@ -30,29 +30,10 @@ RSpec.describe "Api::V1::Auth", type: :request do
       expect(response).to have_http_status(:unauthorized)
     end
 
-    it "falls back to a client's own login when no user matches" do
-      client = create(:client, email: "client-login@example.com", password: "password123")
-
-      post "/api/v1/auth/login", params: { email: "client-login@example.com", password: "password123" }
-
-      expect(response).to have_http_status(:ok)
-      expect(response.parsed_body["account_type"]).to eq("client")
-      expect(response.parsed_body["client"]["id"]).to eq(client.id)
-      expect(response.parsed_body["token"]).to be_present
-    end
-
     it "rejects a client with no login configured, even with a correct-looking email" do
       create(:client, email: "no-login@example.com")
 
       post "/api/v1/auth/login", params: { email: "no-login@example.com", password: "whatever123" }
-
-      expect(response).to have_http_status(:unauthorized)
-    end
-
-    it "rejects a client's wrong password" do
-      create(:client, email: "client-login2@example.com", password: "password123")
-
-      post "/api/v1/auth/login", params: { email: "client-login2@example.com", password: "wrong" }
 
       expect(response).to have_http_status(:unauthorized)
     end
@@ -72,16 +53,6 @@ RSpec.describe "Api::V1::Auth", type: :request do
 
       expect(response).to have_http_status(:ok)
       expect(response.parsed_body["user"]["id"]).to eq(user.id)
-    end
-
-    it "returns the current client when authenticated with a client token" do
-      client = create(:client, email: "me-client@example.com", password: "password123")
-
-      get "/api/v1/auth/me", headers: auth_headers(client)
-
-      expect(response).to have_http_status(:ok)
-      expect(response.parsed_body["account_type"]).to eq("client")
-      expect(response.parsed_body["client"]["id"]).to eq(client.id)
     end
   end
 end

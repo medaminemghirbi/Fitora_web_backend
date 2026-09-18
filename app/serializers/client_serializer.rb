@@ -19,8 +19,6 @@ class ClientSerializer
       email: client.email,
       phone: client.phone,
       active: membership ? membership.active : client.active,
-      login_enabled: client.login_enabled?,
-      email_verified: client.email_verified?,
       joined_at: membership&.joined_at,
       current_contract: ContractSerializer.new(client.current_contract(company)).as_json
     }
