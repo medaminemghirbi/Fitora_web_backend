@@ -39,6 +39,14 @@ class ContractType < ApplicationRecord
   # sensibly cost less than the most expensive part of it. The owner still
   # sets the actual figure at the point of sale (ContractPeriod#final_price);
   # this is the number the sale form starts from.
+  # A plan is either unlimited or counted. Holding both — unlimited_bookings
+  # with a session_count beside it — is how "24 Séances" came to sell as
+  # unlimited: the count named the plan and the flag decided what it did.
+  #
+  # Normalised rather than rejected: a validation would make every existing
+  # row in that state unsaveable, including to fix it.
+  before_validation :clear_counts_when_unlimited
+
   def price_for(activity)
     return contract_type_activities.maximum(:price) if activity.nil?
 
@@ -52,5 +60,14 @@ class ContractType < ApplicationRecord
     return false if activity.blank?
 
     contract_type_activities.exists?(activity_id: activity.id)
+  end
+
+  private
+
+  def clear_counts_when_unlimited
+    return unless unlimited_bookings?
+
+    self.session_count = nil
+    self.booking_limit = nil
   end
 end

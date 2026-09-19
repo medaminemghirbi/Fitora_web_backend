@@ -22,13 +22,13 @@ RSpec.describe ContractType do
     end
 
     it "rejects a zero booking_limit but allows a blank one" do
-      expect(build(:contract_type, booking_limit: 0)).not_to be_valid
-      expect(build(:contract_type, booking_limit: nil)).to be_valid
+      expect(build(:contract_type, unlimited_bookings: false, booking_limit: 0)).not_to be_valid
+      expect(build(:contract_type, unlimited_bookings: false, booking_limit: nil)).to be_valid
     end
 
     it "rejects a zero session_count but allows a blank one" do
-      expect(build(:contract_type, session_count: 0)).not_to be_valid
-      expect(build(:contract_type, session_count: nil)).to be_valid
+      expect(build(:contract_type, unlimited_bookings: false, session_count: 0)).not_to be_valid
+      expect(build(:contract_type, unlimited_bookings: false, session_count: nil)).to be_valid
     end
   end
 

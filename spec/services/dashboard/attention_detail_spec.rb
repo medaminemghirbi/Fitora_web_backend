@@ -18,7 +18,10 @@ RSpec.describe Dashboard::Statistics, "attention details" do
 
   describe "expiring" do
     it "says how many run out today" do
-      contract_with(status: :active, expires_at: 2.hours.from_now)
+      # Always today, whatever o'clock the suite runs at: `2.hours.from_now`
+      # stops meaning today once it runs after 22:00, which is how this first
+      # failed.
+      contract_with(status: :active, expires_at: Time.current.end_of_day - 1.minute)
       contract_with(status: :active, expires_at: 10.days.from_now)
 
       expect(row("expiring")[:detail]).to eq({ kind: "expiring_today", count: 1 })
