@@ -221,7 +221,7 @@ features/    landing, auth, b2b/auth, owner/*, coach/*, member/*, admin/*, accou
 | G3 | **`contracts.activity_id` is NOT NULL** — a member subscription is bound to exactly one activity, even though `ContractType` supports many through `contract_type_activities`. A multi-activity plan cannot be sold as one contract. | `db/schema.rb` `contracts` | High |
 | G4 | **No receptionist shell.** The receptionist logs into the *owner* shell with items filtered out. The front-desk workflow (search → check-in → book → take payment) is not a screen. | `app.routes.ts`, no `features/receptionist` | High |
 | G5 | **Coach area is one page** (`/coach/today`). No schedule, member list, attendance-taking, or session detail. | `features/coach/` | High |
-| G6 | **Member portal is three pages** (schedule, bookings, profile). No subscription view, no remaining-sessions display, no booking history, no notifications. | `features/member/` | Medium |
+| G6 | **Member portal is three pages** (schedule, bookings, profile). ~~No subscription view, no remaining-sessions display, no booking history~~ — **this was wrong**: the profile page already shows the subscription, remaining sessions, attendance rate and recent history. The real gap was gym switching: the app read `gyms[0]`, so someone with two memberships could only reach one. Fixed in Phase 6. Notifications remain missing. | `features/member/` | Medium |
 | G7 | **Onboarding is a dismissible checklist**, not the seven-step guided setup (company → activities → spaces → plans → staff). | `onboarding_controller.rb` | Medium |
 | G8 | **No booking/cancellation rule engine.** Cancellation windows, online-booking on/off and waitlists have no representation. | grep: absent | Medium |
 

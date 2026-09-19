@@ -124,10 +124,16 @@ business with either.
 GET    /me/profile
 GET    /me/sessions                bookable schedule (respects online_booking + booking_opens_days)
 resources /me/bookings             index, create; POST :id/cancel
-GET    /me/contracts               active subscription, remaining sessions, history   (new)
-GET    /me/attendance              own history                                        (new)
-GET    /me/companies               the gyms this person belongs to                    (new)
 GET    /me/notifications                                                              (new)
+```
+
+`/me/contracts`, `/me/attendance` and `/me/companies` were proposed here and
+are **withdrawn**: `GET /me/profile` already returns the subscription with
+`remaining_bookings`, the attendance rate with recent history, and the gyms
+this person belongs to. Three endpoints for data one already carries would be
+three more things to keep scoped correctly.
+
+```
 ```
 
 ### `/admin`

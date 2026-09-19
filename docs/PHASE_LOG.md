@@ -256,12 +256,36 @@ duplicate the narrowing and give it a second place to be wrong. Only
 
 Suite: backend **891 examples, 0 failures**; frontend **1217 passing**.
 
+- **All-access contracts stopped crashing everything that read them.**
+  Making `contracts.activity_id` nullable in Phase 3 created a contract with
+  no activity without auditing the four places that read
+  `contract.activity.name`: the contract serializer, the CSV export, the
+  receipt PDF and the member's own app. All four would have raised
+  `NoMethodError` on the first all-access membership sold. `Contract#activity_label`
+  is now the single answer to "what is this for, in words", and
+  `spec/requests/api/v1/all_access_contracts_spec.rb` walks a real one
+  through each path — reverting the serializer fix makes two of them fail
+  with the original error, which is the only reason to trust them.
+- **A member can reach the second gym they belong to.** The member app read
+  `gyms[0]` everywhere, so a person with two memberships could only see one.
+  There is a switcher in the shell now, the choice is remembered, a stale
+  remembered gym recovers instead of 404ing the app shut, and the schedule
+  reloads when the active gym changes.
+
+**`/me/contracts`, `/me/attendance` and `/me/companies` from `API_DESIGN.md`
+§3 are not needed.** `GET /me/profile` already returns the subscription (with
+`remaining_bookings`), the attendance rate and recent history, and the list
+of gyms. Phase 1 recorded the member portal as missing all of this; it was
+wrong. What was genuinely missing was the ability to *use* the gym list.
+
+Suite: backend **900 examples, 0 failures**; frontend **1226 passing**.
+
 ### Remaining in Phase 6
 
 - Coach: a week schedule view and a session-detail/roster screen (today's
   page covers the day; the week does not exist).
-- Member portal: subscription with remaining sessions as the headline number,
-  booking history, attendance, notifications, gym switching.
+- Member portal: remaining sessions as the *headline* number rather than a
+  muted line — a design change, so Phase 7.
 - Owner dashboard: exceptions-first rather than a wall of statistics.
 - Platform admin: `GET /admin/metrics`.
 
