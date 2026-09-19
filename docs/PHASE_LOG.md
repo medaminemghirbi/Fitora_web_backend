@@ -316,6 +316,52 @@ check-in and admin screens. The build catches it every time; the unit tests
 do not, unless the component has a spec that compiles its template. Worth
 remembering when writing a new screen's shell.
 
-## Phases 7–10 — not started
+## Phase 7 — UI redesign 🔶 in progress
+
+### Done — the foundation
+
+**Bootstrap is gone.** `_fitora.scss` had already restyled `.btn`,
+`.form-control`, `.table`, `.alert`, `.badge` and the tabs to the last rule,
+so the app shipped a 420 kB stylesheet whose every visible declaration it
+then overrode. What was genuinely still coming from the framework was a
+bounded set of layout utilities plus five components nobody had themed —
+which is why those five were the only places the old look still showed.
+
+- `styles/_utilities.scss` — the utilities against Fitora's tokens, keeping
+  Bootstrap's class names because 49 templates already say them. Spacing maps
+  onto the token scale (`mb-3` is `--space-3`); sides are logical properties,
+  so RTL comes free.
+- `styles/_leftovers.scss` — input groups, spinner, progress, responsive
+  table wrapper, colour input, checkbox row, tab list, compact table,
+  warning button.
+- **Stylesheet: 420.11 kB → 171.03 kB.**
+
+**`scripts/check-css.mjs`** is what made that safe. Same shape as
+`check-i18n.mjs`: every class a template asks for must have a rule behind it,
+or the build fails. A missing rule is invisible until someone opens the
+screen. It found **eight classes that had been styling nothing**:
+`app-navbar-brand-text`, `app-navbar-menu`, `dashboard-setup-card`,
+`fx-dashboard`, `fx-label`, `fx-session-tip-fill`, `is-video`,
+`notif-detail`. Wired up as `npm run check:css`.
+
+**`_fitora.scss` is decomposed** — thirteen partials grouped by concern, split
+by a script against the file's own section markers, asserting every section
+landed somewhere. Compiled output is byte-identical: this moved rules, it did
+not change them.
+
+The `UI_ARCHITECTURE.md` §1 target of "under 250 lines" is met in spirit
+rather than literally: no single file is over 174 lines, and the global layer
+is now findable. A single 250-line file was never the goal; being able to
+open one component's rules was.
+
+Frontend: **1234 passing**, lint clean, 919 classes all defined.
+
+### Remaining in Phase 7
+
+The screens themselves, shell by shell: admin → owner → desk → coach →
+member. The foundation is in place — tokens, utilities, thirteen component
+files and a checker that fails the build on a class with no rule.
+
+## Phases 8–10 — not started
 
 See `MIGRATION_PLAN.md` §4.
