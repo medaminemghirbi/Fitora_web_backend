@@ -3,11 +3,16 @@ class ClientSerializer
   # contracts, money and attendance to that gym, and where "active", "joined"
   # and the gym's private notes come from — those belong to the membership,
   # not to the person. Passing nil is the person's own, cross-gym view.
-  def initialize(client, detailed: false, company: nil)
+  # `last_visit_at` is passed in rather than computed here: on a list it is
+  # one grouped query for the whole page (see
+  # Api::V1::ClientsController#last_visits_for), and computing it per record
+  # would make that impossible.
+  def initialize(client, detailed: false, company: nil, last_visit_at: :unset)
     @client = client
     @detailed = detailed
     @company = company
     @membership = company && client.membership_for(company)
+    @last_visit_at = last_visit_at
   end
 
   def as_json(*)
@@ -24,6 +29,10 @@ class ClientSerializer
       current_contract: ContractSerializer.new(client.current_contract(company)).as_json
     }
 
+    # Only when the caller supplied it. A list sends it; anything that did
+    # not ask gets no key at all rather than a misleading null.
+    base[:last_visit_at] = @last_visit_at unless @last_visit_at == :unset
+
     return base unless detailed
 
     base.merge(
@@ -35,7 +44,9 @@ class ClientSerializer
       notes: membership&.notes,
       outstanding_balance: client.outstanding_balance(company),
       attendance_rate: client.attendance_rate(company),
-      last_visit_at: client.bookings_for(company).confirmed.joins(:session).maximum("sessions.starts_at")
+      last_visit_at: @last_visit_at == :unset ?
+        client.bookings_for(company).confirmed.joins(:session).maximum("sessions.starts_at") :
+        @last_visit_at
     )
   end
 

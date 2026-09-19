@@ -21,12 +21,30 @@ module Api
         if params[:format] == "csv"
           send_data clients_csv(clients), filename: "clients-#{Date.current}.csv"
         else
+          page = paginate(clients).to_a
+          visits = last_visits_for(page)
+
           render json: {
-            clients: paginate(clients).map { |c| ClientSerializer.new(c, company: current_company).as_json },
+            clients: page.map { |c|
+              ClientSerializer.new(c, company: current_company, last_visit_at: visits[c.id]).as_json
+            },
             meta: pagination_meta(clients),
             counts: status_counts(searched)
           }
         end
+      end
+
+      # When each member last turned up, for the whole page in one query.
+      # Asking per member would be twenty aggregates for twenty rows — the
+      # kind of N+1 that only shows up once a gym has real traffic.
+      def last_visits_for(page)
+        return {} if page.empty?
+
+        Booking.confirmed
+               .joins(:session)
+               .where(client_id: page.map(&:id), sessions: { company_id: current_company.id })
+               .group(:client_id)
+               .maximum("sessions.starts_at")
       end
 
       # GET /api/v1/clients/:id
