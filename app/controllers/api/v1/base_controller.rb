@@ -2,9 +2,28 @@ module Api
   module V1
     class BaseController < ApplicationController
       before_action :authenticate_request!
+      before_action :reject_member_token!
       before_action :enforce_trial_lock!
 
       private
+
+      # A member's token has no business on a staff endpoint.
+      #
+      # Without this the refusal was incidental: most staff controllers call
+      # require_company! early, which renders 422 because a client login has
+      # no current_company — denied, but by accident and with a misleading
+      # status. Worse, a controller whose capability check runs first would
+      # reach `current_user.owner?` with current_user nil and raise.
+      #
+      # One gate, applied to every staff controller, so a new one is closed
+      # by default. The member's own namespace (Api::V1::Me::*) is the single
+      # exemption, and it gates on require_client! instead.
+      def reject_member_token!
+        return if current_client.nil?
+        return if self.class.name.to_s.start_with?("Api::V1::Me::")
+
+        render_forbidden
+      end
 
       # The only endpoints a locked company's owner can still reach — enough
       # to see their status, and nothing that operates the gym. Staff get no

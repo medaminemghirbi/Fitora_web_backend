@@ -16,7 +16,12 @@ class ApplicationController < ActionController::API
       render_unauthorized if @current_client.nil?
     else
       @current_user = User.active.find_by(id: claims[:user_id])
-      @current_impersonator = User.active.find_by(id: claims[:impersonator_id]) if claims[:impersonator_id]
+      if claims[:impersonator_id]
+        @current_impersonator = User.active.find_by(id: claims[:impersonator_id])
+        # So every audit log written during this request says who was really
+        # at the keyboard — current_user is the impersonated owner throughout.
+        Current.impersonator = @current_impersonator
+      end
       render_unauthorized if @current_user.nil?
     end
 

@@ -51,6 +51,16 @@ RSpec.describe "Rack::Attack throttling on login", type: :request do
     end
   end
 
+  describe "POST /api/v1/email_verifications" do
+    it "throttles repeated verification resends from one IP" do
+      5.times { post "/api/v1/email_verifications", params: { email: "someone@example.test" } }
+
+      post "/api/v1/email_verifications", params: { email: "someone@example.test" }
+
+      expect(response).to have_http_status(:too_many_requests)
+    end
+  end
+
   it "never throttles the internal /api namespace at large" do
     150.times { get "/api/v1/auth/me" }
 

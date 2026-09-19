@@ -63,6 +63,13 @@ Rack::Attack.throttle("register/ip", limit: 5, period: 10.minutes) do |req|
   req.ip if req.post? && req.path == "/api/v1/auth/register"
 end
 
+# Re-sending a verification email is unauthenticated and mails whatever
+# address it is given — the same inbox-bombing surface as a password reset,
+# and it was the one account-mail endpoint with no ceiling on it.
+Rack::Attack.throttle("email_verifications/ip", limit: 5, period: 1.minute) do |req|
+  req.ip if req.post? && req.path == "/api/v1/email_verifications"
+end
+
 Rack::Attack.throttled_responder = lambda do |_request|
   [ 429, { "Content-Type" => "application/json" }, [ { error: "rate_limited" }.to_json ] ]
 end
