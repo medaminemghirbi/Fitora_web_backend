@@ -17,7 +17,7 @@ What the redesign does replace:
 | Item | Problem | Action |
 |---|---|---|
 | `_adminlte.scss` (401 lines) | An admin-template skin. The product should not look like AdminLTE. | Delete; fold anything still needed into component styles. |
-| `_fitora.scss` (1208 lines) | A global stylesheet doing component work, which is why screens drift. | Decompose into component-scoped styles + a thin global layer (reset, typography, tokens, utilities). Target: under 250 lines. |
+| `_fitora.scss` (1208 lines) | A global stylesheet doing component work, which is why screens drift. | **Phase 7, not Phase 5.** It is mostly a Bootstrap *override* layer — `.btn`, `.form-control`, `.table`, `.alert`, `.badge` restyled with tokens — and those classes appear across 49 templates. It cannot shrink until the templates stop using them, which is the redesign itself. The "under 250 lines" target holds only *after* that. |
 | `_bootstrap-vars.scss` | Bootstrap coupling on a design system that no longer needs it. | Remove once no component depends on Bootstrap classes. |
 | Bootstrap Icons (`bi-*`) in nav blueprints | Icon set chosen by the template, not the brand. | One icon decision, applied everywhere, made before any screen work starts. |
 

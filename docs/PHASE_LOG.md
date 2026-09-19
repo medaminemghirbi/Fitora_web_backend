@@ -185,6 +185,45 @@ them:
   company settings endpoints still gate on `require_owner!`. It gets wired
   when the settings UI is built (Phase 8).
 
-## Phases 5–10 — not started
+## Phase 5 — Frontend architecture 🔶 in progress
+
+### Done
+
+- **The desk shell exists** (`layout/desk-shell/`, `features/desk/`). The
+  receptionist stops borrowing the owner shell. Search-first: the member
+  search is the top of every desk screen, focused on load (skipped on touch),
+  debounced at 250ms, minimum two characters.
+- **`features/desk/dashboard`** — the session under way, two counts (expected
+  / turned up), what is still to come, memberships about to lapse, new
+  members. No totals, no revenue, no charts.
+- **`features/desk/checkin`** — today's sessions only, `?session=` preselects
+  one, and a stale id falls back to the picker rather than an empty roster.
+- **`deskAreaGuard`** — requires `checkin` AND `bookings` (checkin alone is a
+  coach), turns away coaches, owners and admins, and honours the trial lock.
+- **`AuthService#deskShellApplies`** sends desk staff to `/desk/dashboard`
+  after login.
+- **`_adminlte.scss` renamed to `_shell.scss`.** Nothing in it was AdminLTE.
+- 26 new frontend examples; suite **1210 passing**, lint clean, builds clean,
+  i18n complete in fr/en/ar (775 keys).
+
+### Deliberately deferred
+
+**The `_fitora.scss` decomposition is NOT done, and the "under 250 lines"
+target in `UI_ARCHITECTURE.md` §1 is wrong as written.** That file is mostly a
+Bootstrap *override* layer — it restyles `.btn`, `.form-control`, `.table`,
+`.alert`, `.badge` with Fitora tokens, and those classes are used across 49
+templates. It cannot be scoped to components or shrunk while the templates
+still use Bootstrap classes. Splitting it cosmetically now and rewriting it
+again in Phase 7 would be wasted work, so it moves to Phase 7, where the
+templates are rewritten anyway.
+
+### Remaining in Phase 5
+
+- The new primitives (`data-table`, `stat-tile`, `sheet`,
+  `date-range-picker`, `segmented-control`, `entity-card`).
+- `features/` restructure for the coach and member additions (Phase 6 needs
+  them).
+
+## Phases 6–10 — not started
 
 See `MIGRATION_PLAN.md` §4.
