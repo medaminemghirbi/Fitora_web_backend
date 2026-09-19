@@ -356,11 +356,71 @@ open one component's rules was.
 
 Frontend: **1234 passing**, lint clean, 919 classes all defined.
 
+### Done — the screens
+
+**Owner** — dashboard (exceptions first, five KPI cards to one footer line),
+members (7 columns to 4), member profile (4 tabs to a banner and one
+timeline), planning (coachless sessions visible where they get fixed),
+catalogue (plans and activities composed onto one page), team (roles in
+plain words), subscriptions/payments/bookings (shared header, duplicated
+counts removed), settings (booking rules UI — the configuration engine had
+none).
+
+**Member** — remaining sessions is the page's headline, not its third muted
+line.
+
+**Coach** — the session under way, or the next one, above the day's list,
+with the one action a coach takes. Session rows became real buttons.
+
+**Admin** — overview added; companies, pricing, support and updates took the
+shared header.
+
+**One header across the product.** Twelve components were importing
+`PageHeaderComponent` without rendering it by the end.
+
+### Scaled back on purpose
+
+- **Planning** stayed on FullCalendar. The maquette drew a hand-built grid;
+  replacing it would cost month/day views, drag-to-move and timezone
+  handling already fixed once. The two ideas worth having fit in its event
+  renderer.
+- **Catalogue** is composed, not merged — one component with two CRUD forms
+  is the giant screen this work is undoing.
+- **Settings** was not rebuilt. The maquette drew a tile hub; the real page
+  is a rail that redirects to its first section, and a hub is worse for
+  someone editing several sections in a row.
+- **Payments, subscriptions and bookings keep tables.** A member became a
+  row because a member is a person with a state; an amount, a method and a
+  date are columns.
+
+### What removing Bootstrap cost, and what caught it
+
+Four regressions, every one found by the user looking at the screen rather
+than by a check:
+
+1. **Buttons unstyled** — the rules set `--bs-btn-*`, Bootstrap's variables,
+   read by nothing once it left. Guard added: no `--bs-*` may remain.
+2. **Fields borderless** — the rules set only what differed from Bootstrap's
+   base (`border-color` with no `border`). No automated catch; needed eyes.
+3. **The element reset went with it.** `<dl>`/`<dd>` margins spread a stats
+   bar, heading margins pushed a count into a button, `<fieldset>` grew a
+   border. Now `styles/_reset.scss`.
+4. **A behaviour hook deleted as an unstyled class.** `.app-navbar-menu` is
+   what `closest()` reads to tell a click inside the menu from one outside;
+   without it every navbar dropdown shut in the same tick it opened. Guard
+   added: a class the code reaches for must appear in a template.
+
+The common thread: `check-css.mjs` proves a *name* exists, never that
+anything *renders*. It says so in its own comments, and three bugs still
+walked through that gap.
+
+Frontend **1270 passing**, backend **935**, lint clean, 954 classes defined,
+i18n complete in fr/en/ar.
+
 ### Remaining in Phase 7
 
-The screens themselves, shell by shell: admin → owner → desk → coach →
-member. The foundation is in place — tokens, utilities, thirteen component
-files and a checker that fails the build on a class with no rule.
+Nothing blocking. The admin company-detail page (265 lines) is the largest
+screen not revisited; it is internal-facing and works.
 
 ## Phases 8–10 — not started
 
