@@ -22,12 +22,18 @@ module Api
           role: resolved.role,
           permissions: resolved.permissions,
           modules: company&.enabled_module_keys || [],
+          # Which parts of the product this tenant has turned on. Sent to
+          # everyone, not just the owner (whose `company` payload also
+          # carries them): a receptionist needs to know rooms exist as much
+          # as the owner does. It says what the product OFFERS here, never
+          # who may use it — that is `permissions`, resolved separately.
+          features: company&.settings&.features || {},
           roles: (company&.roles&.ordered || []).map { |r|
             { id: r.id, key: r.key, name: r.name, permissions: r.permissions, builtin: r.builtin }
           },
           permission_catalog: Permission::CATALOG,
           subscription: subscription_json(company),
-          setup: current_user.owner? ? company&.setup_state : nil,
+          onboarding: current_user.owner? ? company&.onboarding_state&.as_json : nil,
           notifications: { unread_count: current_user.notifications.unread.count }
         }
       end

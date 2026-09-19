@@ -22,19 +22,18 @@ RSpec.describe "Api::V1 GET /api/v1/bootstrap", type: :request do
     expect(body["roles"].first).to include("id", "permissions", "builtin")
     expect(body["permission_catalog"]).to include("contract_types")
     expect(body["subscription"]).to include("active", "locked", "days_before_lock")
-    expect(body["setup"]).to include(
-      "activity" => false, "contract_type" => false, "coach" => false,
-      "dismissed" => false, "complete" => false
+    expect(body["onboarding"]).to include(
+      "step" => "company", "complete" => false, "dismissed" => false
     )
     expect(body["notifications"]).to eq("unread_count" => 0)
   end
 
-  it "omits the setup checklist for staff" do
+  it "omits the onboarding flow for staff" do
     staff = create(:staff_member, company: company, role: :receptionist)
 
     get "/api/v1/bootstrap", headers: auth_headers(staff.user)
 
-    expect(response.parsed_body["setup"]).to be_nil
+    expect(response.parsed_body["onboarding"]).to be_nil
   end
 
   it "hides the full company profile from staff but still returns branding" do

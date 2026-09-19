@@ -76,10 +76,22 @@ class CompanySettings
     primary_color: nil
   }.freeze
 
+  # How far through first-time setup this company is. Two lists of step
+  # keys, and nothing else: every step that CAN be derived from data is
+  # derived (see Onboarding::State), so the only things worth storing are
+  # the two answers no table holds — "I have looked at this" and "I do not
+  # need this". Progress rather than a rule, which is why it is the one
+  # section here that is not a setting; it lives with them because it is
+  # per-company, closed-schema and nothing would ever join on it.
+  ONBOARDING = {
+    completed: [],
+    skipped: []
+  }.freeze
+
   TIME_FORMAT = /\A([01]\d|2[0-3]):[0-5]\d\z/
   HEX_COLOR = /\A#[0-9a-fA-F]{6}\z/
 
-  SECTIONS = %i[features booking hours branding].freeze
+  SECTIONS = %i[features booking hours branding onboarding].freeze
 
   attr_reader :unknown_keys
 
@@ -104,6 +116,7 @@ class CompanySettings
     @booking = build_booking(raw[:booking])
     @hours = build_hours(raw[:hours])
     @branding = build_branding(raw[:branding])
+    @onboarding = build_onboarding(raw[:onboarding])
     collect_unknown_sections(raw)
 
     freeze
@@ -149,10 +162,17 @@ class CompanySettings
 
   def primary_color = @branding[:primary_color]
 
+  # --- Onboarding progress --------------------------------------------------
+
+  def onboarding = @onboarding
+
+  def onboarding_completed = @onboarding[:completed]
+  def onboarding_skipped = @onboarding[:skipped]
+
   # --- Reading and writing --------------------------------------------------
 
   def to_h
-    { features: @features, booking: @booking, hours: @hours, branding: @branding }
+    { features: @features, booking: @booking, hours: @hours, branding: @branding, onboarding: @onboarding }
   end
 
   # Returns a NEW settings object with `patch` applied on top. Only the keys
@@ -166,7 +186,8 @@ class CompanySettings
       features: @features.merge(section(patch, :features)),
       booking: @booking.merge(section(patch, :booking)),
       hours: @hours.merge(section(patch, :hours)),
-      branding: @branding.merge(section(patch, :branding))
+      branding: @branding.merge(section(patch, :branding)),
+      onboarding: @onboarding.merge(section(patch, :onboarding))
     )
   end
 
@@ -191,6 +212,19 @@ class CompanySettings
       start: cast_time(given[:start], HOURS[:start], "hours.start"),
       end: cast_time(given[:end], HOURS[:end], "hours.end"),
       working_days: cast_working_days(given[:working_days])
+    }.freeze
+  end
+
+  # The lists replace wholesale on merge rather than accumulating: the
+  # caller always sends the list it wants, so un-skipping a step is the
+  # same operation as skipping one.
+  def build_onboarding(given)
+    given = {} unless given.is_a?(Hash)
+    note_unknown(given.keys - ONBOARDING.keys, "onboarding")
+
+    {
+      completed: OnboardingStep.sanitize(given[:completed]).freeze,
+      skipped: OnboardingStep.sanitize(given[:skipped]).freeze
     }.freeze
   end
 

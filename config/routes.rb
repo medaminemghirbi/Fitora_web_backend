@@ -48,7 +48,11 @@ Rails.application.routes.draw do
       end
       get "branding", to: "branding#show"
 
-      post "onboarding/dismiss", to: "onboarding#dismiss"
+      # Resumable first-time setup. Singular: there is one flow per company.
+      resource :onboarding, only: [ :show, :update ], controller: "onboarding" do
+        post :skip
+        post :dismiss
+      end
       resources :activities
       resources :spaces
       resources :coaches do

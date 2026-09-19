@@ -99,17 +99,11 @@ class Company < ApplicationRecord
     CurrencyCatalog.symbol(currency)
   end
 
-  # "Premiers pas" getting-started checklist — the foundational things an
-  # owner sets up before running the gym day-to-day. Each flag is derived
-  # from data, so completing a step anywhere in the app ticks it off.
-  # `dismissed` hides the guide regardless; `complete` is all steps done.
-  def setup_state
-    steps = {
-      activity: activities.exists?,
-      contract_type: contract_types.exists?,
-      coach: coaches.exists?
-    }
-    steps.merge(dismissed: setup_dismissed_at.present?, complete: steps.values.all?)
+  # How far through first-time setup this company is — derived from its own
+  # data, so a step completed anywhere in the app ticks itself off. See
+  # Onboarding::State.
+  def onboarding_state
+    Onboarding::State.for(self)
   end
 
   # Every company has every feature — the whole product is included. Kept

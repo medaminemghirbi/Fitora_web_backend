@@ -187,6 +187,34 @@ RSpec.describe CompanySettings do
     end
   end
 
+  describe "onboarding progress" do
+    it "starts empty" do
+      expect(described_class.default.onboarding).to eq(completed: [], skipped: [])
+    end
+
+    it "keeps only steps the catalogue knows" do
+      settings = described_class.new(onboarding: { completed: %w[company billing], skipped: %w[staff] })
+
+      expect(settings.onboarding_completed).to eq(%w[company])
+      expect(settings.onboarding_skipped).to eq(%w[staff])
+    end
+
+    it "replaces a list rather than accumulating, so a step can be un-skipped" do
+      settings = described_class.new(onboarding: { skipped: %w[spaces staff] })
+
+      expect(settings.merge(onboarding: { skipped: %w[staff] }).onboarding_skipped).to eq(%w[staff])
+    end
+
+    it "leaves the other sections alone when progress changes" do
+      settings = described_class.new(features: { spaces: true }, booking: { cancellation_hours: 24 })
+
+      merged = settings.merge(onboarding: { completed: %w[company] })
+
+      expect(merged.feature?(:spaces)).to be(true)
+      expect(merged.cancellation_hours).to eq(24)
+    end
+  end
+
   describe "a company writing them" do
     it "still reads and writes them the way the rest of the app expects" do
       company = create(:company, primary_color: "#123456", working_days: [ 0, 6 ])

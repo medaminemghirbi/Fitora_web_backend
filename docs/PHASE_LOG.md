@@ -425,3 +425,89 @@ screen not revisited; it is internal-facing and works.
 ## Phases 8–10 — not started
 
 See `MIGRATION_PLAN.md` §4.
+
+## Phase 8 — Onboarding & configuration ✅
+
+**Done when:** a new company configures itself with no developer involvement.
+
+### The flow
+
+`API_DESIGN.md` §4 specified a resumable, server-tracked setup. What shipped
+follows it with one deliberate difference: **nothing that can be derived is
+stored.**
+
+`OnboardingStep` is the catalogue (company → activities → spaces → plans →
+staff), code-defined like `Permission`. `Onboarding::State` reads the
+company's own data for every step it can — does it have an activity, a plan,
+a room, anyone on staff — and `settings.onboarding` holds only the two
+answers no table can give: a step confirmed by hand, and a step declined.
+
+That is what makes it resumable rather than merely remembered. Create an
+activity from the catalogue page in another tab and the step is done, because
+the step *is* "this company has an activity". The old `setup_state` had the
+same instinct for three flags; this extends it to the whole flow and adds the
+part it lacked — a step you can decline.
+
+`company` is the one step nothing in the database can confirm: a company is
+created with a name, a currency and default hours, so "the owner has looked
+at these" has to be said out loud. It is the only step `PATCH /onboarding`
+accepts, and the only reason that endpoint exists.
+
+`spaces` is not skipped for a gym with one room — it is **absent**. A step
+whose feature is off does not appear, is not counted, and does not hold
+`complete` back. Turning rooms on later puts it back and the flow reopens.
+
+Endpoints: `GET /onboarding`, `PATCH /onboarding`, `POST /onboarding/skip`,
+`POST /onboarding/dismiss`. Owner-only — the steps' own work happens on its
+own endpoints behind its own capability checks; nothing is written here but
+progress.
+
+### Rooms had no UI at all
+
+Phase 3 built `Space`, the exclusion constraint, the controller, the
+serializer and the specs. Nothing in Angular ever reached them. A gym could
+turn rooms on in Settings and then had nowhere to name one — the acceptance
+criterion for this phase failed on a screen that did not exist.
+
+`/owner/spaces` now exists, on the Phase 7 list pattern. The form asks for
+*restrictions*, not permissions: a room with nothing ticked takes any
+activity, which is what most rooms do, so the common case is the empty one.
+
+### Features reach every role now
+
+The nav entry for rooms needed to know whether the tenant had rooms on, and
+the bootstrap payload only carried `settings` to the owner. Staff got `nil`,
+so a receptionist with the `spaces` capability would never have seen the
+entry.
+
+`features` is now its own key in the bootstrap payload, sent to everyone, and
+`AuthService#hasFeature` is the one way the frontend asks. It answers what the
+product **offers** here; `hasPermission` answers who may use it. Both are
+asked, and both are asked again on the backend — `featureGuard` only spares
+someone an empty screen, and `SpacesController` still answers 404 on its own.
+
+### Renames
+
+`Company#setup_state` → `Company#onboarding_state`; the bootstrap payload's
+`setup` → `onboarding`. `SetupChecklistComponent` and the `getting-started`
+page are gone, replaced by `OnboardingStepsComponent` (shared by the
+dashboard card and the flow page) and `/owner/onboarding`; the old route
+redirects.
+
+The `onboarding.*` i18n namespace belonged to the *create-a-company* wizard,
+which is a different thing entirely. That took its own component's name,
+`company_setup.*`, and the flow has the namespace that describes it.
+
+### What caught what
+
+The `as`-on-`@else if` mistake happened once more, in the flow template, and
+was fixed the way Phase 7 found: lead with the branch that needs the binding.
+
+Adding `ConfigurationService` to `NavigationService` broke 51 tests at once —
+the nav service pulled `HttpClient` into every test bed that stubbed it. The
+tests were right: the nav service has no business knowing the configuration
+service. It asks `AuthService`, which is where it already asks about
+permissions.
+
+Frontend **1295 passing**, backend **951**, lint clean both sides, 959
+classes defined, 833 i18n keys in fr/en/ar, build clean.
