@@ -255,9 +255,12 @@ features/    landing, auth, b2b/auth, owner/*, coach/*, member/*, admin/*, accou
 - Mass assignment: confirm every controller uses `params.require(...).permit`
   with an explicit list, and that `company_id`, `role`, `role_id`,
   `password_digest` and `active` are never permitted from the client.
-- Rate limiting on `auth/login`, `password_resets` and
-  `email_verifications` — no evidence of Rack::Attack in the routes or
-  Gemfile yet.
+- **Correction (found during Phase 4):** Rack::Attack is present and
+  thorough (`config/initializers/rack_attack.rb`) — per-IP burst and
+  sustained throttles on login, a per-email throttle that is the real
+  brute-force defence, plus password resets and registration. This section
+  was wrong to say otherwise. The one gap, `email_verifications#create`,
+  was closed in Phase 4.
 - Active Storage upload validation exists for `logo` (type + size) and
   `HasPhoto`; support-ticket attachments need the same check.
 - `GET /support_tickets/:id/attachments/:attachment_id` — verify the

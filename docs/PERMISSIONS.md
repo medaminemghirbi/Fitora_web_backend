@@ -99,6 +99,13 @@ Rules:
    spaces, hours) is granted to the owning capability **or** `sessions` —
    you cannot plan a week without seeing the options.
 
+### A member's token never reaches a staff endpoint
+
+`Api::V1::BaseController#reject_member_token!` refuses any request carrying
+a `client_id` claim, with the member's own `Api::V1::Me::*` namespace as the
+single exemption. A new staff controller is therefore closed to members by
+default, rather than relying on `require_company!` happening to run first.
+
 ### Frontend — navigation only
 
 Guards (`capabilityGuard`, `roleGuard`, `staffRoleGuard`) and
@@ -112,8 +119,12 @@ reaching gym data does so only by impersonation:
 
 - `POST /admin/companies/:id/impersonate` issues a token carrying both
   `user_id` (the owner) and `impersonator_id` (the admin).
-- Every request under that token writes an `AuditLog` row naming the
-  impersonator.
+- The start of the session is logged as `admin.impersonation_started`, and
+  every audited action taken *during* it carries `impersonated_by_id` /
+  `impersonated_by_email` in its metadata — stamped by `AuditLogs::Record`
+  from `Current.impersonator`, so no call site has to remember to.
+  (Before Phase 4 only the start was recorded, and `current_impersonator`
+  was resolved on every request but read by nothing.)
 - The frontend shows a persistent, unmissable impersonation banner.
 
 An admin token alone reaches aggregate/company-metadata endpoints only —
