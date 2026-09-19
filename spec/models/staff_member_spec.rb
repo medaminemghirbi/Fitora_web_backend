@@ -44,12 +44,30 @@ RSpec.describe StaffMember, type: :model do
   end
 
   describe "validations" do
-    it "rejects a coach_id on a non-coach role" do
+    it "lets a coach be put on any role, including one that is not called coach" do
       company = create(:company)
       coach = create(:coach, company: company)
+
       staff = build(:staff_member, role: :receptionist, company: company, coach: coach)
 
+      # Being a coach is having a Coach row, not holding a role with a
+      # particular name — so an owner can build "Coach senior" and use it.
+      expect(staff).to be_valid
+      expect(staff).to be_coach
+    end
+
+    it "is not a coach without a coach of its own" do
+      staff = build(:staff_member, role: :receptionist)
+
+      expect(staff).not_to be_coach
+    end
+
+    it "rejects a role belonging to another company" do
+      staff = build(:staff_member, company: create(:company))
+      staff.assigned_role = create(:company).roles.find_by(key: "receptionist")
+
       expect(staff).not_to be_valid
+      expect(staff.errors[:assigned_role]).to be_present
     end
 
     it "rejects a coach from a different company" do

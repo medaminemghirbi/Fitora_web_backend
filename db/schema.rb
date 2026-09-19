@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_09_19_140000) do
+ActiveRecord::Schema[8.1].define(version: 2026_09_19_160000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "btree_gist"
   enable_extension "pg_catalog.plpgsql"
@@ -183,7 +183,6 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_19_140000) do
     t.string "email"
     t.decimal "latitude", precision: 10, scale: 6
     t.string "locale", default: "fr", null: false
-    t.integer "locations_count", default: 0, null: false
     t.decimal "longitude", precision: 10, scale: 6
     t.string "name", null: false
     t.uuid "owner_id", null: false
@@ -418,8 +417,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_19_140000) do
     t.uuid "coach_id"
     t.uuid "company_id", null: false
     t.datetime "created_at", null: false
-    t.integer "role", default: 0, null: false
-    t.uuid "role_id"
+    t.uuid "role_id", null: false
     t.datetime "updated_at", null: false
     t.uuid "user_id", null: false
     t.index ["coach_id"], name: "index_staff_members_on_coach_id"

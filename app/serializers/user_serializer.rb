@@ -15,7 +15,13 @@ class UserSerializer
       locale: user.locale,
       email_verified: user.email_verified?,
       company_id: user.active_company_id || user.staff_member&.company_id,
-      staff_role: user.staff_member&.role,
+      # The key of the role this login is assigned to — "receptionist",
+      # "coach", or a custom role's own slug.
+      staff_role: user.staff_member&.role_key,
+      # Whether this login coaches, which is a different question from what
+      # its role is called: an owner can build a custom role and give it to
+      # a coach. The coach shell and the post-login redirect key off this.
+      is_coach: user.staff_member&.coach? || false,
       companies: owner_companies
     }
   end

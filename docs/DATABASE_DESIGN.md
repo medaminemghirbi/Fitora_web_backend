@@ -120,9 +120,15 @@ The `before_validation :sync_assigned_role_from_enum` hook and
 
 ## 3. Dropped tables
 
-| Table | Reason | Replacement |
-|---|---|---|
-| `platform_settings` | One integer (`annual_discount_percent`) in a full table with one row | `Fitora.config.annual_discount_percent`, from ENV with a default |
+None.
+
+**`platform_settings` is KEPT.** An earlier draft of this document proposed
+folding it into an ENV-backed constant on the grounds that a single integer
+does not need a table. That was wrong: `annual_discount_percent` is edited
+at runtime by a platform admin through
+`PATCH /api/v1/admin/subscription_pricing`. A constant would delete a working
+feature. A single-row settings table is the right shape for an
+admin-editable global, and it stays.
 
 ## 4. Indexing review
 

@@ -26,11 +26,11 @@ RSpec.describe Role do
       expect(company.roles.where(builtin: true).count).to eq(Role::SYSTEM_KEYS.size)
     end
 
-    it "matches the legacy StaffMember::CAPABILITIES map for each staff kind" do
+    it "gives each built-in role the permissions it is defined with" do
       described_class.seed_defaults_for(company)
-      StaffMember::CAPABILITIES.each do |enum_key, caps|
-        role = company.roles.find_by(key: enum_key.to_s)
-        expect(role.permissions).to match_array(caps.map(&:to_s))
+      described_class::DEFAULTS.each do |key, attrs|
+        role = company.roles.find_by(key: key)
+        expect(role.permissions).to match_array(attrs[:permissions])
       end
     end
   end

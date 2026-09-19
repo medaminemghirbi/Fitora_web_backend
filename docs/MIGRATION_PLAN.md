@@ -29,7 +29,7 @@ No phase ends with a broken build, a failing suite, or a half-migrated table.
 | `invoices` | KEEP | |
 | `subscriptions` | KEEP | the gym's own SaaS subscription |
 | `subscription_prices` | KEEP | |
-| `platform_settings` | **REMOVE** | one integer → config constant |
+| `platform_settings` | KEEP | one integer, but an admin edits it at runtime via the pricing endpoint — a constant would delete that feature |
 | `audit_logs` | KEEP | |
 | `notifications` | KEEP | |
 | `support_tickets` | KEEP | |
@@ -63,11 +63,11 @@ Each numbered item is one migration file, applied in order.
 07  bookings: waitlist_position + waitlisted status + check constraint
 08  backfill staff_members.role_id from the role enum;
     assert zero NULLs; set NOT NULL; drop the role column
-09  drop platform_settings (after moving the value to config)
+09  (withdrawn — platform_settings is kept, see DATABASE_DESIGN.md §3)
 ```
 
 Migrations 01, 04, 05, 06, 07 are additive and reversible without data loss.
-02, 03, 08, 09 are destructive and each carries a verified backfill plus a
+02, 03 and 08 are destructive and each carries a verified backfill plus a
 hand-written `down`.
 
 ## 4. Phase plan
@@ -90,10 +90,10 @@ Each phase ends green: suite passing, app running, deployable.
 ## 5. Rollback
 
 Phases 3–8 are code; rollback is a deploy of the previous build, with the
-caveat that migrations 02, 03, 08 and 09 are one-way in practice once
-production writes land on the new shape. Those four are therefore the
-**point of no return** and are deployed in a single window, after the
-restored-dump rehearsal, with the dump retained.
+caveat that migrations 02, 03 and 08 are one-way in practice once production
+writes land on the new shape. Those three are therefore the **point of no
+return** and are deployed in a single window, after the restored-dump
+rehearsal, with the dump retained.
 
 ## 6. Risks
 

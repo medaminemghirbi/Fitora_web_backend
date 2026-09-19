@@ -6,9 +6,11 @@ class StaffMemberSerializer
   def as_json(*)
     {
       id: staff_member.id,
-      role: staff_member.role,
       role_key: staff_member.role_key,
-      role_name: staff_member.assigned_role&.name,
+      role_name: staff_member.assigned_role.name,
+      # Whether this login coaches — a different question from what its role
+      # is called, since a coach can be put on a custom role.
+      is_coach: staff_member.coach?,
       permissions: staff_member.permission_keys,
       active: staff_member.active,
       birthdate: staff_member.birthdate,

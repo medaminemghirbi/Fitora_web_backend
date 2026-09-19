@@ -12,7 +12,8 @@ RSpec.describe Coaches::SetLogin do
     staff_member = result.staff_member
     expect(staff_member).to be_persisted
     expect(staff_member.coach).to eq(coach)
-    expect(staff_member.role).to eq("coach")
+    expect(staff_member.role_key).to eq("coach")
+    expect(staff_member).to be_coach
     expect(staff_member.company).to eq(coach.company)
     expect(staff_member.user.email).to eq("coach@example.com")
     expect(staff_member.user.role).to eq("staff")

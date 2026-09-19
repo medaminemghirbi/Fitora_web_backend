@@ -54,7 +54,8 @@ RSpec.describe "Api::V1::Staff", type: :request do
       expect(response).to have_http_status(:created)
       body = response.parsed_body["staff_member"]
       expect(body["role_key"]).to eq(accountant.key)
-      expect(body["role"]).to eq("receptionist") # the underlying kind
+      # There is no second "underlying kind" any more — the role IS the role.
+      expect(body["is_coach"]).to be(false)
       expect(body["permissions"]).to match_array(%w[payments reports])
     end
 
