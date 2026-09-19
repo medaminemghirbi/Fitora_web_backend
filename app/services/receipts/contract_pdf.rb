@@ -207,7 +207,7 @@ module Receipts
 
     # ---- helpers -----------------------------------------------------
     def item_description
-      title = "#{plan.name} — #{contract.activity.name}"
+      title = "#{plan.name} — #{contract.activity_label}"
       return title if plan.description.blank?
 
       "#{title}\n<font size='8'><color rgb='#{GREY}'>#{plan.description}</color></font>"

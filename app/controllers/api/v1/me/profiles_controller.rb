@@ -38,8 +38,9 @@ module Api
 
           {
             plan_name: contract.contract_type.name,
-            activity_name: contract.activity.name,
-            activity_emoji: contract.activity.emoji,
+            activity_name: contract.activity_label,
+            activity_emoji: contract.activity&.emoji,
+            all_access: contract.all_access?,
             starts_at: contract.starts_at,
             expires_at: contract.expires_at,
             # nil means the plan is unlimited, not that none are left.

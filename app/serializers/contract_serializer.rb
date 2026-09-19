@@ -21,7 +21,14 @@ class ContractSerializer
       # No part payments — what's still owed is the full price when unpaid.
       amount_due: contract.unpaid? ? contract.final_price : 0,
       plan: ContractTypeSerializer.new(contract.contract_type).as_json,
-      activity: { id: contract.activity.id, name: contract.activity.name, emoji: contract.activity.emoji },
+      # null for an all-access contract, which covers every activity its plan
+      # covers rather than naming one. Read `all_access` to tell that apart
+      # from missing data, and `activity_label` for something to show.
+      activity: contract.activity && {
+        id: contract.activity.id, name: contract.activity.name, emoji: contract.activity.emoji
+      },
+      all_access: contract.all_access?,
+      activity_label: contract.activity_label,
       client: { id: contract.client.id, full_name: contract.client.full_name, phone: contract.client.phone }
     }
   end

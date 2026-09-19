@@ -70,6 +70,17 @@ class Contract < ApplicationRecord
     all_access? ? contract_type.activities : [ activity ].compact
   end
 
+  # What this contract is for, in words — the one activity it names, or the
+  # names of everything its plan covers. Never nil: an all-access contract
+  # has no `activity` to call `.name` on, and every caller that used to
+  # assume one is reading this instead.
+  def activity_label
+    return activity.name if activity
+
+    names = contract_type.activities.order(:name).pluck(:name)
+    names.presence&.to_sentence || "—"
+  end
+
   def consume_booking!(period: current_period)
     return if contract_type.unlimited_bookings?
     return if period&.remaining_bookings.nil?

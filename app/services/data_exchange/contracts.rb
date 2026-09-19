@@ -18,7 +18,7 @@ module DataExchange
       CSV.generate do |csv|
         csv << HEADERS
         company.contracts.includes(:client, :contract_type, :activity).order(:created_at).find_each do |contract|
-          csv << [ contract.client.email, contract.contract_type.name, contract.activity.name, contract.starts_at&.to_date ]
+          csv << [ contract.client.email, contract.contract_type.name, contract.activity_label, contract.starts_at&.to_date ]
         end
       end
     end
