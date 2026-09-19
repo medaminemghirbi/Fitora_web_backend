@@ -1,11 +1,14 @@
 class Contract < ApplicationRecord
   belongs_to :client
   belongs_to :contract_type
-  # What this contract actually books — required. A plan (ContractType) may
-  # separately scope itself to a set of activities (or none = "anything"),
-  # but that's an independent, coarser check; the contract's own activity is
-  # the real, narrow answer to "what is this for" (see #usable_for? below).
-  belongs_to :activity
+  # What this contract books — OPTIONAL, and the absence carries meaning:
+  #
+  #   activity present → this contract is for that one activity
+  #   activity NULL    → this contract covers every activity its plan covers
+  #
+  # That second case is how an "all-access" membership is sold. Both are read
+  # through #covers_activity?; never compare activity_id directly.
+  belongs_to :activity, optional: true
   belongs_to :company
   belongs_to :created_by, class_name: "User", optional: true
 
@@ -13,8 +16,10 @@ class Contract < ApplicationRecord
   has_many :payments, through: :contract_periods
   has_many :bookings, through: :contract_periods
 
-  # Scoped by activity too now: the same client can hold the same plan more
-  # than once as long as each contract is for a different activity.
+  # Scoped by activity too: the same client can hold the same plan more than
+  # once as long as each contract is for a different activity. Two
+  # all-access contracts on one plan (both activity_id NULL) still collide,
+  # which is right — that is the same membership sold twice.
   validates :client_id, uniqueness: { scope: [ :contract_type_id, :activity_id ] }
 
   # Every reasoning about "the client's contract" (status, dates, price,
@@ -39,9 +44,30 @@ class Contract < ApplicationRecord
   def usable_for?(activity:, period: current_period)
     return false unless period&.active? && (period.expires_at.nil? || period.expires_at >= Time.current)
     return false if contract_type.booking_limit.present? && !contract_type.unlimited_bookings? && period.remaining_bookings.to_i <= 0
-    return false if activity_id != activity.id
+    covers_activity?(activity)
+  end
 
-    contract_type.grants_access_to?(activity: activity)
+  # Does this contract let the member into this activity?
+  #
+  # A contract pinned to one activity answers on that alone. An all-access
+  # contract (activity_id NULL) defers to its plan, which is the only place
+  # the answer lives. Either way the plan has the final say: an activity
+  # dropped from the plan stops being covered by contracts sold under it.
+  def covers_activity?(activity)
+    return false if activity.blank?
+    return false unless contract_type.grants_access_to?(activity: activity)
+
+    activity_id.nil? || activity_id == activity.id
+  end
+
+  # True for the "covers everything on the plan" kind.
+  def all_access?
+    activity_id.nil?
+  end
+
+  # The activities this contract can actually book, for display.
+  def covered_activities
+    all_access? ? contract_type.activities : [ activity ].compact
   end
 
   def consume_booking!(period: current_period)

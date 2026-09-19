@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_09_18_220000) do
+ActiveRecord::Schema[8.1].define(version: 2026_09_19_140000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "btree_gist"
   enable_extension "pg_catalog.plpgsql"
@@ -58,6 +58,16 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_18_220000) do
     t.datetime "updated_at", null: false
     t.index ["company_id"], name: "index_activities_on_company_id"
     t.index ["name"], name: "index_activities_on_name_trgm", opclass: :gin_trgm_ops, using: :gin
+  end
+
+  create_table "activity_spaces", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.uuid "activity_id", null: false
+    t.datetime "created_at", null: false
+    t.uuid "space_id", null: false
+    t.datetime "updated_at", null: false
+    t.index ["activity_id", "space_id"], name: "index_activity_spaces_on_activity_id_and_space_id", unique: true
+    t.index ["activity_id"], name: "index_activity_spaces_on_activity_id"
+    t.index ["space_id"], name: "index_activity_spaces_on_space_id"
   end
 
   create_table "app_updates", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
@@ -108,10 +118,13 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_18_220000) do
     t.uuid "session_id", null: false
     t.integer "status", default: 0, null: false
     t.datetime "updated_at", null: false
+    t.integer "waitlist_position"
     t.index ["client_id"], name: "index_bookings_on_client_id"
     t.index ["contract_period_id"], name: "index_bookings_on_contract_period_id"
     t.index ["session_id", "client_id"], name: "index_bookings_on_session_id_and_client_id_when_held", unique: true, where: "(status = 0)"
     t.index ["session_id", "status"], name: "index_bookings_on_session_id_and_status"
+    t.index ["session_id", "waitlist_position"], name: "index_bookings_waitlist_order", where: "(status = 4)"
+    t.check_constraint "(status = 4) = (waitlist_position IS NOT NULL)", name: "waitlist_position_iff_waitlisted"
   end
 
   create_table "clients", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
@@ -176,6 +189,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_18_220000) do
     t.uuid "owner_id", null: false
     t.string "phone"
     t.string "primary_color"
+    t.jsonb "settings", default: {}, null: false
     t.datetime "setup_dismissed_at"
     t.string "slug"
     t.string "timezone", default: "Africa/Tunis", null: false
@@ -184,6 +198,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_18_220000) do
     t.index ["city"], name: "index_companies_on_city_trgm", opclass: :gin_trgm_ops, using: :gin
     t.index ["name"], name: "index_companies_on_name_trgm", opclass: :gin_trgm_ops, using: :gin
     t.index ["owner_id"], name: "index_companies_on_owner_id"
+    t.index ["settings"], name: "index_companies_on_settings", using: :gin
     t.index ["slug"], name: "index_companies_on_slug", unique: true
   end
 
@@ -234,7 +249,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_18_220000) do
   end
 
   create_table "contracts", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
-    t.uuid "activity_id", null: false
+    t.uuid "activity_id"
     t.boolean "auto_renew", default: false, null: false
     t.uuid "client_id", null: false
     t.uuid "company_id", null: false
@@ -369,6 +384,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_18_220000) do
     t.datetime "ends_at", null: false
     t.decimal "price", precision: 10, scale: 2, default: "0.0", null: false
     t.uuid "recurring_schedule_id"
+    t.uuid "space_id"
     t.datetime "starts_at", null: false
     t.integer "status", default: 0, null: false
     t.datetime "updated_at", null: false
@@ -376,7 +392,24 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_18_220000) do
     t.index ["coach_id", "starts_at"], name: "index_sessions_on_coach_id_and_starts_at"
     t.index ["company_id"], name: "index_sessions_on_company_id"
     t.index ["recurring_schedule_id"], name: "index_sessions_on_recurring_schedule_id"
+    t.index ["space_id"], name: "index_sessions_on_space_id"
     t.exclusion_constraint "coach_id WITH =, tsrange(starts_at, ends_at) WITH &&", where: "(status = 0) AND (coach_id IS NOT NULL)", using: :gist, name: "no_overlapping_coach_sessions"
+    t.exclusion_constraint "space_id WITH =, tsrange(starts_at, ends_at) WITH &&", where: "(status = 0) AND (space_id IS NOT NULL)", using: :gist, name: "no_overlapping_space_sessions"
+  end
+
+  create_table "spaces", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.boolean "active", default: true, null: false
+    t.integer "capacity"
+    t.uuid "company_id", null: false
+    t.datetime "created_at", null: false
+    t.string "kind"
+    t.string "name", null: false
+    t.jsonb "settings", default: {}, null: false
+    t.datetime "updated_at", null: false
+    t.index ["company_id", "name"], name: "index_spaces_on_company_id_and_name", unique: true
+    t.index ["company_id"], name: "index_spaces_on_company_id"
+    t.index ["name"], name: "index_spaces_on_name_trgm", opclass: :gin_trgm_ops, using: :gin
+    t.check_constraint "capacity IS NULL OR capacity > 0", name: "spaces_capacity_positive"
   end
 
   create_table "staff_members", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
@@ -457,6 +490,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_18_220000) do
   add_foreign_key "active_storage_attachments", "active_storage_blobs", column: "blob_id"
   add_foreign_key "active_storage_variant_records", "active_storage_blobs", column: "blob_id"
   add_foreign_key "activities", "companies"
+  add_foreign_key "activity_spaces", "activities"
+  add_foreign_key "activity_spaces", "spaces"
   add_foreign_key "app_updates", "users", column: "created_by_id"
   add_foreign_key "attendance_records", "bookings"
   add_foreign_key "attendance_records", "users", column: "marked_by_id"
@@ -495,6 +530,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_18_220000) do
   add_foreign_key "sessions", "coaches"
   add_foreign_key "sessions", "companies"
   add_foreign_key "sessions", "recurring_schedules"
+  add_foreign_key "sessions", "spaces"
+  add_foreign_key "spaces", "companies"
   add_foreign_key "staff_members", "coaches"
   add_foreign_key "staff_members", "companies"
   add_foreign_key "staff_members", "roles"

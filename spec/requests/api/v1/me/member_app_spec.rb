@@ -18,6 +18,16 @@ RSpec.describe "Api::V1::Me", type: :request do
     create(:contract, client: member, company: company, contract_type: plan, activity: activity)
   end
 
+  # Every leaf value in a nested payload, for asserting that a figure is
+  # nowhere in it regardless of which key it might have hidden behind.
+  def deep_values(node)
+    case node
+    when Hash then node.values.flat_map { |v| deep_values(v) }
+    when Array then node.flat_map { |v| deep_values(v) }
+    else [ node ]
+    end
+  end
+
   def session_at(time, **attrs)
     create(:session, company: company, activity: activity,
                      starts_at: time, ends_at: time + 1.hour, **attrs)
@@ -155,7 +165,10 @@ RSpec.describe "Api::V1::Me", type: :request do
       expect(subscription["plan_name"]).to eq("3 mois")
       expect(subscription["activity_name"]).to eq(activity.name)
       expect(subscription.keys).not_to include("final_price", "base_price", "amount_due", "payment_status", "discount")
-      expect(response.body).not_to include("240")
+      # Not a substring search on the raw body: "240" turns up inside a
+      # random UUID often enough to fail a green build. Check the values
+      # themselves, which is what the rule is actually about.
+      expect(deep_values(response.parsed_body)).not_to include(240, 240.0, "240", "240.0")
     end
 
     it "returns their attendance, and nobody else's" do

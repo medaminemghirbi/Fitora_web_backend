@@ -104,7 +104,11 @@ module Api
           :address, :latitude, :longitude, :timezone, :currency,
           :slug, :primary_color, :logo,
           :business_hours_start, :business_hours_end,
-          working_days: []
+          working_days: [],
+          settings: [
+            { features: CompanySettings::FEATURES.keys },
+            { booking: CompanySettings::BOOKING.keys }
+          ]
         )
       end
     end

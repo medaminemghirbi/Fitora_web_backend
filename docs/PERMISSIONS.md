@@ -1,0 +1,144 @@
+# Fitora — Permissions & Access Control
+
+## 1. Three independent gates
+
+Every request passes through gates that are **not** interchangeable and must
+not be collapsed:
+
+```
+1. Authentication  — who is this?              (JWT → User XOR Client)
+2. Tenancy         — whose data may they see?  (derived server-side, never from params)
+3. Capability      — may they do this thing?   (Role permissions)
+4. Commercial      — is the account open?      (trial/subscription lock, 402)
+```
+
+A feature flag in `company.settings` is **not** a gate. It changes what the
+product offers; it never grants access. Turning a feature on must never widen
+anyone's permissions.
+
+## 2. Principals
+
+| Principal | Token claim | Tenant | Notes |
+|---|---|---|---|
+| Platform admin | `user_id`, `User#admin?` | **none** | Operates Fitora, not a gym. Reaches company data only through explicit, audited impersonation. |
+| Owner | `user_id`, `User#owner?` | `users.active_company_id` | All capabilities inside their active company, unconditionally. |
+| Staff | `user_id`, `User#staff?` | `staff_members.company_id` | Capabilities come from the assigned `Role`. |
+| Client | `client_id` | via `memberships` | Only `/api/v1/me/*`. |
+
+A token carries `user_id` **or** `client_id`, never both.
+
+## 3. Capability catalogue
+
+Code-defined (`Permission::CATALOG`) — capabilities are a property of the
+platform; the roles built from them are the per-company configurable part.
+
+| Key | Grants |
+|---|---|
+| `clients` | Member records: list, view, create, edit |
+| `activities` | The activity catalogue |
+| `spaces` | The space catalogue **(new)** |
+| `coaches` | Team management: coaches and staff seats |
+| `sessions` | Creating and editing the schedule |
+| `bookings` | Booking and cancelling on a member's behalf |
+| `checkin` | Attendance / check-in |
+| `contracts` | Selling, renewing and cancelling member subscriptions |
+| `contract_types` | The plan catalogue and its prices |
+| `payments` | Taking and refunding payments |
+| `revenue` | Financial totals and revenue reporting |
+| `reports` | Dashboard and operational reports |
+| `settings` | Company configuration **(new)** |
+
+Two deliberate splits:
+
+- **`payments` vs `revenue`** — taking money at the desk is the receptionist's
+  job; knowing what the business earns is not.
+- **`reports` vs `revenue`** — a dashboard of today's operations carries no
+  money figures unless `revenue` is also held.
+- **`settings`** is new and separates "runs the gym" from "changes how the
+  gym's software behaves", so a moderator can do the first without the second.
+
+## 4. Built-in roles
+
+Seeded per company, renameable and re-permissionable (except `owner`),
+deletable only if custom and unassigned.
+
+| Role | `key` | Permissions |
+|---|---|---|
+| Owner | `owner` | all (implicit — never checked against the array) |
+| Moderator | `moderator` | `sessions bookings clients contracts payments checkin reports coaches` |
+| Receptionist | `receptionist` | `sessions bookings clients contracts payments checkin reports` |
+| Coach | `coach` | `checkin` (+ read of own schedule and own members, which is namespace-gated, not capability-gated) |
+
+Custom roles are any subset of the catalogue.
+
+## 5. Enforcement
+
+### Backend — the only place that counts
+
+```ruby
+class Api::V1::SpacesController < Api::V1::BaseController
+  before_action :require_company!
+  before_action -> { require_capability!(:spaces) }, only: %i[create update destroy]
+  before_action -> { require_schedule_reference_read!(:spaces) }, only: %i[index show]
+
+  def show
+    space = find_in_company!(Space.all, params[:id])   # never Space.find
+    render json: SpaceSerializer.new(space).as_json
+  end
+end
+```
+
+Rules:
+
+1. Every action states its gate in a `before_action`. No gate = a review failure.
+2. Every lookup of a company-owned record goes through `find_in_company!`.
+3. Every lookup of a `Client` goes through `current_company.clients`.
+4. Strong params never permit `company_id`, `role_id`, `active`,
+   `password_digest`, or any `*_count` column.
+5. Read access to reference data a schedule is built from (activities,
+   spaces, hours) is granted to the owning capability **or** `sessions` —
+   you cannot plan a week without seeing the options.
+
+### Frontend — navigation only
+
+Guards (`capabilityGuard`, `roleGuard`, `staffRoleGuard`) and
+`NavigationService` filtering exist so the UI is not misleading. They are
+**not** security, and no backend check may be omitted because a guard exists.
+
+## 6. Platform admin isolation
+
+`Api::V1::Admin::*` controllers have **no `current_company`**. An admin
+reaching gym data does so only by impersonation:
+
+- `POST /admin/companies/:id/impersonate` issues a token carrying both
+  `user_id` (the owner) and `impersonator_id` (the admin).
+- Every request under that token writes an `AuditLog` row naming the
+  impersonator.
+- The frontend shows a persistent, unmissable impersonation banner.
+
+An admin token alone reaches aggregate/company-metadata endpoints only —
+never member records, bookings, or payments.
+
+## 7. The tests that must exist
+
+`spec/requests/security/` — one file per rule, each asserting a denial:
+
+```
+Owner of company A  → any company B resource        404 (not 403)
+Receptionist        → GET /owner/revenue            403
+Receptionist        → PATCH /company (settings)     403
+Coach               → GET /owner/revenue            403
+Coach               → GET /payments                 403
+Coach               → PATCH /activities/:id         403
+Client              → GET /clients                  403
+Client              → GET /me/bookings?client_id=X  own data only, X ignored
+Client              → another client's booking      404
+Client              → /admin/*                      403
+Staff               → /admin/*                      403
+Admin               → GET /clients                  403 (no tenant)
+Unauthenticated     → every endpoint                401
+Locked company staff→ every operational endpoint    402
+Mass assignment     → company_id / role_id in body  ignored, never applied
+```
+
+Cross-tenant reads return **404, not 403**: a 403 confirms the record exists.

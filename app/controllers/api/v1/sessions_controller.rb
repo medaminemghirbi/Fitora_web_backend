@@ -129,7 +129,7 @@ module Api
       end
 
       def session_params
-        params.require(:session).permit(:activity_id, :coach_id, :starts_at, :ends_at, :capacity, :price, :status)
+        params.require(:session).permit(:activity_id, :coach_id, :space_id, :starts_at, :ends_at, :capacity, :price, :status)
       end
     end
   end

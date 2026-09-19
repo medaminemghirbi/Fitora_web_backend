@@ -3,6 +3,10 @@ class Session < ApplicationRecord
   belongs_to :company
   belongs_to :coach, optional: true
   belongs_to :recurring_schedule, optional: true
+  # Optional twice over: a company may not use rooms at all
+  # (CompanySettings FEATURES[:spaces]), and a company that does may still
+  # leave a session unassigned while the schedule is being drafted.
+  belongs_to :space, optional: true
 
   has_many :bookings, dependent: :destroy
 
@@ -13,6 +17,9 @@ class Session < ApplicationRecord
   validates :price, numericality: { greater_than_or_equal_to: 0 }
   validate :activity_belongs_to_company
   validate :coach_belongs_to_company
+  validate :space_belongs_to_company
+  validate :space_can_host_activity
+  validate :capacity_fits_in_space
   validate :ends_after_starts
 
   scope :upcoming, -> { where("starts_at >= ?", Time.current) }
@@ -55,5 +62,30 @@ class Session < ApplicationRecord
     return if starts_at.blank? || ends_at.blank?
 
     errors.add(:ends_at, "must be after the start time") if ends_at <= starts_at
+  end
+
+  # Same boundary as the coach check: the gym owns its rooms.
+  def space_belongs_to_company
+    return if space.blank? || company.blank?
+
+    errors.add(:space, "must belong to this gym") if space.company != company
+  end
+
+  # An activity may name the rooms it can run in; most name none, which
+  # means anywhere. Only a real restriction is enforced.
+  def space_can_host_activity
+    return if space.blank? || activity.blank?
+
+    errors.add(:space, "cannot host \"#{activity.name}\"") unless space.hosts?(activity)
+  end
+
+  # A room's capacity is how many people fit in it. Booking more seats than
+  # the room holds is not something to discover on the day.
+  def capacity_fits_in_space
+    return if space.blank? || capacity.blank? || space.capacity.blank?
+
+    return if capacity <= space.capacity
+
+    errors.add(:capacity, "is more than #{space.name} holds (#{space.capacity})")
   end
 end

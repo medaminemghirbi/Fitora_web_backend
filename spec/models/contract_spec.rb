@@ -4,11 +4,11 @@ RSpec.describe Contract do
   let(:company) { create(:company) }
 
   describe "validations" do
-    it "requires an activity" do
+    it "allows a contract with no activity — that is the all-access kind" do
       contract = build(:contract, activity: nil)
 
-      expect(contract).not_to be_valid
-      expect(contract.errors[:activity]).to be_present
+      expect(contract).to be_valid
+      expect(contract).to be_all_access
     end
 
     it "rejects a second contract for the same client, contract type, and activity" do
@@ -135,6 +135,60 @@ RSpec.describe Contract do
 
       expect { contract.restore_booking! }.not_to raise_error
       expect(contract.current_period.reload.remaining_bookings).to be_nil
+    end
+  end
+
+  describe "#covers_activity?" do
+    let(:pilates) { create(:activity, company: company) }
+    let(:boxing) { create(:activity, company: company) }
+    let(:yoga) { create(:activity, company: company) }
+    # The plan is priced for pilates and boxing, and deliberately not yoga —
+    # `activity:` is the row the factory seeds, so the plan covers exactly
+    # these two and nothing else.
+    let(:plan) { create(:contract_type, company: company, activity: pilates) }
+
+    before { create(:contract_type_activity, contract_type: plan, activity: boxing) }
+
+    it "covers only its own activity when it names one" do
+      contract = create(:contract, contract_type: plan, activity: pilates)
+
+      expect(contract.covers_activity?(pilates)).to be(true)
+      expect(contract.covers_activity?(boxing)).to be(false)
+    end
+
+    it "covers every activity on the plan when it names none" do
+      contract = create(:contract, contract_type: plan, activity: nil)
+
+      expect(contract.covers_activity?(pilates)).to be(true)
+      expect(contract.covers_activity?(boxing)).to be(true)
+    end
+
+    it "does not cover an activity the plan itself does not, even all-access" do
+      contract = create(:contract, contract_type: plan, activity: nil)
+
+      expect(contract.covers_activity?(yoga)).to be(false)
+    end
+
+    it "stops covering an activity once the plan drops it" do
+      contract = create(:contract, contract_type: plan, activity: nil)
+      plan.contract_type_activities.find_by(activity_id: boxing.id).destroy!
+
+      expect(contract.reload.covers_activity?(boxing)).to be(false)
+      expect(contract.covers_activity?(pilates)).to be(true)
+    end
+
+    it "is false for a nil activity rather than raising" do
+      contract = create(:contract, contract_type: plan, activity: nil)
+
+      expect(contract.covers_activity?(nil)).to be(false)
+    end
+
+    it "lists what it covers" do
+      named = create(:contract, contract_type: plan, activity: pilates)
+      all_access = create(:contract, contract_type: plan, activity: nil)
+
+      expect(named.covered_activities).to contain_exactly(pilates)
+      expect(all_access.covered_activities).to contain_exactly(pilates, boxing)
     end
   end
 end

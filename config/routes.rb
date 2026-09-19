@@ -50,6 +50,7 @@ Rails.application.routes.draw do
 
       post "onboarding/dismiss", to: "onboarding#dismiss"
       resources :activities
+      resources :spaces
       resources :coaches do
         member do
           post :login, to: "coaches#set_login"

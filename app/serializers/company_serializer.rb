@@ -33,6 +33,10 @@ class CompanySerializer
       # page renders as "what's included" (names/descriptions i18n'd
       # client-side as modules.<key>.*).
       included_modules: ModuleCatalog::KEYS,
+      # How this company has configured the engine: which features it uses
+      # and the rules it books by. The frontend reads this to decide what to
+      # SHOW — never what to allow, which is `permissions`.
+      settings: company.settings.to_h,
       monthly_subscription_cents: company.monthly_subscription_cents,
       annual_subscription_cents: company.annual_subscription_cents,
       annual_discount_percent: company.annual_discount_percent

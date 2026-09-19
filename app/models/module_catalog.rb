@@ -12,7 +12,7 @@ module ModuleCatalog
 
   # Permissions every company has no matter what: the dashboard and the
   # establishments/settings screens.
-  BASE_PERMISSIONS = %w[reports].freeze
+  BASE_PERMISSIONS = %w[reports settings].freeze
 
   # key => { permissions: [...] } — the Permission::CATALOG keys each
   # feature unlocks. Order is the display order on the subscription page.
@@ -27,10 +27,14 @@ module ModuleCatalog
   # its feature exists.
   CATALOG = {
     "clients"     => { permissions: %w[clients] },
-    "classes"     => { permissions: %w[activities sessions] },
+    "classes"     => { permissions: %w[activities sessions spaces] },
     "bookings"    => { permissions: %w[bookings checkin] },
     "memberships" => { permissions: %w[contracts contract_types] },
-    "billing"     => { permissions: %w[payments] },
+    # "revenue" belongs here, not with reports: it is the money the gym
+    # takes, and leaving it out silently stripped it from every permission
+    # list the API advertises (Permissions::Resolve intersects with
+    # ALL_PERMISSIONS), including the owner's.
+    "billing"     => { permissions: %w[payments revenue] },
     "hr"          => { permissions: %w[coaches] }
   }.freeze
 

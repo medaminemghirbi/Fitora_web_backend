@@ -31,7 +31,17 @@ class ContractType < ApplicationRecord
 
   # What this activity costs under this plan, or nil when the plan isn't
   # sold for it at all.
+  # What one activity costs on this plan.
+  #
+  # `nil` asks for the all-access price — a Contract with no activity covers
+  # everything the plan covers (see Contract#all_access?), and the dearest
+  # covered activity is the floor for that: access to everything cannot
+  # sensibly cost less than the most expensive part of it. The owner still
+  # sets the actual figure at the point of sale (ContractPeriod#final_price);
+  # this is the number the sale form starts from.
   def price_for(activity)
+    return contract_type_activities.maximum(:price) if activity.nil?
+
     contract_type_activities.find_by(activity_id: activity.id)&.price
   end
 
@@ -39,6 +49,8 @@ class ContractType < ApplicationRecord
   # Activities are different: a plan is only sold for an activity it has a
   # priced row for, so an activity with no row is not covered.
   def grants_access_to?(activity:)
+    return false if activity.blank?
+
     contract_type_activities.exists?(activity_id: activity.id)
   end
 end

@@ -21,7 +21,15 @@ FactoryBot.define do
     # snapshot (status/dates/price) — that's really its current period, so
     # the factory builds one transparently from the same transient attrs.
     after(:create) do |contract, evaluator|
-      row = contract.contract_type.contract_type_activities.find_or_create_by!(activity: contract.activity) { |r| r.price = 89 }
+      # An all-access contract (activity: nil) has no single grid row to
+      # price off — it is priced off the dearest activity the plan covers,
+      # the same way ContractType#price_for answers for it.
+      price = if contract.activity
+        contract.contract_type.contract_type_activities
+                .find_or_create_by!(activity: contract.activity) { |r| r.price = 89 }.price
+      else
+        contract.contract_type.price_for(nil) || 89
+      end
 
       contract.contract_periods.create!(
         status: evaluator.status,
@@ -30,7 +38,7 @@ FactoryBot.define do
         discount: evaluator.discount,
         payment_status: evaluator.payment_status,
         remaining_bookings: evaluator.remaining_bookings,
-        base_price: row.price
+        base_price: price
       )
     end
   end

@@ -26,6 +26,7 @@ class Company < ApplicationRecord
 
   has_many :coaches, dependent: :destroy
   has_many :activities, dependent: :destroy
+  has_many :spaces, dependent: :destroy
   has_many :sessions, dependent: :destroy
   has_many :recurring_schedules, dependent: :destroy
   has_one :subscription, dependent: :destroy
@@ -66,6 +67,33 @@ class Company < ApplicationRecord
   }
 
   before_validation :normalize_working_days
+
+  # How this company has configured the engine — a typed CompanySettings, not
+  # the raw hash. Read it (`company.settings.feature?(:spaces)`), never
+  # `company[:settings]`.
+  def settings
+    @settings ||= CompanySettings.new(self[:settings])
+  end
+
+  # Applies a patch on top of the current settings. Only the keys in the
+  # patch change, and anything CompanySettings does not declare is dropped —
+  # a client cannot grow the configuration surface by sending extra keys.
+  def settings=(patch)
+    merged = patch.is_a?(CompanySettings) ? patch : settings.merge(patch)
+    @settings = merged
+    self[:settings] = merged.to_h
+  end
+
+  # A feature being on says the product offers it here. It never says anyone
+  # is allowed to use it — that is Role/Permission, checked separately.
+  def feature?(key)
+    settings.feature?(key)
+  end
+
+  def reload(*)
+    @settings = nil
+    super
+  end
 
   # The short symbol shown next to amounts across the app (e.g. "DT", "€").
   def currency_symbol

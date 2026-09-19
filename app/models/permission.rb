@@ -10,6 +10,7 @@ module Permission
   CATALOG = {
     "clients"         => "Clients & contacts",
     "activities"      => "Activities",
+    "spaces"          => "Rooms",
     "coaches"         => "Team management",
     "sessions"        => "Schedule editing",
     "bookings"        => "Bookings",
@@ -18,7 +19,10 @@ module Permission
     "payments"        => "Payments",
     "reports"         => "Dashboard & reports",
     "revenue"         => "Revenue & financial totals",
-    "checkin"         => "Attendance check-in"
+    "checkin"         => "Attendance check-in",
+    # Changing how the gym's software behaves, as opposed to running the gym.
+    # Split out so a moderator can do the second without the first.
+    "settings"        => "Company settings"
   }.freeze
 
   ALL = CATALOG.keys.freeze
