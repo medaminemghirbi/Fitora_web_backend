@@ -511,3 +511,71 @@ permissions.
 
 Frontend **1295 passing**, backend **951**, lint clean both sides, 959
 classes defined, 833 i18n keys in fr/en/ar, build clean.
+
+## Phase 9 — Data migration ✅
+
+**Done when:** counts match; no orphans; a sample company reads correctly in
+every shell.
+
+There is no production database to migrate. What this phase delivers is the
+rehearsal itself — run end to end on real data — and the tooling that makes
+running it against production a mechanical step rather than a judgement call.
+
+### The rehearsal, as actually run
+
+Development dumped with `pg_dump -Fc`, restored into a scratch database, then
+rolled **backwards** across all nine Phase 3 migrations and forwards again:
+
+```
+9 down   LetACompanyConfigureItself … WriteOutEveryCompanySettings
+9 up     same, in order
+```
+
+Every one reverted cleanly, including the three the plan calls the point of
+no return. Their `down` blocks are not decorative — they were executed
+against real rows, and the data came back.
+
+Counts before (old schema): 91 rows, 25 tables. After: 91 rows, 27 tables
+(`spaces` and `activity_spaces` are new and empty). Nothing lost.
+
+All four tenants then read back through the app's own serializers and
+services without an error.
+
+### The tooling
+
+`Migration::Audit` plus `migration:snapshot`, `migration:verify` and
+`migration:spot_check`. The procedure is in `MIGRATION_PLAN.md` §7.
+
+The audit reads with plain SQL, never through the models — a model can only
+describe the schema it was written for, and the question is whether the
+database agrees. It checks row counts against the snapshot, the schema, the
+settings backfill, staff roles, five orphan classes and **nine tenant-boundary
+joins**. That last group is the reason the audit exists: no foreign key can
+tell that a session is on another gym's activity or that a booking belongs to
+someone who is not a member there, and a migration that rewrote a reference
+is exactly where that would happen. Those nine are also half of Phase 10's
+tenant-isolation evidence, from the data side rather than the request side.
+
+### What the rehearsal found
+
+One real defect, which is the whole argument for rehearsing.
+
+**A company created after the backfill sat on `settings = {}`.** The
+migration filled in the companies that existed when it ran; a company created
+the next day started empty and read its hours from `CompanySettings`'
+defaults. The behaviour was correct — but the column described nothing, and
+an audit cannot tell a company using the defaults from one whose hours were
+lost.
+
+`Company#normalize_settings` now writes the full declared shape on every
+save, and migration 20260920090000 writes out the ones nobody had saved
+since. The column says what the settings *are*, and the audit's check means
+something.
+
+Backend **959 passing**, rubocop clean.
+
+### Left for the real thing
+
+Steps 1 and 3 of `MIGRATION_PLAN.md` §7 — dumping production, and running the
+same sequence against it in one window with the dump retained. Nothing in the
+code is waiting on that.

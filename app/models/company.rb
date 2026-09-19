@@ -43,6 +43,13 @@ class Company < ApplicationRecord
   has_many :notifications, dependent: :destroy
   has_many :support_tickets, dependent: :destroy
 
+  # Keeps the column saying exactly what CompanySettings declares — every
+  # key present, nothing extra. Without it a company created after the
+  # backfill migration sits on `{}` and reads its hours from the defaults:
+  # correct behaviour, but a column that no longer describes the company,
+  # and a post-migration audit that cannot tell "defaulted" from "lost".
+  before_save :normalize_settings
+
   # CompanySettings coerces anything unusable back to its default so the
   # object is always coherent; this is what stops that being silent.
   validate :settings_values_are_usable
@@ -173,6 +180,10 @@ class Company < ApplicationRecord
     "hours.end" => [ :business_hours_end, "must be a time like 22:00" ]
   }.freeze
   private_constant :SETTINGS_ERRORS
+
+  def normalize_settings
+    self[:settings] = settings.to_h
+  end
 
   def settings_values_are_usable
     settings.invalid_values.each do |key|

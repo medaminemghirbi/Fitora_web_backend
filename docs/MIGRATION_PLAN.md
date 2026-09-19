@@ -104,3 +104,57 @@ rehearsal, with the dump retained.
 | Unscoped `Model.find` survives the sweep | `spec/architecture/scoping_spec.rb` greps the sources and fails the build |
 | Full UI redesign stalls between languages | Phase 7 proceeds shell by shell, each shipped complete; no shell is left half-converted |
 | The rewrite loses behaviour the old specs encoded | Old specs are rewritten, never deleted, and the suite may not shrink |
+
+## 7. Running it — the procedure
+
+Two commands do the verifying. Both read; only `snapshot` writes, and only
+to a file.
+
+```bash
+# 1. Take a backup and RESTORE it. A backup that has not been restored is
+#    not a backup.
+pg_dump -Fc $PRODUCTION_DB -f prod.dump
+createdb fitora_rehearsal
+pg_restore -d fitora_rehearsal prod.dump
+
+# 2. Rehearse, against the restored copy — never against production first.
+export DATABASE_URL=postgresql:///fitora_rehearsal
+bin/rails migration:snapshot          # row counts on the OLD schema
+bin/rails db:migrate
+bin/rails migration:verify            # counts + invariants, exits non-zero on failure
+bin/rails migration:spot_check        # every tenant read back through the app
+
+# 3. Only if all three pass, repeat 2 against production, in one window,
+#    keeping prod.dump.
+unset DATABASE_URL
+bin/rails migration:snapshot
+bin/rails db:migrate
+bin/rails migration:verify
+bin/rails migration:spot_check
+```
+
+`migration:verify` checks, in `Migration::Audit`:
+
+- **Row counts** against the snapshot, per table. Shrinkage fails; growth is
+  fine, since a rehearsal on a live copy picks up writes.
+- **Schema**: the dropped columns are gone, the new ones are there, and every
+  constraint in `DATABASE_DESIGN.md` §5 exists.
+- **Settings**: every company's opening hours landed, and no section the code
+  does not declare is stored.
+- **Roles**: no staff member left without one.
+- **Orphans**: five references a migration nullified or rewrote.
+- **Tenant leakage**: nine joins that cross a company boundary — a session on
+  another gym's activity, a booking by a non-member, a plan priced for
+  someone else's activity. No foreign key can catch these, and a migration
+  that rewrote a reference is exactly where they would appear.
+
+`migration:spot_check` reads every company back through the app's own
+serializers and services — the owner dashboard, the company payload, the
+branding, the settings, the setup flow, the resolved permissions, the
+schedule, the team, the members and the contracts. It is the acceptance
+criterion in §4 ("a sample company reads correctly in every shell") made
+executable, for every company rather than a sample.
+
+`Migration::Audit` reads with plain SQL and never through the models: a model
+can only describe the schema it was written for, and the point is to find out
+whether the database agrees.
