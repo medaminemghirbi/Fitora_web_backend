@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_09_19_160000) do
+ActiveRecord::Schema[8.1].define(version: 2026_09_19_170000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "btree_gist"
   enable_extension "pg_catalog.plpgsql"
@@ -173,8 +173,6 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_19_160000) do
   create_table "companies", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
     t.boolean "active", default: true, null: false
     t.string "address"
-    t.time "business_hours_end", default: "2000-01-01 22:00:00", null: false
-    t.time "business_hours_start", default: "2000-01-01 06:00:00", null: false
     t.string "city"
     t.string "country"
     t.datetime "created_at", null: false
@@ -187,13 +185,11 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_19_160000) do
     t.string "name", null: false
     t.uuid "owner_id", null: false
     t.string "phone"
-    t.string "primary_color"
     t.jsonb "settings", default: {}, null: false
     t.datetime "setup_dismissed_at"
     t.string "slug"
     t.string "timezone", default: "Africa/Tunis", null: false
     t.datetime "updated_at", null: false
-    t.integer "working_days", default: [1, 2, 3, 4, 5], null: false, array: true
     t.index ["city"], name: "index_companies_on_city_trgm", opclass: :gin_trgm_ops, using: :gin
     t.index ["name"], name: "index_companies_on_name_trgm", opclass: :gin_trgm_ops, using: :gin
     t.index ["owner_id"], name: "index_companies_on_owner_id"

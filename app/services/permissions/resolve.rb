@@ -18,7 +18,7 @@ module Permissions
       return Result.new(role: nil, permissions: []) if user.admin?
 
       company = resolve_company
-      available = company ? ModuleCatalog::ALL_PERMISSIONS : Permission::ALL
+      available = Permission::ALL
 
       if user.owner?
         # The owner always has every permission the enabled modules expose —

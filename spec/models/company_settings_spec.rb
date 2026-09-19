@@ -126,4 +126,89 @@ RSpec.describe CompanySettings do
       expect(company.reload.feature?(:spaces)).to be(true)
     end
   end
+
+  describe "opening hours" do
+    it "defaults to a weekday business open 06:00 to 22:00" do
+      settings = described_class.default
+
+      expect(settings.business_hours_start).to eq("06:00")
+      expect(settings.business_hours_end).to eq("22:00")
+      expect(settings.working_days).to eq([ 1, 2, 3, 4, 5 ])
+    end
+
+    it "answers whether the business is open on a given date" do
+      settings = described_class.new(hours: { working_days: [ 1, 2, 3 ] })
+
+      expect(settings.working_day?(Date.new(2026, 9, 21))).to be(true)   # Monday
+      expect(settings.working_day?(Date.new(2026, 9, 26))).to be(false)  # Saturday
+    end
+
+    it "accepts a Time, as the old column stored it" do
+      settings = described_class.new(hours: { start: Time.utc(2000, 1, 1, 7, 30) })
+
+      expect(settings.business_hours_start).to eq("07:30")
+    end
+
+    it "sorts and de-duplicates the working days" do
+      settings = described_class.new(hours: { working_days: [ 3, 1, 1, 2 ] })
+
+      expect(settings.working_days).to eq([ 1, 2, 3 ])
+    end
+
+    it "records an unusable time rather than storing it" do
+      settings = described_class.new(hours: { start: "twenty past nine" })
+
+      expect(settings.business_hours_start).to eq("06:00")
+      expect(settings.invalid_values).to include("hours.start")
+    end
+
+    it "records an empty or out-of-range working-day list" do
+      expect(described_class.new(hours: { working_days: [] }).invalid_values)
+        .to include("hours.working_days")
+      expect(described_class.new(hours: { working_days: [ 1, 9 ] }).invalid_values)
+        .to include("hours.working_days")
+    end
+  end
+
+  describe "branding" do
+    it "has no colour of its own by default" do
+      expect(described_class.default.primary_color).to be_nil
+    end
+
+    it "keeps a valid hex colour" do
+      expect(described_class.new(branding: { primary_color: "#ff5500" }).primary_color).to eq("#ff5500")
+    end
+
+    it "records an unusable colour rather than storing it" do
+      settings = described_class.new(branding: { primary_color: "not-a-colour" })
+
+      expect(settings.primary_color).to be_nil
+      expect(settings.invalid_values).to include("branding.primary_color")
+    end
+  end
+
+  describe "a company writing them" do
+    it "still reads and writes them the way the rest of the app expects" do
+      company = create(:company, primary_color: "#123456", working_days: [ 0, 6 ])
+
+      expect(company.reload.primary_color).to eq("#123456")
+      expect(company.working_days).to eq([ 0, 6 ])
+      expect(company.working_day?(Date.new(2026, 9, 26))).to be(true)
+    end
+
+    it "refuses an unusable value instead of silently dropping it" do
+      company = build(:company, primary_color: "rouge")
+
+      expect(company).not_to be_valid
+      expect(company.errors[:primary_color]).to be_present
+    end
+
+    it "keeps one section when another is written" do
+      company = create(:company, primary_color: "#123456")
+      company.update!(working_days: [ 1, 2 ])
+
+      expect(company.reload.primary_color).to eq("#123456")
+      expect(company.working_days).to eq([ 1, 2 ])
+    end
+  end
 end

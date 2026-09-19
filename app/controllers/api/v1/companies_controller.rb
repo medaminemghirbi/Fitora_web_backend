@@ -99,17 +99,43 @@ module Api
       end
 
       def company_params
-        params.require(:company).permit(
+        permitted = params.require(:company).permit(
           :name, :description, :phone, :email, :country, :city,
           :address, :latitude, :longitude, :timezone, :currency,
-          :slug, :primary_color, :logo,
-          :business_hours_start, :business_hours_end,
+          :slug, :logo,
+          # Hours and branding are settings now, but the app still sends them
+          # flat. Accept them where they have always been and fold them in.
+          :primary_color, :business_hours_start, :business_hours_end,
           working_days: [],
           settings: [
             { features: CompanySettings::FEATURES.keys },
-            { booking: CompanySettings::BOOKING.keys }
+            { booking: CompanySettings::BOOKING.keys },
+            { hours: [ :start, :end, { working_days: [] } ] },
+            { branding: CompanySettings::BRANDING.keys }
           ]
         )
+
+        fold_legacy_settings_keys(permitted)
+      end
+
+      # Moves the flat hours/branding keys into the settings patch, so the
+      # model sees one shape whichever way the client sent them. An explicit
+      # `settings` section wins over the flat key for the same value.
+      def fold_legacy_settings_keys(permitted)
+        hours = {
+          start: permitted.delete(:business_hours_start),
+          end: permitted.delete(:business_hours_end),
+          working_days: permitted.delete(:working_days)
+        }.compact
+        branding = { primary_color: permitted.delete(:primary_color) }.compact
+
+        return permitted if hours.empty? && branding.empty?
+
+        settings = (permitted[:settings] || {}).to_h.symbolize_keys
+        settings[:hours] = hours.merge((settings[:hours] || {}).to_h.symbolize_keys)
+        settings[:branding] = branding.merge((settings[:branding] || {}).to_h.symbolize_keys)
+        permitted[:settings] = settings
+        permitted
       end
     end
   end

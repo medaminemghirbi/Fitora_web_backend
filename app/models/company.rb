@@ -43,16 +43,16 @@ class Company < ApplicationRecord
   has_many :notifications, dependent: :destroy
   has_many :support_tickets, dependent: :destroy
 
+  # CompanySettings coerces anything unusable back to its default so the
+  # object is always coherent; this is what stops that being silent.
+  validate :settings_values_are_usable
+
   validates :name, presence: true
   validates :timezone, presence: true
   validates :currency, presence: true, inclusion: { in: CurrencyCatalog::CODES }
   validates :locale, presence: true, inclusion: { in: LOCALES }
-  # Date#wday values (0 = Sunday … 6 = Saturday). At least one day, no dupes.
-  validates :working_days, presence: true
-  validate :working_days_are_valid_weekdays
   validates :slug, uniqueness: true, allow_nil: true,
                     format: { with: /\A[a-z0-9]+(?:-[a-z0-9]+)*\z/, message: "must contain only lowercase letters, numbers, and hyphens" }
-  validates :primary_color, format: { with: /\A#[0-9a-fA-F]{6}\z/, message: "must be a hex color like #4f46e5" }, allow_nil: true
 
   # Admin company search — name / city, plus the owner's name and email.
   scope :search, ->(term) {
@@ -66,7 +66,6 @@ class Company < ApplicationRecord
     ).distinct
   }
 
-  before_validation :normalize_working_days
 
   # How this company has configured the engine — a typed CompanySettings, not
   # the raw hash. Read it (`company.settings.feature?(:spaces)`), never
@@ -140,24 +139,52 @@ class Company < ApplicationRecord
     (monthly_subscription_cents * 12 * (100 - annual_discount_percent) / 100.0).round
   end
 
+  # Opening hours, working days and the brand colour live in `settings` now,
+  # not in columns of their own. These readers keep the rest of the app — and
+  # the API's shape — exactly as they were.
+  def business_hours_start = settings.business_hours_start
+  def business_hours_end = settings.business_hours_end
+  def working_days = settings.working_days
+  def primary_color = settings.primary_color
+
+  # Writers, so every existing caller (and `create(:company, primary_color:)`)
+  # keeps working now that the columns are gone.
+  def business_hours_start=(value)
+    self.settings = { hours: { start: value } }
+  end
+
+  def business_hours_end=(value)
+    self.settings = { hours: { end: value } }
+  end
+
+  def working_days=(value)
+    self.settings = { hours: { working_days: value } }
+  end
+
+  def primary_color=(value)
+    self.settings = { branding: { primary_color: value } }
+  end
+
   # True when the company operates on the given date's weekday.
   def working_day?(date)
-    working_days.include?(date.wday)
+    settings.working_day?(date)
   end
 
   private
 
-  def normalize_working_days
-    return if working_days.nil?
+  SETTINGS_ERRORS = {
+    "branding.primary_color" => [ :primary_color, "must be a hex color like #4f46e5" ],
+    "hours.working_days" => [ :working_days, "must be a list of distinct weekday numbers (0–6)" ],
+    "hours.start" => [ :business_hours_start, "must be a time like 06:00" ],
+    "hours.end" => [ :business_hours_end, "must be a time like 22:00" ]
+  }.freeze
+  private_constant :SETTINGS_ERRORS
 
-    self.working_days = Array(working_days).filter_map { |d| Integer(d, exception: false) }.uniq.sort
-  end
-
-  def working_days_are_valid_weekdays
-    days = Array(working_days)
-    return if days.present? && days.all? { |d| d.is_a?(Integer) && d.between?(0, 6) } && days.uniq.length == days.length
-
-    errors.add(:working_days, "must be a list of distinct weekday numbers (0–6)")
+  def settings_values_are_usable
+    settings.invalid_values.each do |key|
+      attribute, message = SETTINGS_ERRORS[key]
+      errors.add(attribute || :settings, message || "is not valid")
+    end
   end
 
   def logo_is_an_image

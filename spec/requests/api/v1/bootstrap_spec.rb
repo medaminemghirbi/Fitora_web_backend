@@ -15,7 +15,7 @@ RSpec.describe "Api::V1 GET /api/v1/bootstrap", type: :request do
     expect(body["company"]["id"]).to eq(company.id)
     expect(body["branding"]["name"]).to eq(company.name)
     expect(body["role"]["key"]).to eq("owner")
-    expect(body["permissions"]).to match_array(ModuleCatalog::ALL_PERMISSIONS)
+    expect(body["permissions"]).to match_array(Permission::ALL)
     expect(body["modules"]).to match_array(company.enabled_module_keys)
     expect(body["modules"]).to include("base", "clients", "classes", "hr")
     expect(body["roles"].map { |r| r["key"] }).to match_array(Role::SYSTEM_KEYS)

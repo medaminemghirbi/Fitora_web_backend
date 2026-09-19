@@ -61,9 +61,34 @@ class CompanySettings
     no_show_consumes_session: { default: true }
   }.freeze
 
-  SECTIONS = %i[features booking].freeze
+  # When the business is open. Used to lay out the calendar and to stop a
+  # session being scheduled on a day the place is shut. Times are "HH:MM"
+  # strings; working_days are Date#wday values (0 = Sunday).
+  HOURS = {
+    start: "06:00",
+    end: "22:00",
+    working_days: [ 1, 2, 3, 4, 5 ]
+  }.freeze
+
+  # White-label appearance. primary_color overrides --color-primary in the
+  # app; nil means "use Fitora's own".
+  BRANDING = {
+    primary_color: nil
+  }.freeze
+
+  TIME_FORMAT = /\A([01]\d|2[0-3]):[0-5]\d\z/
+  HEX_COLOR = /\A#[0-9a-fA-F]{6}\z/
+
+  SECTIONS = %i[features booking hours branding].freeze
 
   attr_reader :unknown_keys
+
+  # Keys whose supplied value was present but unusable — an invalid hex
+  # colour, a weekday that is not a weekday, an empty list of opening days.
+  # The value falls back to its default so the object is always coherent,
+  # and Company turns this list into validation errors so the person who
+  # typed it finds out, rather than watching it silently vanish.
+  attr_reader :invalid_values
 
   def self.default
     new({})
@@ -73,9 +98,12 @@ class CompanySettings
     raw = {} unless raw.is_a?(Hash)
     raw = raw.deep_symbolize_keys
     @unknown_keys = []
+    @invalid_values = []
 
     @features = build_features(raw[:features])
     @booking = build_booking(raw[:booking])
+    @hours = build_hours(raw[:hours])
+    @branding = build_branding(raw[:branding])
     collect_unknown_sections(raw)
 
     freeze
@@ -102,10 +130,29 @@ class CompanySettings
   def booking_opens_days = @booking[:booking_opens_days]
   def no_show_consumes_session? = @booking[:no_show_consumes_session]
 
+  # --- Opening hours --------------------------------------------------------
+
+  def hours = @hours
+
+  def business_hours_start = @hours[:start]
+  def business_hours_end = @hours[:end]
+  def working_days = @hours[:working_days]
+
+  # True when the business operates on the given date's weekday.
+  def working_day?(date)
+    working_days.include?(date.wday)
+  end
+
+  # --- Branding -------------------------------------------------------------
+
+  def branding = @branding
+
+  def primary_color = @branding[:primary_color]
+
   # --- Reading and writing --------------------------------------------------
 
   def to_h
-    { features: @features, booking: @booking }
+    { features: @features, booking: @booking, hours: @hours, branding: @branding }
   end
 
   # Returns a NEW settings object with `patch` applied on top. Only the keys
@@ -116,8 +163,10 @@ class CompanySettings
     patch = patch.deep_symbolize_keys
 
     self.class.new(
-      features: @features.merge(patch[:features].is_a?(Hash) ? patch[:features] : {}),
-      booking: @booking.merge(patch[:booking].is_a?(Hash) ? patch[:booking] : {})
+      features: @features.merge(section(patch, :features)),
+      booking: @booking.merge(section(patch, :booking)),
+      hours: @hours.merge(section(patch, :hours)),
+      branding: @branding.merge(section(patch, :branding))
     )
   end
 
@@ -129,6 +178,65 @@ class CompanySettings
   def hash = to_h.hash
 
   private
+
+  def section(patch, key)
+    patch[key].is_a?(Hash) ? patch[key] : {}
+  end
+
+  def build_hours(given)
+    given = {} unless given.is_a?(Hash)
+    note_unknown(given.keys - HOURS.keys, "hours")
+
+    {
+      start: cast_time(given[:start], HOURS[:start], "hours.start"),
+      end: cast_time(given[:end], HOURS[:end], "hours.end"),
+      working_days: cast_working_days(given[:working_days])
+    }.freeze
+  end
+
+  def build_branding(given)
+    given = {} unless given.is_a?(Hash)
+    note_unknown(given.keys - BRANDING.keys, "branding")
+
+    { primary_color: cast_color(given[:primary_color]) }.freeze
+  end
+
+  # Accepts "HH:MM" and the "2000-01-01 06:00:00" a Time column used to
+  # serialize to, so a value read back from the old column still lands.
+  def cast_time(value, default, key)
+    return default if value.nil?
+    return value if value.is_a?(String) && value.match?(TIME_FORMAT)
+
+    formatted = value.respond_to?(:strftime) ? value.strftime("%H:%M") : value.to_s[/\d{2}:\d{2}/]
+    return formatted if formatted&.match?(TIME_FORMAT)
+
+    note_invalid(key)
+    default
+  end
+
+  # Date#wday values, de-duplicated and sorted. A list that ends up empty
+  # falls back to the default rather than closing the business every day.
+  def cast_working_days(value)
+    return HOURS[:working_days] if value.nil?
+
+    given = Array(value)
+    days = given.filter_map { |d| Integer(d, exception: false) }
+                .select { |d| d.between?(0, 6) }.uniq.sort
+
+    # Either nothing usable came through, or something in the list was not a
+    # weekday. Both are worth telling the person about.
+    note_invalid("hours.working_days") if days.empty? || days.length != given.uniq.length
+
+    days.presence || HOURS[:working_days]
+  end
+
+  def cast_color(value)
+    return nil if value.blank?
+    return value.to_s if value.to_s.match?(HEX_COLOR)
+
+    note_invalid("branding.primary_color")
+    nil
+  end
 
   def build_features(given)
     given = {} unless given.is_a?(Hash)
@@ -179,6 +287,11 @@ class CompanySettings
   def collect_unknown_sections(raw)
     note_unknown(raw.keys - SECTIONS, nil)
     @unknown_keys.freeze
+    @invalid_values.freeze
+  end
+
+  def note_invalid(key)
+    @invalid_values << key
   end
 
   def note_unknown(keys, section)

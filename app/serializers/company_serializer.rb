@@ -22,9 +22,11 @@ class CompanySerializer
       currency_symbol: company.currency_symbol,
       locale: company.locale,
       working_days: company.working_days,
-      # Opening hours used to live on the site; the company is the place now.
-      business_hours_start: company.business_hours_start&.strftime("%H:%M"),
-      business_hours_end: company.business_hours_end&.strftime("%H:%M"),
+      # Opening hours used to live on the site, then on the company itself;
+      # they are settings now. Still "HH:MM" at the top level of the payload
+      # — the storage moved, the API did not.
+      business_hours_start: company.business_hours_start,
+      business_hours_end: company.business_hours_end,
       active: company.active,
       slug: company.slug,
       primary_color: company.primary_color,
@@ -37,6 +39,7 @@ class CompanySerializer
       # and the rules it books by. The frontend reads this to decide what to
       # SHOW — never what to allow, which is `permissions`.
       settings: company.settings.to_h,
+
       monthly_subscription_cents: company.monthly_subscription_cents,
       annual_subscription_cents: company.annual_subscription_cents,
       annual_discount_percent: company.annual_discount_percent
