@@ -144,6 +144,7 @@ Rails.application.routes.draw do
             delete "invoices/:invoice_id", to: "companies#destroy_invoice", as: :invoice
           end
         end
+        get "metrics", to: "metrics#show"
         get "subscription_pricing", to: "subscription_pricing#show"
         patch "subscription_pricing", to: "subscription_pricing#update"
         resources :app_updates, only: [ :index, :create ]
