@@ -99,19 +99,24 @@ GET /owner/revenue
 GET /owner/reports/export
 ```
 
-### `/coach` (new)
+### `/coach`
 
 ```
-GET  /coach/today            today's sessions, next session, headline counts
-GET  /coach/sessions         own schedule, date-ranged
-GET  /coach/sessions/:id     roster + attendance state
-POST /coach/sessions/:id/attendance   mark present/absent for the roster
-GET  /coach/members          members across the coach's own sessions
+GET /coach/members           members across the coach's own sessions
 ```
 
-Every action is implicitly scoped to `current_staff_member.coach_id`. A coach
-cannot pass a `coach_id`. This namespace is read-mostly by design: the only
-write is attendance.
+**One endpoint, not a namespace.** An earlier draft of this document proposed
+`/coach/today`, `/coach/sessions`, `/coach/sessions/:id` and
+`/coach/sessions/:id/attendance`. All of those already exist and already
+narrow to the coach's own sessions — `SessionsController#base_scope` and
+`AttendanceController#accessible_sessions` both filter on
+`current_staff_member.coach_id`. Duplicating them here would give that
+narrowing a second implementation and a second chance to be wrong.
+
+So the namespace holds only what nothing else answers: who this coach trains.
+It is scoped to `current_staff_member.coach_id`; a coach cannot pass a
+`coach_id`. It returns no money and no subscription detail — a coach has no
+business with either.
 
 ### `/me` (member)
 

@@ -112,9 +112,19 @@ Existing and kept (rebuilt on the new language): `page-header`, `kpi-card`,
 `empty-state`, `error-state`, `toast`, `confirm-dialog`, `avatar`,
 `status-badge`, `spinner`, `checkin-panel`.
 
-To add: `data-table` (sorting, selection, responsive collapse, built-in empty
-and loading states), `stat-tile`, `date-range-picker`, `entity-card`,
-`segmented-control`, `sheet` (mobile drawer).
+To add, **when a screen asks for one** — building a primitive with no
+consumer is guessing at its shape:
+
+- `data-table` (sorting, selection, responsive collapse, built-in empty and
+  loading states) — Phase 7, with the list pages that will use it.
+- `entity-card` — Phase 7. The desk and coach lists each wanted a different
+  shape; generalising from two is premature.
+
+Dropped as duplicates of what already exists: `stat-tile` (that is
+`kpi-card`), `sheet` (that is `drawer`, which already traps focus — a bottom
+placement is an input on it, not a new component), `segmented-control` (no
+screen asks for one; `status-filter` covers the rail). `date-range-picker`
+waits for a screen that needs it.
 
 Non-negotiable per state:
 

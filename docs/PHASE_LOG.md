@@ -217,13 +217,54 @@ still use Bootstrap classes. Splitting it cosmetically now and rewriting it
 again in Phase 7 would be wasted work, so it moves to Phase 7, where the
 templates are rewritten anyway.
 
-### Remaining in Phase 5
+### The planned primitives, reconsidered
 
-- The new primitives (`data-table`, `stat-tile`, `sheet`,
-  `date-range-picker`, `segmented-control`, `entity-card`).
-- `features/` restructure for the coach and member additions (Phase 6 needs
-  them).
+`UI_ARCHITECTURE.md` §5 listed six to add. Four are not being built, and the
+doc is corrected:
 
-## Phases 6–10 — not started
+| Primitive | Verdict |
+|---|---|
+| `stat-tile` | **Dropped** — `kpi-card` already is this. |
+| `sheet` | **Dropped** — `drawer` already is this, with a focus trap. A bottom placement would be an input on it, not a new component. |
+| `segmented-control` | **Dropped** — no screen asks for one. `status-filter` covers the rail case. |
+| `date-range-picker` | **Deferred** — speculative until a screen needs it. |
+| `data-table` | **Deferred to Phase 7.** Today's list pages carry rich per-cell content (avatars, highlight pipes, badges); a column-config table would fight that. It belongs with the rewrite that will consume it. |
+| `entity-card` | **Deferred to Phase 7** for the same reason — the desk and coach lists each needed a slightly different shape, and generalising from two is guessing. |
+
+Building primitives with no consumer is the overengineering the brief's §31
+warns about. They get built when a screen asks.
+
+## Phase 6 — Role dashboards 🔶 in progress
+
+### Done
+
+- **`GET /api/v1/coach/members`** (`Api::V1::Coach::MembersController`) —
+  everyone with a live booking on this coach's own sessions, with
+  `last_seen_at` / `next_session_at`. 12 request specs.
+- **`features/coach/members`** — the coach's own roster, searchable, with an
+  "away" flag on anyone three weeks absent and nothing booked.
+- **The coach shell's top bar follows the route** instead of always reading
+  "Today".
+
+**The `/coach/*` namespace in `API_DESIGN.md` §3 is mostly withdrawn.** It
+proposed `/coach/sessions`, `/coach/sessions/:id` and
+`/coach/sessions/:id/attendance`. All three already exist, narrowed to the
+coach's own sessions, in `SessionsController#base_scope` and
+`AttendanceController#accessible_sessions`. Building parallel endpoints would
+duplicate the narrowing and give it a second place to be wrong. Only
+`/coach/members` was genuinely missing.
+
+Suite: backend **891 examples, 0 failures**; frontend **1217 passing**.
+
+### Remaining in Phase 6
+
+- Coach: a week schedule view and a session-detail/roster screen (today's
+  page covers the day; the week does not exist).
+- Member portal: subscription with remaining sessions as the headline number,
+  booking history, attendance, notifications, gym switching.
+- Owner dashboard: exceptions-first rather than a wall of statistics.
+- Platform admin: `GET /admin/metrics`.
+
+## Phases 7–10 — not started
 
 See `MIGRATION_PLAN.md` §4.
