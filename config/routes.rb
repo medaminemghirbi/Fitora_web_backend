@@ -118,6 +118,14 @@ Rails.application.routes.draw do
         end
       end
 
+      # A coach's own day. Only what no existing endpoint already answers:
+      # the schedule and attendance controllers narrow to a coach's own
+      # sessions themselves, and a second route to the same data would be a
+      # second place for that narrowing to be got wrong.
+      namespace :coach do
+        resources :members, only: [ :index ]
+      end
+
       namespace :owner do
         get "dashboard", to: "dashboard#show"
         get "revenue", to: "revenue#show"
