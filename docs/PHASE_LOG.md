@@ -280,14 +280,41 @@ wrong. What was genuinely missing was the ability to *use* the gym list.
 
 Suite: backend **900 examples, 0 failures**; frontend **1226 passing**.
 
+- **The platform admin has a dashboard.** `GET /api/v1/admin/metrics` +
+  `/admin/overview`, and the console lands there rather than on the companies
+  table. Six numbers, each with a decision behind it; the one that matters
+  most is `companies_with_activity` — how many gyms actually ran a session in
+  30 days, the difference between a product being bought and being used.
+  13 request specs, 9 component specs.
+
+  Two numbers refuse to lie when they have nothing to say: the signup trend
+  is null in a first month rather than reporting +100% against zero, and the
+  in-use share is null with no gyms rather than dividing by zero.
+
+  Writing `locked` as its own count exposed a gap — a company with no
+  subscription row appeared in neither `open` nor `locked`. It is the
+  remainder of `total - open` now, so the two always add up, matching how the
+  company list already treats a missing subscription.
+
+Suite: backend **913 examples, 0 failures**; frontend **1234 passing**.
+
 ### Remaining in Phase 6
 
 - Coach: a week schedule view and a session-detail/roster screen (today's
   page covers the day; the week does not exist).
 - Member portal: remaining sessions as the *headline* number rather than a
   muted line — a design change, so Phase 7.
-- Owner dashboard: exceptions-first rather than a wall of statistics.
-- Platform admin: `GET /admin/metrics`.
+- Owner dashboard: exceptions-first rather than a wall of statistics. The
+  `attention` rows already exist in the dashboard payload; this is about what
+  the page leads with, so it is largely Phase 7 too.
+
+### A slip worth naming
+
+Angular's `as` binding is only legal on a *primary* `@if`, never on an
+`@else if`. I wrote `} @else if (x; as y) {` three times across the desk,
+check-in and admin screens. The build catches it every time; the unit tests
+do not, unless the component has a spec that compiles its template. Worth
+remembering when writing a new screen's shell.
 
 ## Phases 7–10 — not started
 
