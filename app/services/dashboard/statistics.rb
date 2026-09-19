@@ -92,11 +92,37 @@ module Dashboard
       expired = current_periods.active.where(expires_at: ...Time.current)
 
       [
-        { key: "expiring", count: expiring.count, amount: nil },
-        { key: "unpaid", count: unpaid.count, amount: revenue? ? unpaid.sum(:final_price).to_f : nil },
-        { key: "expired", count: expired.count, amount: nil },
-        { key: "sessions_without_coach", count: todays_sessions.where(coach_id: nil).count, amount: nil }
+        { key: "expiring", count: expiring.count, amount: nil, detail: expiring_detail(expiring) },
+        { key: "unpaid", count: unpaid.count, amount: revenue? ? unpaid.sum(:final_price).to_f : nil,
+          detail: oldest_detail(unpaid, :starts_at) },
+        { key: "expired", count: expired.count, amount: nil, detail: oldest_detail(expired, :expires_at) },
+        # No detail: "how many sessions today have no coach" is already the
+        # count, and there is nothing cheap to add that a reader would act on.
+        { key: "sessions_without_coach", count: todays_sessions.where(coach_id: nil).count, amount: nil, detail: nil }
       ]
+    end
+
+    # A second line under an attention row, so the number is not the only
+    # thing it says. `kind` names the sentence the frontend translates;
+    # `count` fills its one placeholder. nil when there is nothing worth
+    # adding — a row with no detail simply has no second line.
+    def expiring_detail(scope)
+      today = scope.where(expires_at: Time.current..Time.current.end_of_day).count
+      return nil if today.zero?
+
+      { kind: "expiring_today", count: today }
+    end
+
+    # How long the oldest one has been sitting there. "4 unpaid" is a number;
+    # "the oldest is 23 days old" is a reason to do something today.
+    def oldest_detail(scope, column)
+      oldest = scope.minimum(column)
+      return nil if oldest.blank?
+
+      days = ((Time.current - oldest) / 1.day).floor
+      return nil if days < 1
+
+      { kind: "oldest_days", count: days }
     end
 
     # Only a contract's LATEST period counts: an expired period from last
