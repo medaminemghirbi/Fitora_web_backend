@@ -29,7 +29,14 @@ class Client < ApplicationRecord
   # (Api::V1::ClientsController#update).
   has_secure_password validations: false
 
-  before_validation { self.email = email.to_s.downcase.strip if email.present? }
+  # A member with no email has NULL, never "".
+  #
+  # The guard here used to be `if email.present?`, which left an empty string
+  # exactly as the form sent it. The unique index on lower(email) exempts
+  # NULL but not "", so the first member saved without an email took the ""
+  # slot and the second hit a duplicate-key 500 — a gym adding two members
+  # off a phone number could not save the second.
+  before_validation { self.email = email.to_s.downcase.strip.presence }
   validates :first_name, :last_name, :phone, presence: true
   validates :email, format: { with: URI::MailTo::EMAIL_REGEXP }, allow_blank: true
   # The email IS the person now: unique across the platform, so the same human
