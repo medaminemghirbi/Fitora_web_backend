@@ -151,6 +151,23 @@ RSpec.describe Dashboard::Statistics do
     end
   end
 
+  describe "the chart's twelve months" do
+    it "comes back with the rest of the dashboard, so one call draws the page" do
+      company = create(:company)
+
+      by_month = described_class.call(company: company)[:revenue_by_month]
+
+      expect(by_month.length).to eq(12)
+      expect(by_month.last[:month]).to eq(Date.current.beginning_of_month)
+    end
+
+    it "is empty for someone who may not see money" do
+      company = create(:company)
+
+      expect(described_class.call(company: company, revenue: false)[:revenue_by_month]).to eq([])
+    end
+  end
+
   describe "revenue: false" do
     it "keeps the volumes and drops every figure in money" do
       company = create(:company)

@@ -23,6 +23,9 @@ module Dashboard
         attention: attention,
         contracts_expiring: contracts_expiring,
         recent_payments: revenue? ? recent_payments : [],
+        # Twelve months of takings, for the dashboard's one chart. Behind
+        # the same gate as every other figure in money.
+        revenue_by_month: revenue? ? Dashboard::Revenue.by_month(company: company) : [],
         recent_clients: recent_clients
       }
     end
