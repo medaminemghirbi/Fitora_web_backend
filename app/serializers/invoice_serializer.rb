@@ -15,6 +15,7 @@ class InvoiceSerializer
       amount: invoice.amount,
       currency: invoice.currency,
       billing_period: invoice.billing_period,
+      trial: invoice.trial,
       issued_at: invoice.issued_at,
       issued_by: invoice.issued_by&.full_name,
       notes: invoice.notes

@@ -14,6 +14,9 @@ class UserSerializer
       role: user.role,
       locale: user.locale,
       email_verified: user.email_verified?,
+      # The "check your inbox" screen counts down to its resend button from
+      # here, so a reload does not hand out a fresh sixty seconds.
+      email_verification_resend_in: user.email_verification_resend_in,
       company_id: user.active_company_id || user.staff_member&.company_id,
       # The key of the role this login is assigned to — "receptionist",
       # "coach", or a custom role's own slug.

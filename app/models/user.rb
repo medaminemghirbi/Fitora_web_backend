@@ -36,6 +36,12 @@ class User < ApplicationRecord
     "#{first_name} #{last_name}"
   end
 
+  # Signed up, and the address not confirmed yet: nothing past sign-up
+  # opens until it is. Owners only — see EmailVerifiable.
+  def email_confirmation_pending?
+    owner? && !email_verified?
+  end
+
   def company_limit_reached?
     company_limit.present? && companies.count >= company_limit
   end

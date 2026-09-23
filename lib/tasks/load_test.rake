@@ -39,7 +39,9 @@ namespace :load_test do
       owner = User.create!(
         first_name: "Owner", last_name: i.to_s,
         email: "loadtest-owner-#{i}@fitora.load",
-        password: password, role: :owner, locale: "fr"
+        password: password, role: :owner, locale: "fr",
+        # An unconfirmed owner reaches nothing (BaseController#require_confirmed_email!).
+        email_verified_at: Time.current
       )
 
       company = Company.new(name: "Load Test Gym #{i}", timezone: "Africa/Tunis", currency: "TND", locale: "fr")

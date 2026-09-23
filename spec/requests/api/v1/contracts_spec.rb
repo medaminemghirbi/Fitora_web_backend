@@ -367,5 +367,41 @@ RSpec.describe "Api::V1::Contracts", type: :request do
 
       expect(response.parsed_body["contracts"].map { |c| c["id"] }).to eq([ owing.id ])
     end
+
+    # Renewing early adds a period, it never rewrites the running one — so
+    # the list has to stop calling the contract "à renouveler" while still
+    # asking for the renewal's money.
+    it "drops a contract from expiring once a renewal is queued behind it" do
+      renewed = create(:contract, client: create(:client, company: company), contract_type: plan)
+      renewed.current_period.update!(status: :active, expires_at: 10.days.from_now, payment_status: :paid)
+      Contracts::Renew.call(contract: renewed, created_by: owner)
+
+      still_running_out = create(:contract, client: create(:client, company: company), contract_type: plan)
+      still_running_out.current_period.update!(status: :active, expires_at: 10.days.from_now)
+
+      get "/api/v1/contracts", params: { status: "expiring" }, headers: auth_headers(owner)
+
+      expect(response.parsed_body["contracts"].map { |c| c["id"] }).to eq([ still_running_out.id ])
+      expect(response.parsed_body["counts"]["expiring"]).to eq(1)
+    end
+
+    it "still asks for the money on a queued renewal, on top of the running term" do
+      renewed = create(:contract, client: create(:client, company: company), contract_type: plan)
+      renewed.current_period.update!(status: :active, expires_at: 10.days.from_now, payment_status: :paid)
+      Contracts::Renew.call(contract: renewed, created_by: owner)
+      queued = renewed.reload.next_period
+
+      get "/api/v1/contracts", params: { payment: "unpaid" }, headers: auth_headers(owner)
+
+      body = response.parsed_body
+      expect(body["contracts"].map { |c| c["id"] }).to include(renewed.id)
+
+      row = body["contracts"].find { |c| c["id"] == renewed.id }
+      # The badge still describes the term in force — it is paid — while the
+      # money owed and the period to collect point at the renewal.
+      expect(row["payment_status"]).to eq("paid")
+      expect(row["amount_due"]).to eq(queued.final_price.to_f)
+      expect(row["payable_period_id"]).to eq(queued.id)
+    end
   end
 end

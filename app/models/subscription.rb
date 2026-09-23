@@ -8,8 +8,9 @@
 #
 # Everything else about paying lives in the invoices: "paid until" is the
 # latest period_end, arrears are the periods with no invoice. The free trial
-# is not a special case any more — it is simply the first period, given
-# away, recorded like any other.
+# is the first period, given away: an invoice like any other, flagged
+# `trial` so the gym is shown as trying Fitora rather than as already on a
+# tier it never chose.
 class Subscription < ApplicationRecord
   belongs_to :company
 
@@ -19,6 +20,10 @@ class Subscription < ApplicationRecord
   # before access closes. Three days catches a transfer that crossed a
   # weekend, and is short enough not to be a free extra month.
   GRACE_DAYS = 3
+
+  # What signup gives away. Everything is included; the salle cap is still
+  # the owner's (User#company_limit).
+  TRIAL_DAYS = 14
 
   # Explicit attribute so the enum resolves even when the dev server's code
   # reloader runs before the schema cache has picked up the new column.
@@ -46,21 +51,41 @@ class Subscription < ApplicationRecord
     paid_through.present? && paid_through >= Date.current
   end
 
+  # Nothing has been paid yet: the last period on record is the free one,
+  # running or run out.
+  def trial?
+    latest_invoice&.trial? || false
+  end
+
+  # Free days left, today included. nil outside a trial.
+  def trial_days_left
+    return nil unless trial?
+
+    [ (paid_through - Date.current).to_i + 1, 0 ].max
+  end
+
+  # The grace is for a payment in flight. A trial has none, so it closes the
+  # day after it ends.
+  def grace_days
+    trial? ? 0 : GRACE_DAYS
+  end
+
   # Past the paid period AND past the grace. What the nightly sweep acts on.
   def uncovered?
-    paid_through.nil? || Date.current > paid_through + GRACE_DAYS
+    paid_through.nil? || Date.current > paid_through + grace_days
   end
 
   # Days left before the sweep closes access. nil when nothing is ticking.
   def days_before_lock
     return nil if current_period_paid? || paid_through.nil?
 
-    [ (paid_through + GRACE_DAYS - Date.current).to_i, 0 ].max
+    [ (paid_through + grace_days - Date.current).to_i, 0 ].max
   end
 
   # ---- why the door is shut, in two words ---------------------------------
-  # Suspended is a decision; unpaid is everything else. There is no third
-  # case: an expired trial IS an unpaid period whose first one was free.
+  # Suspended is a decision; unpaid is everything else. An expired trial is
+  # unpaid too — `trial?` is what lets a screen word it as the end of the
+  # free days rather than a missed payment.
   def lock_reason
     return nil if active?
 
@@ -72,9 +97,11 @@ class Subscription < ApplicationRecord
   end
 
   # The period an invoice would cover next: the day after the last one ends,
-  # or today when there is no history.
+  # or today when there is no history. A first payment after the trial ran
+  # out starts today — the days in between were closed, not owed.
   def next_period
     start = paid_through ? paid_through.next_day : Date.current
+    start = [ start, Date.current ].max if trial?
     finish = yearly? ? ((start >> 12) - 1) : ((start >> 1) - 1)
     start..finish
   end
@@ -84,6 +111,8 @@ class Subscription < ApplicationRecord
   # beside it.
   def arrears_cents
     return 0 if current_period_paid?
+    # A trial that ran out was never a promise to pay.
+    return 0 if trial?
 
     # Never invoiced at all: the period in progress is owed. Reporting zero
     # here read as "nothing due" right beside "paid through: never".

@@ -79,6 +79,56 @@ RSpec.describe Subscription do
     end
   end
 
+  describe "the free trial" do
+    def trial_ending(date)
+      subscription = create(:subscription, company: company)
+      create(:invoice, :trial, company: company, period_start: date - (Subscription::TRIAL_DAYS - 1), period_end: date)
+      subscription.reload
+    end
+
+    it "is on trial while the only invoice is the free one" do
+      subscription = trial_ending(Date.current + 13)
+      expect(subscription).to be_trial
+      expect(subscription.trial_days_left).to eq(14)
+    end
+
+    it "counts the last free day as a day left" do
+      expect(trial_ending(Date.current).trial_days_left).to eq(1)
+    end
+
+    it "is no longer on trial once a paid invoice follows it" do
+      subscription = trial_ending(Date.current + 5)
+      create(:invoice, company: company, period_start: Date.current + 6, period_end: Date.current + 36)
+
+      expect(subscription.reload).not_to be_trial
+      expect(subscription.trial_days_left).to be_nil
+    end
+
+    it "gets no grace: uncovered the day after it ends" do
+      subscription = trial_ending(Date.current.prev_day)
+      expect(subscription).to be_uncovered
+      expect(subscription.days_before_lock).to eq(0)
+    end
+
+    it "owes nothing once it has run out" do
+      expect(trial_ending(Date.current - 10).arrears_cents).to eq(0)
+    end
+
+    it "keeps the free days left when the first payment lands during the trial" do
+      subscription = trial_ending(Date.current + 5)
+      expect(subscription.next_period.first).to eq(Date.current + 6)
+    end
+
+    it "starts the first paid period today when the trial already ran out" do
+      subscription = trial_ending(Date.current - 10)
+      expect(subscription.next_period.first).to eq(Date.current)
+    end
+
+    it "is not a trial for a gym paying normally" do
+      expect(paid_until(Date.current.end_of_month)).not_to be_trial
+    end
+  end
+
   describe "#lock_reason — two words, never four" do
     it "is nil while access is open" do
       expect(paid_until(Date.current.end_of_month).lock_reason).to be_nil

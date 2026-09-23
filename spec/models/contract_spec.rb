@@ -191,4 +191,51 @@ RSpec.describe Contract do
       expect(all_access.covered_activities).to contain_exactly(pilates, boxing)
     end
   end
+
+  # A renewal taken before the term runs out is a period that has not begun.
+  # Everything the desk reads off a contract has to keep answering about the
+  # term the member is living under until the day it actually ends.
+  describe "#current_period with a renewal already queued" do
+    let(:quota_plan) { create(:contract_type, unlimited_bookings: false, booking_limit: 10) }
+
+    let(:contract) do
+      create(:contract, contract_type: quota_plan,
+                        starts_at: 10.days.ago, expires_at: 20.days.from_now, remaining_bookings: 4)
+    end
+
+    let!(:running) { contract.current_period }
+
+    let!(:queued) do
+      contract.contract_periods.create!(
+        status: :active, starts_at: 20.days.from_now, expires_at: 50.days.from_now,
+        remaining_bookings: 10, discount: 0, base_price: 100
+      )
+    end
+
+    it "stays on the term in force, not the one sold for later" do
+      expect(contract.reload.current_period).to eq(running)
+      expect(contract.expires_at.to_date).to eq(running.expires_at.to_date)
+      expect(contract.remaining_bookings).to eq(4)
+    end
+
+    it "keeps the queued renewal visible rather than replacing anything" do
+      expect(contract.reload.upcoming_periods).to eq([ queued ])
+      expect(contract.contract_periods.count).to eq(2)
+      expect(contract.covered_through.to_date).to eq(queued.expires_at.to_date)
+    end
+
+    it "hands over to the renewal once the running term has ended" do
+      travel_to(25.days.from_now) do
+        expect(contract.reload.current_period).to eq(queued)
+        expect(contract.upcoming_periods).to be_empty
+      end
+    end
+
+    it "still lets the member book — off the running term's quota" do
+      expect(contract.reload.usable_for?(activity: contract.activity)).to be(true)
+      contract.consume_booking!
+      expect(running.reload.remaining_bookings).to eq(3)
+      expect(queued.reload.remaining_bookings).to eq(10)
+    end
+  end
 end

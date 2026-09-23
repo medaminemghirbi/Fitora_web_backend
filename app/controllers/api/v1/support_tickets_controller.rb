@@ -14,16 +14,21 @@ module Api
       end
 
       # POST /api/v1/support_tickets (multipart/form-data — attachments[] are uploads)
+      #
+      # kind=upgrade marks a plan request from the subscription page, which
+      # must carry a contact_phone (see SupportTicket).
       def create
         ticket = current_company.support_tickets.new(
-          subject: params[:subject], message: params[:message], created_by: current_user
+          subject: params[:subject], message: params[:message], created_by: current_user,
+          kind: SupportTicket.kinds.key?(params[:kind].to_s) ? params[:kind] : :general,
+          contact_phone: params[:contact_phone]
         )
         ticket.attachments.attach(params[:attachments]) if params[:attachments].present?
 
         if ticket.save
           AuditLogs::Record.call(
             company: current_company, user: current_user, action: "support_ticket.created",
-            auditable: ticket, metadata: { subject: ticket.subject }
+            auditable: ticket, metadata: { subject: ticket.subject, kind: ticket.kind }
           )
           render json: { support_ticket: SupportTicketSerializer.new(ticket).as_json }, status: :created
         else

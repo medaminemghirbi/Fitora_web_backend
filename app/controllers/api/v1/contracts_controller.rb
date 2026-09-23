@@ -1,6 +1,23 @@
 module Api
   module V1
     class ContractsController < BaseController
+      # Contract#current_period, in SQL: the last period that has already
+      # STARTED, and only when none has, the nearest upcoming one. Ordering
+      # on the latest starts_at instead would let a renewal booked for next
+      # month decide how the contract is filed today. Correlated on
+      # contracts.id, so it only goes inside a query joined to contracts.
+      CURRENT_PERIOD_SUBQUERY = <<~SQL.squish
+        SELECT cp2.id FROM contract_periods cp2
+        WHERE cp2.contract_id = contracts.id
+        ORDER BY (COALESCE(cp2.starts_at, cp2.created_at) <= :now) DESC,
+                 CASE WHEN COALESCE(cp2.starts_at, cp2.created_at) <= :now
+                      THEN COALESCE(cp2.starts_at, cp2.created_at) END DESC,
+                 CASE WHEN COALESCE(cp2.starts_at, cp2.created_at) > :now
+                      THEN COALESCE(cp2.starts_at, cp2.created_at) END ASC,
+                 cp2.created_at DESC
+        LIMIT 1
+      SQL
+
       before_action :require_company!
       before_action -> { require_capability!(:contracts) }
       before_action :set_contract, only: [ :show, :update, :renew, :cancel, :destroy, :receipt ]
@@ -15,7 +32,7 @@ module Api
         searched = searched_scope
         contracts = searched
         contracts = apply_status(contracts, params[:status]) if params[:status].present?
-        contracts = on_current_period(contracts, :active).where(contract_periods: { payment_status: params[:payment] }) if params[:payment].present?
+        contracts = apply_payment(contracts, params[:payment]) if params[:payment].present?
         contracts = contracts.where(contract_type_id: params[:contract_type_id]) if params[:contract_type_id].present?
 
         render json: {
@@ -134,27 +151,57 @@ module Api
       private
 
       # The list's status filter, and its counts, both look at each contract's
-      # CURRENT (latest) period only — not any period in its history.
+      # CURRENT period only — not any period in its history, and not a
+      # renewal queued for later.
       def apply_status(scope, status)
-        return on_current_period(scope, :active).where(contract_periods: { expires_at: Time.current..30.days.from_now }) if status == "expiring"
+        return expiring_scope(scope) if status == "expiring"
 
         on_current_period(scope, status)
+      end
+
+      # The "Non réglés" filter has to return exactly what its count promises,
+      # so it goes through the same scope the count is built from — which
+      # looks at a queued renewal's unpaid price too, not only the current
+      # term's.
+      def apply_payment(scope, payment)
+        return unpaid_scope(scope) if payment == "unpaid"
+
+        on_current_period(scope, :active).where(contract_periods: { payment_status: payment })
+      end
+
+      # "Running out" means the gym's COVER runs out — a contract already
+      # renewed is not work, even though the term in force still ends this
+      # month. Hence the second clause: nothing sold for later.
+      def expiring_scope(scope)
+        on_current_period(scope, :active)
+          .where(contract_periods: { expires_at: Time.current..30.days.from_now })
+          .where.not(id: with_a_queued_period)
+      end
+
+      # Contracts holding a period that has not started yet — a renewal
+      # waiting its turn. A cancelled one sold nothing, so it does not count.
+      def with_a_queued_period
+        current_company.contract_periods
+                       .where.not(status: :cancelled)
+                       .where("COALESCE(contract_periods.starts_at, contract_periods.created_at) > :now", now: Time.current)
+                       .select(:contract_id)
       end
 
       def on_current_period(scope, status)
         scope.joins(:contract_periods)
              .where(contract_periods: { status: status })
-             .where(<<~SQL.squish)
-               contract_periods.id = (
-                 SELECT cp2.id FROM contract_periods cp2
-                 WHERE cp2.contract_id = contracts.id
-                 ORDER BY cp2.starts_at DESC, cp2.created_at DESC LIMIT 1
-               )
-             SQL
+             .where("contract_periods.id = (#{CURRENT_PERIOD_SUBQUERY})", now: Time.current)
       end
 
       def searched_scope
-        scope = current_company.contracts.includes(:contract_type, :client, :contract_periods).order(created_at: :desc)
+        # preload, not includes, for the periods: every filter here joins
+        # contract_periods and narrows it, and an `includes` would collapse
+        # into that same join — leaving each contract holding only the rows
+        # that matched the filter. Contract#current_period reads the loaded
+        # association, so a filtered one would make it answer about the wrong
+        # period. `preload` always fetches them in a query of its own.
+        scope = current_company.contracts.includes(:contract_type, :client)
+                               .preload(:contract_periods).order(created_at: :desc)
         return scope if params[:q].blank?
 
         t = "%#{params[:q].strip}%"
@@ -180,8 +227,18 @@ module Api
         searched.reorder(nil).group(:contract_type_id).distinct.count
       end
 
+      # Owed money is owed whether it sits on the term in force or on a
+      # renewal queued behind it (a renewal is sold unpaid), so this looks at
+      # both rather than at the current period alone.
       def unpaid_scope(searched)
-        on_current_period(searched, :active).where(contract_periods: { payment_status: :unpaid })
+        searched.joins(:contract_periods)
+                .where(contract_periods: { status: :active, payment_status: :unpaid })
+                .where(<<~SQL.squish, now: Time.current)
+                  (
+                    contract_periods.id = (#{CURRENT_PERIOD_SUBQUERY})
+                    OR COALESCE(contract_periods.starts_at, contract_periods.created_at) > :now
+                  )
+                SQL
       end
 
       # The portfolio is what the ACTIVE contracts were sold for — the frozen
@@ -194,8 +251,7 @@ module Api
           portfolio_value: value.to_f,
           average_basket: count.positive? ? (value.to_f / count).round(2) : 0.0,
           unpaid_value: unpaid_scope(searched).sum("contract_periods.final_price").to_f,
-          expiring_soon: on_current_period(searched, :active)
-            .where(contract_periods: { expires_at: Time.current..30.days.from_now }).distinct.count
+          expiring_soon: expiring_scope(searched).distinct.count
         }
       end
 

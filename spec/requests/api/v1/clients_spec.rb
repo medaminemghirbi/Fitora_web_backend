@@ -58,6 +58,66 @@ RSpec.describe "Api::V1::Clients", type: :request do
       expect(ids).not_to include(without_contract.id)
     end
 
+    it "narrows the list to the holders of one plan" do
+      plan = create(:contract_type, company: company)
+      holder = create(:client, company: company)
+      create(:contract, client: holder, company: company, contract_type: plan)
+      outsider = create(:client, company: company)
+
+      get "/api/v1/clients", params: { contract_type_id: plan.id }, headers: auth_headers(owner)
+
+      ids = response.parsed_body["clients"].map { |c| c["id"] }
+      expect(ids).to eq([ holder.id ])
+      expect(ids).not_to include(outsider.id)
+    end
+
+    it "counts an all-access contract as covering the activity it is filtered on" do
+      yoga = create(:activity, company: company)
+      plan = create(:contract_type, company: company, activity: yoga)
+      all_access = create(:client, company: company)
+      create(:contract, client: all_access, company: company, contract_type: plan, activity: nil)
+
+      get "/api/v1/clients", params: { activity_id: yoga.id }, headers: auth_headers(owner)
+
+      ids = response.parsed_body["clients"].map { |c| c["id"] }
+      expect(ids).to eq([ all_access.id ])
+    end
+
+    it "narrows on when someone joined the gym" do
+      old_hand = create(:client, company: company, joined_at: 2.years.ago)
+      newcomer = create(:client, company: company, joined_at: 2.days.ago)
+
+      get "/api/v1/clients", params: { joined_from: 1.month.ago.to_date.to_s }, headers: auth_headers(owner)
+
+      ids = response.parsed_body["clients"].map { |c| c["id"] }
+      expect(ids).to eq([ newcomer.id ])
+      expect(ids).not_to include(old_hand.id)
+    end
+
+    it "orders on a whitelisted column and ignores anything else" do
+      first_in = create(:client, company: company, first_name: "Zora", joined_at: 3.years.ago)
+      last_in = create(:client, company: company, first_name: "Amel", joined_at: 1.day.ago)
+
+      get "/api/v1/clients", params: { sort: "joined", direction: "desc" }, headers: auth_headers(owner)
+      expect(response.parsed_body["clients"].map { |c| c["id"] }).to eq([ last_in.id, first_in.id ])
+
+      get "/api/v1/clients", params: { sort: "; DROP TABLE clients" }, headers: auth_headers(owner)
+      expect(response).to have_http_status(:ok)
+      expect(response.parsed_body["clients"].map { |c| c["id"] }).to eq([ last_in.id, first_in.id ])
+    end
+
+    it "counts each status against the advanced filters, not the whole gym" do
+      plan = create(:contract_type, company: company)
+      holder = create(:client, company: company)
+      create(:contract, client: holder, company: company, contract_type: plan, status: :active, expires_at: 10.days.from_now)
+      create(:client, company: company)
+
+      get "/api/v1/clients", params: { contract_type_id: plan.id }, headers: auth_headers(owner)
+
+      expect(response.parsed_body["counts"]["all"]).to eq(1)
+      expect(response.parsed_body["counts"]["no_contract"]).to eq(0)
+    end
+
     it "never exposes another company's clients" do
       create(:client, company: company)
       other_org_client = create(:client)

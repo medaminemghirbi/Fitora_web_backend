@@ -24,6 +24,7 @@ module Api
           annual_subscription_cents: company&.annual_subscription_cents || 0,
           annual_discount_percent: company&.annual_discount_percent || 0,
           arrears_cents: subscription&.arrears_cents || 0,
+          trial_days: Subscription::TRIAL_DAYS,
           included_modules: ModuleCatalog::KEYS,
           # How many companies this owner may run, and what each tier costs
           # in their currency — the full comparison, not just their own tier.

@@ -44,20 +44,21 @@ module Api
           # re-permission them or add its own from Settings.
           Role.seed_defaults_for(company)
 
-          # The 14 days are not a special state any more: they are the first
-          # period, given away, recorded like any other. Access is open
-          # because the invoice covers today.
+          # The free days are the first period, given away: an invoice like
+          # any other, flagged so the gym is shown as on trial rather than
+          # on a tier. Access is open because the invoice covers today.
           subscription = company.create_subscription!(active: true, billing_period: :monthly)
           Invoice.create!(
             company: company,
             number: Invoice.next_number,
             period_start: Date.current,
-            period_end: Date.current + 13,
+            period_end: Date.current + (Subscription::TRIAL_DAYS - 1),
             amount_cents: 0,
+            trial: true,
             currency: company.currency,
             billing_period: subscription.billing_period,
             issued_at: Time.current,
-            notes: "Période d'essai — 14 jours offerts"
+            notes: "Période d'essai — #{Subscription::TRIAL_DAYS} jours offerts"
           )
 
 

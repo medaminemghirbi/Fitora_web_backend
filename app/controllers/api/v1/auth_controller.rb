@@ -5,8 +5,10 @@ module Api
 
       # POST /api/v1/auth/register — a gym opening its own account.
       #
-      # Creates the owner's login and nothing else: the gym itself is named
-      # on the next screen (Api::V1::CompaniesController#create), which is
+      # Creates the owner's login and nothing else. The token it returns
+      # opens exactly one screen — "check your inbox" — until the emailed
+      # link is clicked (BaseController#require_confirmed_email!). Only then
+      # is the gym named (Api::V1::CompaniesController#create), which is
       # also where the 14 days start. Splitting it that way keeps this form
       # to three fields for someone who has not seen the product yet.
       #

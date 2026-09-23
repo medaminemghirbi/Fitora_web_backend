@@ -262,6 +262,57 @@ RSpec.describe "Api::V1::Admin::Companies", type: :request do
 
       expect(response).to have_http_status(:forbidden)
     end
+    # Choosing what the next invoice covers is not an access event, and
+    # the owner's feed must not be told access was restored.
+    it "logs a change of formula as that, not as access restored" do
+      company = create(:company)
+      create(:subscription, company: company, billing_period: :monthly)
+
+      patch "/api/v1/admin/companies/#{company.id}/subscription",
+            params: { billing_period: "yearly" }, headers: auth_headers(admin)
+
+      expect(AuditLog.last.action).to eq("subscription.billing_period_changed")
+    end
+  end
+
+  # A formula chosen during the free days only says what the payment will
+  # buy. Access stays the trial's until money arrives, and the paid year
+  # starts where the gift ends.
+  describe "leaving the trial" do
+    let(:company) { create(:company) }
+
+    before do
+      create(:subscription, company: company, billing_period: :monthly)
+      create(:invoice, :trial, company: company)
+    end
+
+    it "keeps the gym on trial when only the formula changes, and says what paying would issue" do
+      patch "/api/v1/admin/companies/#{company.id}/subscription",
+            params: { billing_period: "yearly" }, headers: auth_headers(admin)
+
+      body = response.parsed_body["company"]
+      trial_end = Date.current + (Subscription::TRIAL_DAYS - 1)
+      expect(body["subscription"]["trial"]).to be(true)
+      expect(body["next_invoice"]).to eq(
+        "period_start" => (trial_end + 1).iso8601,
+        "period_end" => (trial_end >> 12).iso8601,
+        "amount_cents" => company.annual_subscription_cents
+      )
+    end
+
+    it "ends the trial with the invoice the preview promised" do
+      patch "/api/v1/admin/companies/#{company.id}/subscription",
+            params: { billing_period: "yearly" }, headers: auth_headers(admin)
+      promised = response.parsed_body["company"]["next_invoice"]
+
+      post "/api/v1/admin/companies/#{company.id}/invoices", headers: auth_headers(admin)
+
+      issued = response.parsed_body["invoice"]
+      expect(issued.values_at("period_start", "period_end")).to eq(promised.values_at("period_start", "period_end"))
+      expect((issued["amount"] * 100).round).to eq(promised["amount_cents"])
+      expect(issued["billing_period"]).to eq("yearly")
+      expect(response.parsed_body["company"]["subscription"]["trial"]).to be(false)
+    end
   end
 
   describe "GET /api/v1/admin/companies?closed=1" do

@@ -33,13 +33,10 @@ module Api
           }
         end
 
-        # PATCH /api/v1/admin/companies/:id/subscription — direct admin
-        # override of a company's access status. No plans, no billing: the
-        # owner is invoiced/paid outside the app, this just grants or
-        # revokes access by hand.
         # PATCH /api/v1/admin/companies/:id/subscription — access is a
         # boolean, so this sets two things: whether the door is open, and
-        # whether an invoice covers one month or twelve.
+        # whether an invoice covers one month or twelve. Neither ends a
+        # trial: only an invoice does (#create_invoice).
         def update_subscription
           subscription = @company.subscription || @company.build_subscription
 
@@ -49,9 +46,16 @@ module Api
           was_active = subscription.active
 
           if subscription.update(attrs)
+            # Only a change of access is an access event. Picking what the
+            # next invoice covers used to be logged as "access restored",
+            # which is what the owner's feed then told them.
+            action =
+              if subscription.active == was_active then "subscription.billing_period_changed"
+              elsif subscription.active? then "subscription.access_restored"
+              else "subscription.access_suspended"
+              end
             AuditLogs::Record.call(
-              company: @company, user: current_user,
-              action: subscription.active? ? "subscription.access_restored" : "subscription.access_suspended",
+              company: @company, user: current_user, action: action,
               auditable: subscription, metadata: { from: was_active, to: subscription.active, billing_period: subscription.billing_period }
             )
             render json: { company: AdminCompanySerializer.new(@company.reload).as_json }

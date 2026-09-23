@@ -29,6 +29,10 @@ class AdminCompanySerializer
       # Owed: periods with no invoice behind them, times the tariff. No
       # longer typed in by hand, so it cannot contradict the history.
       arrears_cents: company.subscription&.arrears_cents || 0,
+      # What "payment received" would issue, read off the same methods
+      # Invoices::Issue uses — so the button can say it before anyone clicks,
+      # and a trial gym's next period is seen to start when the trial ends.
+      next_invoice: next_invoice,
       # What the gym is actually doing with Fitora. An activation decision
       # rests on this far more than on the subscription row: a gym with 180
       # members and a full week of sessions is a different conversation from
@@ -47,6 +51,14 @@ class AdminCompanySerializer
   private
 
   attr_reader :company
+
+  def next_invoice
+    subscription = company.subscription
+    return nil if subscription.nil?
+
+    period = subscription.next_period
+    { period_start: period.first, period_end: period.last, amount_cents: subscription.period_cents }
+  end
 
   def usage
     {

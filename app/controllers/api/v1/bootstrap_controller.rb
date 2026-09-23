@@ -10,6 +10,10 @@ module Api
       # render the "trial expired" screen. Individual feature endpoints stay
       # locked by enforce_trial_lock!.
       skip_before_action :enforce_trial_lock!
+      # Nor does an unconfirmed address stop it: the shell hydrates, finds
+      # user.email_verified false, and routes to the "check your inbox"
+      # screen. Every feature endpoint stays shut by require_confirmed_email!.
+      skip_before_action :require_confirmed_email!
 
       def show
         company = current_company
@@ -51,7 +55,10 @@ module Api
           # Enough for the shell to warn before the door shuts, rather than
           # leaving the owner to discover it mid-task.
           current_period_paid: subscription.current_period_paid?,
-          days_before_lock: subscription.days_before_lock
+          days_before_lock: subscription.days_before_lock,
+          # The shell counts the free days down instead of the unpaid ones.
+          trial: subscription.trial?,
+          trial_days_left: subscription.trial_days_left
         }
       end
     end

@@ -3,7 +3,7 @@ require "rails_helper"
 RSpec.describe "Api::V1::EmailVerifications", type: :request do
   describe "POST /api/v1/email_verifications" do
     it "sends a verification email to the signed-in owner" do
-      owner = create(:user, :owner)
+      owner = create(:user, :owner, :unverified)
 
       expect {
         post "/api/v1/email_verifications", headers: auth_headers(owner)
@@ -22,12 +22,33 @@ RSpec.describe "Api::V1::EmailVerifications", type: :request do
 
     it "refuses to resend once already verified" do
       owner = create(:user, :owner)
-      owner.generate_email_verification_token!
-      owner.verify_email!
 
       post "/api/v1/email_verifications", headers: auth_headers(owner)
 
       expect(response).to have_http_status(:unprocessable_content)
+    end
+
+    # A double click, or an impatient third one, must not bury the inbox in
+    # identical links. The screen counts down from the same number.
+    it "waits a minute between two sends, and says how long is left" do
+      owner = create(:user, :owner, :unverified)
+      owner.generate_email_verification_token!
+
+      post "/api/v1/email_verifications", headers: auth_headers(owner)
+
+      expect(response).to have_http_status(:too_many_requests)
+      expect(response.parsed_body["retry_in"]).to be_between(1, 60)
+    end
+
+    it "sends again once the minute is up" do
+      owner = create(:user, :owner, :unverified)
+      owner.generate_email_verification_token!
+
+      travel 61.seconds do
+        expect {
+          post "/api/v1/email_verifications", headers: auth_headers(owner)
+        }.to have_enqueued_mail(AccountMailer, :email_verification)
+      end
     end
 
     it "requires authentication" do
@@ -39,7 +60,7 @@ RSpec.describe "Api::V1::EmailVerifications", type: :request do
 
   describe "PATCH /api/v1/email_verifications/:token" do
     it "verifies with a valid token" do
-      owner = create(:user, :owner)
+      owner = create(:user, :owner, :unverified)
       raw = owner.generate_email_verification_token!
 
       patch "/api/v1/email_verifications/#{raw}"

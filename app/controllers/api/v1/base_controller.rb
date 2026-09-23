@@ -3,6 +3,7 @@ module Api
     class BaseController < ApplicationController
       before_action :authenticate_request!
       before_action :reject_member_token!
+      before_action :require_confirmed_email!
       before_action :enforce_trial_lock!
 
       private
@@ -23,6 +24,23 @@ module Api
         return if self.class.name.to_s.start_with?("Api::V1::Me::")
 
         render_forbidden
+      end
+
+      # An owner who signed up and has not clicked the link yet reaches
+      # nothing here — not even naming their gym, which is where the trial
+      # starts. What they need meanwhile (who am I, send it again) lives in
+      # AuthController and EmailVerificationsController, outside this base.
+      #
+      # An admin impersonating them is let through: they are there to help,
+      # and the address is not theirs to confirm.
+      def require_confirmed_email!
+        return if current_user.nil? || current_impersonator.present?
+        return unless current_user.email_confirmation_pending?
+
+        render json: {
+          error: "email_unverified",
+          message: "Confirm your email address to open your account. We sent the link to #{current_user.email}."
+        }, status: :forbidden
       end
 
       # The only endpoints a locked company's owner can still reach — enough
@@ -58,17 +76,20 @@ module Api
 
         render json: {
           error: subscription.lock_reason.to_s,
-          message: lock_message(subscription.lock_reason)
+          message: lock_message(subscription)
         }, status: :payment_required
       end
 
       # Why the door is shut, in words the person reading them can act on.
       # Staff are told to talk to their owner whatever the reason: the money
       # is not theirs to settle and the detail is not theirs to see.
-      def lock_message(reason)
+      def lock_message(subscription)
         return "This gym's account is locked. Contact your gym owner." unless current_user.owner?
 
-        if reason == :unpaid
+        reason = subscription.lock_reason
+        if reason == :unpaid && subscription.trial?
+          "Your free trial has ended. Choose a plan and settle with Fitora to reopen access."
+        elsif reason == :unpaid
           "The period you paid for has run out. Access closed #{Subscription::GRACE_DAYS} days later; settle with Fitora to reopen it."
         else
           "Your access has been suspended by Fitora. Get in touch to find out why."

@@ -34,6 +34,17 @@ RSpec.describe "Api::V1::Companies", type: :request do
       expect(created.enabled_module_keys).to match_array(%w[base] + ModuleCatalog::KEYS)
     end
 
+    it "opens on the free trial, not on a tier" do
+      post "/api/v1/companies", params: { company: { name: "Iron Box", timezone: "Africa/Tunis", currency: "TND" } },
+                                 headers: auth_headers(fresh_owner)
+
+      subscription = Company.find_by(owner: fresh_owner).subscription
+      expect(subscription).to be_active
+      expect(subscription).to be_trial
+      expect(subscription.trial_days_left).to eq(Subscription::TRIAL_DAYS)
+      expect(subscription.latest_invoice.amount_cents).to eq(0)
+    end
+
     it "becomes the owner's active company immediately" do
       post "/api/v1/companies", params: { company: { name: "Iron Box", timezone: "Africa/Tunis", currency: "TND" } },
                                  headers: auth_headers(fresh_owner)

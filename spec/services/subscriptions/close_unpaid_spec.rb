@@ -29,6 +29,24 @@ RSpec.describe Subscriptions::CloseUnpaid do
     expect(subscription.reload).to be_active
   end
 
+  it "closes a trial the day after its free days end, with no grace" do
+    company = create(:company)
+    subscription = create(:subscription, company: company)
+    create(:invoice, :trial, company: company, period_start: Date.current - 14, period_end: Date.current.prev_day)
+
+    expect(described_class.call.closed_count).to eq(1)
+    expect(subscription.reload).not_to be_active
+  end
+
+  it "leaves a trial alone on its last free day" do
+    company = create(:company)
+    subscription = create(:subscription, company: company)
+    create(:invoice, :trial, company: company, period_start: Date.current - 13, period_end: Date.current)
+
+    described_class.call
+    expect(subscription.reload).to be_active
+  end
+
   it "closes a gym that never had an invoice at all" do
     _company, subscription = gym(period_end: nil)
 

@@ -15,7 +15,11 @@ class SubscriptionSerializer
       # What the invoices say, for the screens that show a countdown.
       paid_through: subscription.paid_through,
       current_period_paid: subscription.current_period_paid?,
-      days_before_lock: subscription.days_before_lock
+      days_before_lock: subscription.days_before_lock,
+      # Still on the free days (or just past them): nothing paid yet, so no
+      # tier chosen yet either.
+      trial: subscription.trial?,
+      trial_days_left: subscription.trial_days_left
     }
   end
 

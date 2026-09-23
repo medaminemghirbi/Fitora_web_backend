@@ -1,7 +1,7 @@
 require "rails_helper"
 
 RSpec.describe EmailVerifiable, type: :model do
-  let(:user) { create(:user, :owner) }
+  let(:user) { create(:user, :owner, :unverified) }
 
   it "starts unverified" do
     expect(user.email_verified?).to be false

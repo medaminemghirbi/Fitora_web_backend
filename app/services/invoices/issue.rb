@@ -31,7 +31,7 @@ module Invoices
           number: Invoice.next_number,
           period_start: period.first,
           period_end: period.last,
-          amount_cents: amount_cents_for(subscription),
+          amount_cents: subscription.period_cents,
           currency: company.currency,
           billing_period: subscription.billing_period || :monthly,
           issued_at: Time.current,
@@ -54,12 +54,6 @@ module Invoices
 
     def failure(message)
       Result.new(success?: false, invoice: nil, error: message)
-    end
-
-    def amount_cents_for(subscription)
-      return company.annual_subscription_cents.to_i if subscription.yearly?
-
-      company.monthly_subscription_cents.to_i
     end
   end
 end

@@ -20,5 +20,13 @@ FactoryBot.define do
       period_start { Date.current - 40 }
       period_end { Date.current - 10 }
     end
+
+    # The free days signup gives away — see CompaniesController#create.
+    trait :trial do
+      trial { true }
+      amount_cents { 0 }
+      period_start { Date.current }
+      period_end { Date.current + (Subscription::TRIAL_DAYS - 1) }
+    end
   end
 end

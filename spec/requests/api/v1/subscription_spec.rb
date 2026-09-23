@@ -18,6 +18,19 @@ RSpec.describe "Api::V1::Subscription", type: :request do
       expect(body["invoices"].map { |i| i["number"] }).to eq([ "FIT-2026-0001" ])
     end
 
+    it "says a gym on its free days is on trial, and how many are left" do
+      create(:subscription, company: company)
+      create(:invoice, :trial, company: company)
+
+      get "/api/v1/subscription", headers: auth_headers(owner)
+
+      body = response.parsed_body
+      expect(body["subscription"]["trial"]).to be true
+      expect(body["subscription"]["trial_days_left"]).to eq(Subscription::TRIAL_DAYS)
+      expect(body["trial_days"]).to eq(Subscription::TRIAL_DAYS)
+      expect(body["arrears_cents"]).to eq(0)
+    end
+
     it "counts what is owed rather than taking it from a field" do
       create(:subscription, company: company)
       create(:invoice, company: company, period_start: Date.current - 60, period_end: Date.current.prev_month.end_of_month)

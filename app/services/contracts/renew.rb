@@ -18,7 +18,13 @@ module Contracts
     def call
       plan = contract.contract_type
       current = contract.current_period
-      starts_at = [ current&.expires_at, Time.current ].compact.max
+
+      # Queues behind EVERYTHING already sold, not merely behind the current
+      # term: renew twice in a row and the second period starts where the
+      # first one ends. A term still running is left untouched and keeps its
+      # dates, its price and its remaining sessions until its last day — the
+      # renewal simply waits its turn (Contract#current_period).
+      starts_at = [ contract.covered_through, Time.current ].compact.max
 
       # A renewal is a new sale, so it takes today's tariff for this
       # activity — the previous period keeps whatever it was sold at. Falls

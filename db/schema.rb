@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_09_20_090000) do
+ActiveRecord::Schema[8.1].define(version: 2026_09_23_090000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "btree_gist"
   enable_extension "pg_catalog.plpgsql"
@@ -271,6 +271,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_20_090000) do
     t.string "number", null: false
     t.date "period_end", null: false
     t.date "period_start", null: false
+    t.boolean "trial", default: false, null: false
     t.datetime "updated_at", null: false
     t.index ["company_id", "period_start"], name: "index_invoices_on_company_id_and_period_start"
     t.index ["company_id"], name: "index_invoices_on_company_id"
@@ -442,8 +443,10 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_20_090000) do
 
   create_table "support_tickets", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
     t.uuid "company_id", null: false
+    t.string "contact_phone"
     t.datetime "created_at", null: false
     t.uuid "created_by_id", null: false
+    t.integer "kind", default: 0, null: false
     t.text "message", null: false
     t.integer "status", default: 0, null: false
     t.string "subject", null: false

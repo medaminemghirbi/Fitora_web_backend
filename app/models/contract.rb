@@ -23,16 +23,67 @@ class Contract < ApplicationRecord
   validates :client_id, uniqueness: { scope: [ :contract_type_id, :activity_id ] }
 
   # Every reasoning about "the client's contract" (status, dates, price,
-  # remaining sessions) is really about their CURRENT term — the latest
-  # period — so it's delegated rather than stored flat on Contract itself.
+  # remaining sessions) is really about their CURRENT term — the period in
+  # force today — so it's delegated rather than stored flat on Contract
+  # itself.
   # Not memoized: #reload doesn't know to clear a plain ivar, and this
   # isn't a hot enough path to be worth the staleness risk.
   delegate :status, :starts_at, :expires_at, :remaining_bookings, :discount, :final_price, :payment_status,
            :pending?, :active?, :expired?, :cancelled?, :unpaid?, :paid?,
            to: :current_period, allow_nil: true
 
+  # The period IN FORCE TODAY — the latest one that has already started,
+  # not simply the latest one on file. The difference is the whole point of
+  # renewing early: a renewal queued while the running term still has weeks
+  # left is a FUTURE period, and reading it as "current" would hide the term
+  # the member is actually living under (its dates, its price, its remaining
+  # sessions) behind one that hasn't begun. Both are kept; only one is
+  # current. Before anything has started — a contract sold to start next
+  # month — the nearest upcoming period stands in, so the contract is never
+  # period-less.
   def current_period
-    contract_periods.order(starts_at: :desc, created_at: :desc).first
+    started, upcoming = periods_by_time
+    started.last || upcoming.first
+  end
+
+  # The renewals waiting behind the current term, soonest first. Never
+  # touched by the everyday reads above: they exist to be SHOWN, so nobody
+  # sells the same month twice.
+  def upcoming_periods
+    _started, upcoming = periods_by_time
+    upcoming
+  end
+
+  def next_period
+    upcoming_periods.first
+  end
+
+  # Everything still owed on this contract: the current term plus any
+  # renewal queued behind it. A renewal is sold unpaid, and since it is no
+  # longer the current period, reading the current one alone would make the
+  # money the gym is owed for it disappear from the desk's screens.
+  def unpaid_periods
+    started, upcoming = periods_by_time
+    ([ started.last ] + upcoming).compact.reject(&:cancelled?).select(&:unpaid?)
+  end
+
+  # What "Encaisser" settles: the oldest thing still owed, so a queued
+  # renewal is collected once the current term has been.
+  def payable_period
+    unpaid_periods.first
+  end
+
+  def amount_due
+    unpaid_periods.sum { |p| p.final_price.to_f }
+  end
+
+  # The end of everything already sold — where a renewal has to start so it
+  # queues behind the current term instead of overlapping it, including when
+  # a renewal is queued behind an earlier renewal. A cancelled period sold
+  # nothing, so re-subscribing after a cancellation starts today rather than
+  # at the end of the term that was given up.
+  def covered_through
+    contract_periods.reject(&:cancelled?).filter_map(&:expires_at).max
   end
 
   # `period:` lets a caller re-check eligibility against an already-locked
@@ -93,5 +144,22 @@ class Contract < ApplicationRecord
     return if current_period&.remaining_bookings.nil?
 
     current_period.increment!(:remaining_bookings)
+  end
+
+  private
+
+  # Splits the contract's periods in two at "now", each side in chronological
+  # order. Sorted in Ruby rather than SQL so a preloaded association is read
+  # from memory (the contracts list preloads :contract_periods and asks every
+  # row for its current period) — which means a caller must PRELOAD the
+  # periods, never `includes` them alongside a filter on contract_periods:
+  # that collapses into one join and leaves the association holding only the
+  # matching rows, and this would then answer about the wrong period. A period with no start date counts as
+  # started — it was written before dates were required, and pretending it
+  # lies in the future would hide it forever.
+  def periods_by_time
+    now = Time.current
+    sorted = contract_periods.to_a.sort_by { |p| [ p.starts_at || p.created_at, p.created_at ] }
+    sorted.partition { |p| (p.starts_at || p.created_at) <= now }
   end
 end
