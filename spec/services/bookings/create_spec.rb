@@ -4,8 +4,8 @@ RSpec.describe Bookings::Create do
   # Every booking is now settled against the member's contract, so a client
   # needs a plan covering the session's company before they can book.
   def contract_for(client, session)
-    plan = create(:contract_type, company: session.location.company, unlimited_bookings: true)
-    create(:contract, client: client, contract_type: plan)
+    plan = create(:contract_type, company: session.company, unlimited_bookings: true)
+    create(:contract, client: client, contract_type: plan, activity: session.activity)
   end
 
   it "confirms a booking when the client has a covering contract and capacity is available" do
@@ -86,9 +86,10 @@ RSpec.describe Bookings::Create do
     company = create(:company)
     client = create(:client, company: company)
     plan = create(:contract_type, company: company, unlimited_bookings: false, booking_limit: 1)
-    contract = create(:contract, client: client, contract_type: plan, remaining_bookings: 1)
-    session_a = create(:session, activity: create(:activity, location: company.locations.first), capacity: 5)
-    session_b = create(:session, activity: session_a.activity, location: session_a.location, capacity: 5)
+    activity = create(:activity, company: company)
+    contract = create(:contract, client: client, contract_type: plan, activity: activity, remaining_bookings: 1)
+    session_a = create(:session, activity: activity, capacity: 5)
+    session_b = create(:session, activity: session_a.activity, company: session_a.company, capacity: 5)
 
     results = [ session_a, session_b ].map do |session|
       Thread.new do

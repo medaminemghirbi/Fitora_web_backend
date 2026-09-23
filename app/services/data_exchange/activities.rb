@@ -1,6 +1,5 @@
 module DataExchange
-  # CSV round-trip for the activity catalogue — created against the
-  # company's one location (see Location's "singular resource" note).
+  # CSV round-trip for the activity catalogue.
   class Activities
     HEADERS = %w[name session_format duration_minutes capacity emoji description].freeze
     EXAMPLE_ROW = [ "Yoga", "collective", "60", "20", "🧘", "" ].freeze
@@ -15,21 +14,18 @@ module DataExchange
     def self.export_csv(company)
       CSV.generate do |csv|
         csv << HEADERS
-        company.locations.first&.activities&.order(:created_at)&.find_each do |activity|
+        company.activities.order(:created_at).find_each do |activity|
           csv << [ activity.name, activity.session_format, activity.duration, activity.capacity, activity.emoji, activity.description ]
         end
       end
     end
 
     def self.import_csv(company:, user:, io:)
-      location = company.locations.first
-      return { created: 0, errors: [ { row: 1, message: "No location found for this company" } ] } unless location
-
       created = 0
       errors = []
 
       CSV.parse(io.read, headers: true).each_with_index do |row, index|
-        activity = location.activities.new(
+        activity = company.activities.new(
           name: row["name"].to_s.strip,
           session_format: row["session_format"].to_s.strip,
           duration: row["duration_minutes"],

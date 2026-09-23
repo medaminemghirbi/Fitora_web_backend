@@ -1,0 +1,105 @@
+require "rails_helper"
+
+# Access is a boolean. These are the two ways it becomes false, and what
+# each one tells the person who hits the door.
+RSpec.describe "Access lock", type: :request do
+  let(:owner) { create(:user, :owner) }
+  let!(:company) { create(:company, owner: owner) }
+  let(:staff) { create(:staff_member, company: company, role: :receptionist).user }
+
+  describe "a gym whose access is open" do
+    it "is never blocked" do
+      create(:subscription, company: company)
+      create(:invoice, :current, company: company)
+
+      get "/api/v1/clients", headers: auth_headers(owner)
+
+      expect(response).to have_http_status(:ok)
+    end
+  end
+
+  describe "a gym whose access is closed" do
+    it "blocks the owner out of ordinary company endpoints" do
+      create(:subscription, :closed, company: company)
+
+      get "/api/v1/clients", headers: auth_headers(owner)
+
+      expect(response).to have_http_status(:payment_required)
+    end
+
+    it "says it is the money when the invoices ran out" do
+      create(:subscription, :closed, company: company)
+      create(:invoice, :lapsed, company: company)
+
+      get "/api/v1/clients", headers: auth_headers(owner)
+
+      expect(response.parsed_body["error"]).to eq("unpaid")
+      expect(response.parsed_body["message"]).to include("settle")
+    end
+
+    it "says it was a decision when the gym is paid up" do
+      create(:subscription, :closed, company: company)
+      create(:invoice, :current, company: company)
+
+      get "/api/v1/clients", headers: auth_headers(owner)
+
+      expect(response.parsed_body["error"]).to eq("suspended")
+      expect(response.parsed_body["message"]).to include("suspended")
+    end
+
+    it "tells staff to talk to their owner, never what is owed" do
+      create(:subscription, :closed, company: company)
+      create(:invoice, :lapsed, company: company)
+
+      get "/api/v1/clients", headers: auth_headers(staff)
+
+      expect(response).to have_http_status(:payment_required)
+      expect(response.parsed_body["message"]).to include("gym owner")
+      expect(response.parsed_body["message"]).not_to include("settle")
+    end
+
+    it "blocks every staff role, not only the owner" do
+      create(:subscription, :closed, company: company)
+
+      get "/api/v1/clients", headers: auth_headers(staff)
+
+      expect(response).to have_http_status(:payment_required)
+    end
+  end
+
+  # The way out must never be behind the door it closed.
+  describe "what a locked owner can still reach" do
+    before do
+      create(:subscription, :closed, company: company)
+      create(:invoice, :lapsed, company: company)
+    end
+
+    it "sees what they owe" do
+      get "/api/v1/subscription", headers: auth_headers(owner)
+      expect(response).to have_http_status(:ok)
+    end
+
+    it "lists the invoices they already have" do
+      get "/api/v1/invoices", headers: auth_headers(owner)
+      expect(response).to have_http_status(:ok)
+    end
+
+    it "downloads one of them" do
+      invoice = company.invoices.first
+
+      get "/api/v1/invoices/#{invoice.id}", headers: auth_headers(owner)
+
+      expect(response).to have_http_status(:ok)
+      expect(response.media_type).to eq("application/pdf")
+    end
+
+    it "still switches to another company of theirs" do
+      other = create(:company, owner: owner)
+      create(:subscription, company: other)
+
+      post "/api/v1/companies/#{other.id}/switch", headers: auth_headers(owner)
+
+      expect(response).to have_http_status(:ok)
+    end
+  end
+end

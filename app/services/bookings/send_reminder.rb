@@ -30,7 +30,7 @@ module Bookings
 
     def message
       session = booking.session
-      company_name = session.location.company.name
+      company_name = session.company.name
 
       "Bonjour #{booking.client.first_name}, rappel : #{session.activity.name} le " \
         "#{session.starts_at.strftime('%d/%m/%Y à %H:%M')} chez #{company_name}."

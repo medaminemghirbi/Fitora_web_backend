@@ -97,74 +97,6 @@ RSpec.describe "Api::V1::Admin::Companies", type: :request do
     end
   end
 
-  describe "PATCH /api/v1/admin/companies/:id/subscription" do
-    it "overrides a company's access status directly, with no payment involved" do
-      company = create(:company)
-      create(:subscription, company: company, status: :inactive)
-
-      patch "/api/v1/admin/companies/#{company.id}/subscription",
-            params: { status: "active" },
-            headers: auth_headers(admin)
-
-      expect(response).to have_http_status(:ok)
-      expect(company.reload.subscription.status).to eq("active")
-      expect(Payment.count).to eq(0)
-    end
-
-    it "creates a subscription when the company has none yet" do
-      company = create(:company)
-
-      patch "/api/v1/admin/companies/#{company.id}/subscription",
-            params: { status: "active" },
-            headers: auth_headers(admin)
-
-      expect(response).to have_http_status(:ok)
-      expect(company.reload.subscription).to be_present
-      expect(company.subscription.status).to eq("active")
-    end
-
-    it "activates a real subscription with a billing period and clears the owner's request" do
-      company = create(:company)
-      sub = create(:subscription, company: company, status: :active, expires_at: 5.days.from_now)
-      sub.request_upgrade!(period: "yearly")
-
-      patch "/api/v1/admin/companies/#{company.id}/subscription",
-            params: { status: "active", billing_period: "yearly", expires_at: "2027-09-09" },
-            headers: auth_headers(admin)
-
-      expect(response).to have_http_status(:ok)
-      sub.reload
-      expect(sub.billing_period).to eq("yearly")
-      expect(sub.on_trial?).to be false
-      expect(sub.upgrade_requested?).to be false
-      expect(response.parsed_body["company"]["subscription"]).to include("billing_period" => "yearly", "on_trial" => false)
-    end
-  end
-
-  describe "PATCH /api/v1/admin/companies/:id/debt" do
-    it "records the company's outstanding balance" do
-      company = create(:company)
-
-      patch "/api/v1/admin/companies/#{company.id}/debt",
-            params: { debt_cents: 15_000 },
-            headers: auth_headers(admin)
-
-      expect(response).to have_http_status(:ok)
-      expect(company.reload.debt_cents).to eq(15_000)
-      expect(response.parsed_body["company"]["debt_cents"]).to eq(15_000)
-    end
-
-    it "rejects a negative balance" do
-      company = create(:company)
-
-      patch "/api/v1/admin/companies/#{company.id}/debt",
-            params: { debt_cents: -100 },
-            headers: auth_headers(admin)
-
-      expect(response).to have_http_status(:unprocessable_content)
-    end
-  end
-
   describe "PATCH /api/v1/admin/companies/:id/company_limit" do
     it "raises the owner's tier, affecting every company they run" do
       company = create(:company)
@@ -223,43 +155,6 @@ RSpec.describe "Api::V1::Admin::Companies", type: :request do
     end
   end
 
-  describe "PATCH /api/v1/admin/companies/:id/mobile_key" do
-    it "sets the mobile pairing key to a specific admin-chosen value" do
-      company = create(:company)
-
-      patch "/api/v1/admin/companies/#{company.id}/mobile_key", params: { mobile_auth_key: "powergym1" }, headers: auth_headers(admin)
-
-      expect(response).to have_http_status(:ok)
-      expect(company.reload.mobile_auth_key).to eq("powergym1")
-    end
-
-    it "rejects an uppercase or symbol-containing key" do
-      company = create(:company)
-
-      patch "/api/v1/admin/companies/#{company.id}/mobile_key", params: { mobile_auth_key: "Power-Gym!" }, headers: auth_headers(admin)
-
-      expect(response).to have_http_status(:unprocessable_content)
-    end
-
-    it "rejects a key already used by another company" do
-      create(:company, mobile_auth_key: "takenkey")
-      company = create(:company)
-
-      patch "/api/v1/admin/companies/#{company.id}/mobile_key", params: { mobile_auth_key: "takenkey" }, headers: auth_headers(admin)
-
-      expect(response).to have_http_status(:unprocessable_content)
-    end
-
-    it "forbids a non-admin from setting the key" do
-      company = create(:company)
-      owner = create(:user, :owner)
-
-      patch "/api/v1/admin/companies/#{company.id}/mobile_key", params: { mobile_auth_key: "powergym1" }, headers: auth_headers(owner)
-
-      expect(response).to have_http_status(:forbidden)
-    end
-  end
-
   describe "POST /api/v1/admin/companies/:id/impersonate" do
     it "issues a real session for the company's owner, not the admin" do
       company = create(:company)
@@ -300,6 +195,191 @@ RSpec.describe "Api::V1::Admin::Companies", type: :request do
       owner = create(:user, :owner)
 
       post "/api/v1/admin/companies/#{company.id}/impersonate", headers: auth_headers(owner)
+
+      expect(response).to have_http_status(:forbidden)
+    end
+  end
+
+  describe "what an activation decision needs to know" do
+    it "reports what the gym is actually doing with Fitora" do
+      company = create(:company)
+      create(:subscription, company: company)
+      activity = create(:activity, company: company)
+      create(:session, company: company, activity: activity, starts_at: 3.days.ago, ends_at: 3.days.ago + 1.hour)
+      create(:session, company: company, activity: activity, starts_at: 90.days.ago, ends_at: 90.days.ago + 1.hour)
+      create(:client, company: company)
+
+      get "/api/v1/admin/companies/#{company.id}", headers: auth_headers(admin)
+
+      usage = response.parsed_body["company"]["usage"]
+      expect(usage["clients"]).to eq(1)
+      expect(usage["activities"]).to eq(1)
+      # The old session counts towards "ever", never towards the last month.
+      expect(usage["sessions_last_30_days"]).to eq(1)
+      expect(usage["last_session_at"]).to be_present
+    end
+
+    it "reads zero for a gym that signed up and never came back" do
+      company = create(:company)
+      create(:subscription, company: company)
+
+      get "/api/v1/admin/companies/#{company.id}", headers: auth_headers(admin)
+
+      usage = response.parsed_body["company"]["usage"]
+      expect(usage.values_at("clients", "staff", "activities", "sessions_last_30_days")).to all(eq(0))
+      expect(usage["last_session_at"]).to be_nil
+    end
+  end
+  describe "PATCH /api/v1/admin/companies/:id/subscription" do
+    it "opens and closes access, because access is a boolean" do
+      company = create(:company)
+      create(:subscription, company: company)
+
+      patch "/api/v1/admin/companies/#{company.id}/subscription",
+            params: { active: false }, headers: auth_headers(admin)
+
+      expect(response).to have_http_status(:ok)
+      expect(company.subscription.reload).not_to be_active
+      expect(AuditLog.last.action).to eq("subscription.access_suspended")
+    end
+
+    it "creates a subscription for a company that has none yet" do
+      company = create(:company)
+
+      patch "/api/v1/admin/companies/#{company.id}/subscription",
+            params: { billing_period: "yearly" }, headers: auth_headers(admin)
+
+      expect(response).to have_http_status(:ok)
+      expect(company.reload.subscription.billing_period).to eq("yearly")
+    end
+
+    it "is admin-only" do
+      company = create(:company)
+      create(:subscription, company: company)
+
+      patch "/api/v1/admin/companies/#{company.id}/subscription",
+            params: { active: false }, headers: auth_headers(company.owner)
+
+      expect(response).to have_http_status(:forbidden)
+    end
+    # Choosing what the next invoice covers is not an access event, and
+    # the owner's feed must not be told access was restored.
+    it "logs a change of formula as that, not as access restored" do
+      company = create(:company)
+      create(:subscription, company: company, billing_period: :monthly)
+
+      patch "/api/v1/admin/companies/#{company.id}/subscription",
+            params: { billing_period: "yearly" }, headers: auth_headers(admin)
+
+      expect(AuditLog.last.action).to eq("subscription.billing_period_changed")
+    end
+  end
+
+  # A formula chosen during the free days only says what the payment will
+  # buy. Access stays the trial's until money arrives, and the paid year
+  # starts where the gift ends.
+  describe "leaving the trial" do
+    let(:company) { create(:company) }
+
+    before do
+      create(:subscription, company: company, billing_period: :monthly)
+      create(:invoice, :trial, company: company)
+    end
+
+    it "keeps the gym on trial when only the formula changes, and says what paying would issue" do
+      patch "/api/v1/admin/companies/#{company.id}/subscription",
+            params: { billing_period: "yearly" }, headers: auth_headers(admin)
+
+      body = response.parsed_body["company"]
+      trial_end = Date.current + (Subscription::TRIAL_DAYS - 1)
+      expect(body["subscription"]["trial"]).to be(true)
+      expect(body["next_invoice"]).to eq(
+        "period_start" => (trial_end + 1).iso8601,
+        "period_end" => (trial_end >> 12).iso8601,
+        "amount_cents" => company.annual_subscription_cents
+      )
+    end
+
+    it "ends the trial with the invoice the preview promised" do
+      patch "/api/v1/admin/companies/#{company.id}/subscription",
+            params: { billing_period: "yearly" }, headers: auth_headers(admin)
+      promised = response.parsed_body["company"]["next_invoice"]
+
+      post "/api/v1/admin/companies/#{company.id}/invoices", headers: auth_headers(admin)
+
+      issued = response.parsed_body["invoice"]
+      expect(issued.values_at("period_start", "period_end")).to eq(promised.values_at("period_start", "period_end"))
+      expect((issued["amount"] * 100).round).to eq(promised["amount_cents"])
+      expect(issued["billing_period"]).to eq("yearly")
+      expect(response.parsed_body["company"]["subscription"]["trial"]).to be(false)
+    end
+  end
+
+  describe "GET /api/v1/admin/companies?closed=1" do
+    it "narrows to the gyms whose access is shut, and counts them either way" do
+      create(:subscription, company: create(:company, name: "Ouverte"))
+      create(:subscription, :closed, company: create(:company, name: "Fermée"))
+
+      get "/api/v1/admin/companies", headers: auth_headers(admin)
+      expect(response.parsed_body["closed_count"]).to eq(1)
+      expect(response.parsed_body["companies"].map { |c| c["name"] }).to eq([ "Fermée", "Ouverte" ])
+
+      get "/api/v1/admin/companies", params: { closed: "1" }, headers: auth_headers(admin)
+      expect(response.parsed_body["companies"].map { |c| c["name"] }).to eq([ "Fermée" ])
+    end
+  end
+
+  describe "the money arriving" do
+    let(:company) { create(:company) }
+
+    it "issues one invoice for the next uncovered period and reopens access" do
+      subscription = create(:subscription, :closed, company: company, billing_period: :monthly)
+      create(:invoice, company: company, period_start: Date.new(2026, 7, 1), period_end: Date.new(2026, 7, 31))
+
+      expect {
+        post "/api/v1/admin/companies/#{company.id}/invoices", headers: auth_headers(admin)
+      }.to change(Invoice, :count).by(1)
+
+      expect(response).to have_http_status(:created)
+      issued = company.invoices.newest_first.first
+      expect(issued.period_start).to eq(Date.new(2026, 8, 1))
+      expect(issued.period_end).to eq(Date.new(2026, 8, 31))
+      expect(subscription.reload).to be_active
+      expect(AuditLog.last.action).to eq("subscription.invoice_issued")
+    end
+
+    it "freezes the amount, so a later price change cannot rewrite it" do
+      create(:subscription, company: company, billing_period: :monthly)
+
+      post "/api/v1/admin/companies/#{company.id}/invoices", headers: auth_headers(admin)
+      issued_cents = response.parsed_body["invoice"]["amount"] * 100
+
+      expect(issued_cents.round).to eq(company.monthly_subscription_cents)
+    end
+
+    it "tells the gym's owner it was issued" do
+      create(:subscription, company: company)
+
+      expect {
+        post "/api/v1/admin/companies/#{company.id}/invoices", headers: auth_headers(admin)
+      }.to change { company.owner.notifications.where(kind: "invoice_issued").count }.by(1)
+    end
+
+    it "voids one issued in error" do
+      create(:subscription, company: company)
+      invoice = create(:invoice, company: company)
+
+      expect {
+        delete "/api/v1/admin/companies/#{company.id}/invoices/#{invoice.id}", headers: auth_headers(admin)
+      }.to change(Invoice, :count).by(-1)
+
+      expect(AuditLog.last.action).to eq("subscription.invoice_voided")
+    end
+
+    it "is closed to anyone who is not a Fitora admin" do
+      create(:subscription, company: company)
+
+      post "/api/v1/admin/companies/#{company.id}/invoices", headers: auth_headers(company.owner)
 
       expect(response).to have_http_status(:forbidden)
     end

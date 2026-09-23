@@ -1,5 +1,5 @@
 class Notification < ApplicationRecord
-  KINDS = %w[contract_expiring employee_birthday system_update].freeze
+  KINDS = %w[contract_expiring employee_birthday system_update invoice_issued].freeze
 
   # Company-scoped events (contract expiry, birthdays) always carry
   # one; a platform-level event fanned out to Fitora admins (system_update)

@@ -39,7 +39,9 @@ namespace :load_test do
       owner = User.create!(
         first_name: "Owner", last_name: i.to_s,
         email: "loadtest-owner-#{i}@fitora.load",
-        password: password, role: :owner, locale: "fr"
+        password: password, role: :owner, locale: "fr",
+        # An unconfirmed owner reaches nothing (BaseController#require_confirmed_email!).
+        email_verified_at: Time.current
       )
 
       company = Company.new(name: "Load Test Gym #{i}", timezone: "Africa/Tunis", currency: "TND", locale: "fr")
@@ -48,7 +50,7 @@ namespace :load_test do
       owner.update!(active_company: company)
 
       Role.seed_defaults_for(company)
-      company.create_subscription!(status: :active, starts_at: Time.current, expires_at: 1.year.from_now)
+      company.create_subscription!(active: true, billing_period: :monthly)
       location = company.locations.create!(name: company.name, timezone: company.timezone)
 
       activities = 6.times.map do |a|
@@ -59,9 +61,10 @@ namespace :load_test do
       coaches.each { |coach| CoachLocation.create!(coach: coach, location: location) }
 
       plan = ContractType.create!(
-        company: company, name: "Load Test Unlimited", price: 89, currency: company.currency,
-        billing_period: :monthly, unlimited_bookings: true
+        company: company, name: "Load Test Unlimited", billing_period: :monthly, unlimited_bookings: true
       )
+      # The plan is sold per activity now, so it needs a tariff for each one.
+      activities.each { |activity| plan.contract_type_activities.create!(activity: activity, price: 89) }
 
       now = Time.current
       slots = [ 7, 9, 12, 17, 18, 19, 20 ]
@@ -85,14 +88,15 @@ namespace :load_test do
       Client.insert_all(client_rows)
 
       contract_rows = client_rows.map do |c|
-        { id: SecureRandom.uuid, client_id: c[:id], contract_type_id: plan.id, company_id: company.id, created_at: now, updated_at: now }
+        { id: SecureRandom.uuid, client_id: c[:id], contract_type_id: plan.id, activity_id: activities.sample.id,
+          company_id: company.id, created_at: now, updated_at: now }
       end
       Contract.insert_all(contract_rows)
 
       period_rows = contract_rows.map do |ct|
         {
           id: SecureRandom.uuid, contract_id: ct[:id], status: 1, payment_status: 1,
-          starts_at: 1.day.ago, expires_at: 1.year.from_now, discount: 0, final_price: plan.price,
+          starts_at: 1.day.ago, expires_at: 1.year.from_now, discount: 0, base_price: 89, final_price: 89,
           created_at: now, updated_at: now
         }
       end

@@ -25,7 +25,8 @@ class BookingSerializer
         status: booking.session.status,
         activity_name: booking.session.activity.name,
         activity_emoji: booking.session.activity.emoji,
-        location_name: booking.session.location.name,
+        company_id: booking.session.company_id,
+        company_name: booking.session.company.name,
         coach_name: booking.session.coach&.full_name
       }
     }

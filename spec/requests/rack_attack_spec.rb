@@ -51,11 +51,11 @@ RSpec.describe "Rack::Attack throttling on login", type: :request do
     end
   end
 
-  describe "POST /api/v1/auth/register" do
-    it "throttles repeated signups from one IP" do
-      5.times { |i| post "/api/v1/auth/register", params: { first_name: "A", last_name: "B", email: "new#{i}@example.test", password: "password123" } }
+  describe "POST /api/v1/email_verifications" do
+    it "throttles repeated verification resends from one IP" do
+      5.times { post "/api/v1/email_verifications", params: { email: "someone@example.test" } }
 
-      post "/api/v1/auth/register", params: { first_name: "A", last_name: "B", email: "new99@example.test", password: "password123" }
+      post "/api/v1/email_verifications", params: { email: "someone@example.test" }
 
       expect(response).to have_http_status(:too_many_requests)
     end

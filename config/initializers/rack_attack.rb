@@ -56,12 +56,18 @@ Rack::Attack.throttle("password_resets/ip", limit: 5, period: 1.minute) do |req|
   req.ip if req.post? && req.path == "/api/v1/password_resets"
 end
 
-# Owner self-signup — unauthenticated, creates a User and immediately
-# emails the address given (no ownership check). With no limit an attacker
-# could script mass account creation or use it to email-bomb a third party
-# through Fitora's own mailer at will.
+# Signing up is unauthenticated, creates a User and emails the address given,
+# with no ownership check. Unthrottled, a script could mass-create accounts or
+# use Fitora's own mailer to bomb a third party's inbox.
 Rack::Attack.throttle("register/ip", limit: 5, period: 10.minutes) do |req|
   req.ip if req.post? && req.path == "/api/v1/auth/register"
+end
+
+# Re-sending a verification email is unauthenticated and mails whatever
+# address it is given — the same inbox-bombing surface as a password reset,
+# and it was the one account-mail endpoint with no ceiling on it.
+Rack::Attack.throttle("email_verifications/ip", limit: 5, period: 1.minute) do |req|
+  req.ip if req.post? && req.path == "/api/v1/email_verifications"
 end
 
 Rack::Attack.throttled_responder = lambda do |_request|

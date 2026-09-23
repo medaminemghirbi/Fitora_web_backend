@@ -7,7 +7,8 @@ module Api
 
       # GET /api/v1/staff
       def index
-        staff = current_company.staff_members.includes(:user, :coach).order(:role)
+        staff = current_company.staff_members.includes(:user, :coach)
+                               .joins(:assigned_role).order("roles.position", "roles.name")
         render json: { staff: staff.map { |s| StaffMemberSerializer.new(s).as_json } }
       end
 
@@ -16,7 +17,7 @@ module Api
         render json: { staff_member: StaffMemberSerializer.new(@staff_member).as_json }
       end
 
-      # POST /api/v1/staff — auto-assigned to the company's one location
+      # POST /api/v1/staff
       def create
         user = User.new(user_params.merge(role: :staff, locale: user_params[:locale].presence || "fr"))
         staff_member = nil
@@ -29,7 +30,6 @@ module Api
             birthdate: staff_params[:birthdate],
             **role_assignment
           )
-          staff_member.staff_member_locations.create!(location: current_company.location)
         end
 
         AuditLogs::Record.call(
@@ -85,16 +85,25 @@ module Api
         params.require(:staff_member).permit(:role, :role_id, :active, :coach_id, :birthdate)
       end
 
-      # Translate an incoming assignment into { role: <kind>, assigned_role: }.
-      # `role_id` (roles editor) wins; the legacy `role` enum string is the
-      # fallback (its enum-sync fills assigned_role for a built-in). Returns
-      # {} when neither is present so an unrelated update leaves the role be.
+      # Resolve an incoming assignment to the company's own Role row.
+      #
+      # `role_id` (the roles editor) is the real input. A bare `role` key
+      # ("receptionist", "coach") is still accepted because older clients
+      # send it, and it means "the built-in role with that key, in this
+      # company". Returns {} when neither is present, so an unrelated update
+      # leaves the role alone.
+      #
+      # Both paths look the role up through current_company, so a role id
+      # belonging to another gym resolves to nothing rather than being
+      # assigned.
       def role_assignment
         if staff_params[:role_id].present?
-          role = current_company.roles.find(staff_params[:role_id])
-          { role: (role.key == "coach" ? :coach : :receptionist), assigned_role: role }
+          { assigned_role: current_company.roles.find(staff_params[:role_id]) }
         elsif staff_params[:role].present?
-          { role: staff_params[:role], assigned_role: nil }
+          role = current_company.roles.find_by(key: staff_params[:role].to_s)
+          raise ActiveRecord::RecordNotFound, "Unknown role" if role.nil?
+
+          { assigned_role: role }
         else
           {}
         end

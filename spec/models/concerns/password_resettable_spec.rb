@@ -1,7 +1,7 @@
 require "rails_helper"
 
 RSpec.describe PasswordResettable, type: :model do
-  # Tested through User; Client includes the exact same concern.
+  # Tested through User — the only model that signs in.
   let(:user) { create(:user, :owner) }
 
   it "generates a token whose digest is persisted, never the raw value" do
@@ -38,12 +38,5 @@ RSpec.describe PasswordResettable, type: :model do
 
     expect(user.reset_password_token_digest).to be_nil
     expect(User.find_by_reset_password_token(raw)).to be_nil
-  end
-
-  it "also works on Client" do
-    client = create(:client)
-    raw = client.generate_password_reset_token!
-
-    expect(Client.find_by_reset_password_token(raw)).to eq(client)
   end
 end

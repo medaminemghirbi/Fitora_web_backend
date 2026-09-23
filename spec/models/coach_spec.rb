@@ -47,24 +47,11 @@ RSpec.describe Coach do
   describe "#destroy" do
     it "nullifies coach_id on sessions rather than deleting them" do
       coach = create(:coach, company: company)
-      location = create(:location, company: company)
-      create(:coach_location, coach: coach, location: location)
-      session = create(:session, activity: create(:activity, location: location), location: location, coach: coach)
+      session = create(:session, activity: create(:activity, company: company), company: company, coach: coach)
 
       coach.destroy
 
       expect(session.reload.coach_id).to be_nil
-    end
-
-    it "destroys its coach_locations but leaves the linked locations intact" do
-      coach = create(:coach, company: company)
-      location = create(:location, company: company)
-      coach_location = create(:coach_location, coach: coach, location: location)
-
-      coach.destroy
-
-      expect(CoachLocation.exists?(coach_location.id)).to be false
-      expect(Location.exists?(location.id)).to be true
     end
   end
 end

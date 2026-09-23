@@ -2,9 +2,8 @@ require "rails_helper"
 
 RSpec.describe Bookings::SendReminder do
   let(:company) { create(:company, name: "Fitora Test Gym") }
-  let(:location) { create(:location, company: company) }
-  let(:activity) { create(:activity, location: location, name: "Yoga") }
-  let(:session) { create(:session, activity: activity, location: location, starts_at: Time.zone.local(2026, 9, 20, 18, 0)) }
+  let(:activity) { create(:activity, company: company, name: "Yoga") }
+  let(:session) { create(:session, activity: activity, company: company, starts_at: Time.zone.local(2026, 9, 20, 18, 0)) }
 
   describe "#call" do
     it "sends an SMS to the client's normalized mobile number" do

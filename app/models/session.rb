@@ -1,8 +1,12 @@
 class Session < ApplicationRecord
   belongs_to :activity
-  belongs_to :location
+  belongs_to :company
   belongs_to :coach, optional: true
   belongs_to :recurring_schedule, optional: true
+  # Optional twice over: a company may not use rooms at all
+  # (CompanySettings FEATURES[:spaces]), and a company that does may still
+  # leave a session unassigned while the schedule is being drafted.
+  belongs_to :space, optional: true
 
   has_many :bookings, dependent: :destroy
 
@@ -11,9 +15,12 @@ class Session < ApplicationRecord
   validates :starts_at, :ends_at, :capacity, presence: true
   validates :capacity, numericality: { greater_than: 0 }
   validates :price, numericality: { greater_than_or_equal_to: 0 }
+  validate :activity_belongs_to_company
+  validate :coach_belongs_to_company
+  validate :space_belongs_to_company
+  validate :space_can_host_activity
+  validate :capacity_fits_in_space
   validate :ends_after_starts
-  validate :location_matches_activity
-  validate :coach_assigned_to_location
 
   scope :upcoming, -> { where("starts_at >= ?", Time.current) }
   scope :for_date, ->(date) { where(starts_at: date.all_day) }
@@ -34,23 +41,51 @@ class Session < ApplicationRecord
 
   private
 
+  # A session can only run an activity its own gym offers.
+  def activity_belongs_to_company
+    return if activity.blank? || company.blank?
+
+    # Compared as objects, not ids: on an unsaved record both ids are nil and
+    # an id comparison would call a mismatch a match.
+    errors.add(:activity, "must belong to this gym") if activity.company != company
+  end
+
+  # The site check this replaced was the only thing stopping another gym's
+  # coach being scheduled here; the gym itself is the boundary now.
+  def coach_belongs_to_company
+    return if coach.blank? || company.blank?
+
+    errors.add(:coach, "must belong to this gym") if coach.company != company
+  end
+
   def ends_after_starts
     return if starts_at.blank? || ends_at.blank?
 
     errors.add(:ends_at, "must be after the start time") if ends_at <= starts_at
   end
 
-  def location_matches_activity
-    return if activity.blank? || location.blank?
+  # Same boundary as the coach check: the gym owns its rooms.
+  def space_belongs_to_company
+    return if space.blank? || company.blank?
 
-    errors.add(:location, "must match the activity's location") if activity.location_id != location_id
+    errors.add(:space, "must belong to this gym") if space.company != company
   end
 
-  def coach_assigned_to_location
-    return if coach.blank? || location.blank?
+  # An activity may name the rooms it can run in; most name none, which
+  # means anywhere. Only a real restriction is enforced.
+  def space_can_host_activity
+    return if space.blank? || activity.blank?
 
-    unless coach.locations.exists?(id: location_id)
-      errors.add(:coach, "is not assigned to this location")
-    end
+    errors.add(:space, "cannot host \"#{activity.name}\"") unless space.hosts?(activity)
+  end
+
+  # A room's capacity is how many people fit in it. Booking more seats than
+  # the room holds is not something to discover on the day.
+  def capacity_fits_in_space
+    return if space.blank? || capacity.blank? || space.capacity.blank?
+
+    return if capacity <= space.capacity
+
+    errors.add(:capacity, "is more than #{space.name} holds (#{space.capacity})")
   end
 end

@@ -1,7 +1,9 @@
 <% if @first_name.present? %>Bonjour <%= @first_name %>,
 
-<% end %>Confirmez votre adresse e-mail Fitora en ouvrant ce lien :
+<% end %><% if @opens_account %>Plus qu'une étape : confirmez votre adresse et votre compte Fitora s'ouvre. Ouvrez ce lien :<% else %>Confirmez votre adresse e-mail Fitora en ouvrant ce lien :<% end %>
 
 <%= @verify_url %>
+
+Ce lien est valable <%= @expires_in_days %> jours.
 
 Si vous n'êtes pas à l'origine de cette demande, vous pouvez ignorer cet e-mail sans risque.

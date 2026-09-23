@@ -21,20 +21,14 @@ RSpec.describe ContractType do
       expect(build(:contract_type, color: "#4F46E5")).to be_valid
     end
 
-    it "rejects a negative price" do
-      contract_type = build(:contract_type, price: -1)
-      expect(contract_type).not_to be_valid
-      expect(contract_type.errors[:price]).to be_present
-    end
-
     it "rejects a zero booking_limit but allows a blank one" do
-      expect(build(:contract_type, booking_limit: 0)).not_to be_valid
-      expect(build(:contract_type, booking_limit: nil)).to be_valid
+      expect(build(:contract_type, unlimited_bookings: false, booking_limit: 0)).not_to be_valid
+      expect(build(:contract_type, unlimited_bookings: false, booking_limit: nil)).to be_valid
     end
 
     it "rejects a zero session_count but allows a blank one" do
-      expect(build(:contract_type, session_count: 0)).not_to be_valid
-      expect(build(:contract_type, session_count: nil)).to be_valid
+      expect(build(:contract_type, unlimited_bookings: false, session_count: 0)).not_to be_valid
+      expect(build(:contract_type, unlimited_bookings: false, session_count: nil)).to be_valid
     end
   end
 
@@ -48,35 +42,59 @@ RSpec.describe ContractType do
     end
   end
 
+  describe "#price_for" do
+    it "returns what this activity costs under this plan" do
+      contract_type = create(:contract_type)
+      activity = create(:activity, company: contract_type.company)
+      create(:contract_type_activity, contract_type: contract_type, activity: activity, price: 70)
+
+      expect(contract_type.price_for(activity)).to eq(70)
+    end
+
+    it "prices each activity independently under the same plan" do
+      contract_type = create(:contract_type)
+      boxe = create(:activity, company: contract_type.company, name: "Boxe")
+      pilates = create(:activity, company: contract_type.company, name: "Pilates")
+      create(:contract_type_activity, contract_type: contract_type, activity: boxe, price: 50)
+      create(:contract_type_activity, contract_type: contract_type, activity: pilates, price: 70)
+
+      expect(contract_type.price_for(boxe)).to eq(50)
+      expect(contract_type.price_for(pilates)).to eq(70)
+    end
+
+    it "is nil for an activity the plan isn't sold for" do
+      contract_type = create(:contract_type)
+      activity = create(:activity, company: contract_type.company)
+
+      expect(contract_type.price_for(activity)).to be_nil
+    end
+  end
+
   describe "#grants_access_to?" do
-    it "grants access everywhere when no locations or activities are attached" do
+    it "grants access at every company when none are attached, for a priced activity" do
       contract_type = create(:contract_type)
-      location = create(:location, company: contract_type.company)
-      activity = create(:activity, location: location)
+      activity = create(:activity, company: contract_type.company)
+      create(:contract_type_activity, contract_type: contract_type, activity: activity, price: 60)
 
-      expect(contract_type.grants_access_to?(location: location, activity: activity)).to be true
+      expect(contract_type.grants_access_to?(activity: activity)).to be true
     end
 
-    it "restricts access to the attached locations only" do
+    it "refuses an activity the plan has no price for — it simply isn't sold for it" do
       contract_type = create(:contract_type)
-      allowed_location = create(:location, company: contract_type.company)
-      other_location = create(:location, company: contract_type.company)
-      create(:contract_type_location, contract_type: contract_type, location: allowed_location)
-      activity = create(:activity, location: other_location)
+      unpriced = create(:activity, company: contract_type.company)
 
-      expect(contract_type.grants_access_to?(location: allowed_location, activity: activity)).to be true
-      expect(contract_type.grants_access_to?(location: other_location, activity: activity)).to be false
+      expect(contract_type.grants_access_to?(activity: unpriced)).to be false
     end
+
 
     it "restricts access to the attached activities only" do
       contract_type = create(:contract_type)
-      location = create(:location, company: contract_type.company)
-      allowed_activity = create(:activity, location: location)
-      other_activity = create(:activity, location: location)
+      allowed_activity = create(:activity, company: contract_type.company)
+      other_activity = create(:activity, company: contract_type.company)
       create(:contract_type_activity, contract_type: contract_type, activity: allowed_activity)
 
-      expect(contract_type.grants_access_to?(location: location, activity: allowed_activity)).to be true
-      expect(contract_type.grants_access_to?(location: location, activity: other_activity)).to be false
+      expect(contract_type.grants_access_to?(activity: allowed_activity)).to be true
+      expect(contract_type.grants_access_to?(activity: other_activity)).to be false
     end
   end
 end

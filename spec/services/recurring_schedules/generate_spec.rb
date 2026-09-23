@@ -33,17 +33,16 @@ RSpec.describe RecurringSchedules::Generate do
 
   it "records a conflict instead of raising when a generated slot would double-book the coach" do
     monday = Date.current.next_occurring(:monday)
-    coach = create(:coach)
-    location = create(:location, company: coach.company)
-    create(:coach_location, coach: coach, location: location)
-    activity_a = create(:activity, location: location, duration: 60)
-    activity_b = create(:activity, location: location, duration: 60)
+    company = create(:company)
+    coach = create(:coach, company: company)
+    activity_a = create(:activity, company: company, duration: 60)
+    activity_b = create(:activity, company: company, duration: 60)
 
     # An existing manual session already occupies this coach at this exact time.
-    create(:session, activity: activity_a, location: location, coach: coach,
+    create(:session, activity: activity_a, company: company, coach: coach,
                       starts_at: monday.to_time(:utc).change(hour: 18), ends_at: monday.to_time(:utc).change(hour: 19))
 
-    schedule = create(:recurring_schedule, activity: activity_b, location: location, coach: coach,
+    schedule = create(:recurring_schedule, activity: activity_b, company: company, coach: coach,
                                             weekdays: [ 1 ], start_time: "18:00", starts_on: monday, ends_on: monday)
 
     result = described_class.call(schedule: schedule)

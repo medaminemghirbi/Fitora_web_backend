@@ -78,8 +78,8 @@ module Reports
         [ "  dont carte", revenue_by_method["card"] || 0 ],
         [ "  dont virement", revenue_by_method["bank_transfer"] || 0 ],
         [ "  dont autre", revenue_by_method["other"] || 0 ],
-        [ "Clients actifs", company.clients.active.count ],
-        [ "Clients inactifs", company.clients.where(active: false).count ],
+        [ "Clients actifs", company.memberships.active.count ],
+        [ "Clients inactifs", company.memberships.where(active: false).count ],
         [ "Abonnements actifs", company.contract_periods.currently_active.count ],
         [ "Abonnements expirés", company.contract_periods.expired.count ],
         [ "Membres d'équipe", company.staff_members.count ]
@@ -107,14 +107,15 @@ module Reports
         sheet.add_row [ "Nom complet", "Téléphone", "Email", "Statut", "Date d'inscription", "Paiements reçus (#{period.label})" ],
                       style: Array.new(6, header_style)
 
-        company.clients.order(:first_name, :last_name).find_each do |client|
-          status_style = client.active? ? active_style : inactive_style
+        company.memberships.includes(:client).joins(:client).order("clients.first_name", "clients.last_name").find_each do |membership|
+          client = membership.client
+          status_style = membership.active? ? active_style : inactive_style
           sheet.add_row [
             client.full_name,
             client.phone,
             client.email,
-            client.active? ? "Actif" : "Inactif",
-            client.joined_at&.to_date,
+            membership.active? ? "Actif" : "Inactif",
+            membership.joined_at&.to_date,
             payments_received_by_client[client.id] || 0
           ], style: [ nil, nil, nil, status_style, nil, nil ]
         end

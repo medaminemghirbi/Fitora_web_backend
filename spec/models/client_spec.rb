@@ -8,13 +8,6 @@ RSpec.describe Client do
     expect(client.email).to eq("test@example.com")
   end
 
-  it "defaults joined_at to now when not given" do
-    travel_to(Time.zone.local(2026, 1, 1, 10, 0)) do
-      client = create(:client, company: company, joined_at: nil)
-      expect(client.joined_at).to eq(Time.zone.local(2026, 1, 1, 10, 0))
-    end
-  end
-
   it "requires first name, last name and phone" do
     client = build(:client, company: company, first_name: nil, last_name: nil, phone: nil)
     expect(client).not_to be_valid
@@ -23,30 +16,81 @@ RSpec.describe Client do
     expect(client.errors[:phone]).to be_present
   end
 
-  it "requires email uniqueness only once the client has a login password" do
+  it "treats the email as the person: unique across the platform, login or not" do
     create(:client, company: company, email: "dup@example.com")
-    dupe = build(:client, company: company, email: "dup@example.com")
 
-    expect(dupe).to be_valid
-
-    dupe.password = "password123"
+    dupe = build(:client, email: "dup@example.com")
     expect(dupe).not_to be_valid
     expect(dupe.errors[:email]).to be_present
   end
 
-  it "requires a minimum password length only when a password is set" do
-    client = build(:client, company: company, password: "short")
-    expect(client).not_to be_valid
-    expect(client.errors[:password]).to be_present
+  it "leaves a gym free to record several walk-ins with no email at all" do
+    create(:client, company: company, email: nil)
+    expect(build(:client, email: nil)).to be_valid
   end
 
-  describe "#login_enabled?" do
-    it "is only true once a password has been set" do
+  describe "belonging to several gyms" do
+    it "joins a second gym without a second account" do
       client = create(:client, company: company)
-      expect(client.login_enabled?).to be false
+      other = create(:company)
 
+      client.join!(other)
+
+      expect(client.companies).to contain_exactly(company, other)
+      expect(Client.where(email: client.email).count).to eq(1)
+    end
+
+    it "is idempotent: joining twice leaves one membership" do
+      client = create(:client, company: company)
+
+      expect { client.join!(company) }.not_to change(Membership, :count)
+    end
+
+    it "keeps each gym's view of the person separate" do
+      client = create(:client, company: company, notes: "Suivi kiné")
+      other = create(:company)
+      client.join!(other)
+
+      expect(client.membership_for(company).notes).to eq("Suivi kiné")
+      expect(client.membership_for(other).notes).to be_nil
+    end
+
+    it "never shows one gym another gym's contracts" do
+      client = create(:client, company: company)
+      other = create(:company)
+      client.join!(other)
+      activity = create(:activity, company: other)
+      plan = create(:contract_type, company: other, activity: activity)
+      create(:contract, client: client, company: other, contract_type: plan, activity: activity)
+
+      expect(client.contracts_for(other).count).to eq(1)
+      expect(client.contracts_for(company)).to be_empty
+      expect(client.current_contract(company)).to be_nil
+    end
+  end
+
+  describe "the account a gym may enable" do
+    it "is off by default — a walk-in the gym wrote down is still a member" do
+      expect(create(:client, company: company).login_enabled?).to be false
+    end
+
+    it "is on once the gym sets a password" do
+      client = create(:client, company: company)
       client.update!(password: "password123")
-      expect(client.login_enabled?).to be true
+      expect(client.reload.login_enabled?).to be true
+      expect(client.authenticate("password123")).to be_truthy
+    end
+
+    it "refuses a password too short to be one" do
+      client = build(:client, company: company, password: "short")
+      expect(client).not_to be_valid
+      expect(client.errors[:password]).to be_present
+    end
+
+    it "refuses an account with no email — that is where the invitation goes" do
+      client = build(:client, company: company, email: nil, password: "password123")
+      expect(client).not_to be_valid
+      expect(client.errors[:email]).to be_present
     end
   end
 
@@ -105,7 +149,7 @@ RSpec.describe Client do
   describe "#outstanding_balance" do
     it "sums unpaid bookings and contract periods, net of payments already received" do
       client = create(:client, company: company)
-      session = create(:session, activity: create(:activity, location: company.location))
+      session = create(:session, activity: create(:activity, company: company))
       booking = create(:booking, client: client, session: session, amount: 20, payment_status: :unpaid)
       contract = create(:contract, client: client, contract_type: create(:contract_type, company: company, price: 89),
                                     status: :active, payment_status: :unpaid)
@@ -122,7 +166,7 @@ RSpec.describe Client do
 
     it "never goes negative when payments exceed what's owed" do
       client = create(:client, company: company)
-      session = create(:session, activity: create(:activity, location: company.location))
+      session = create(:session, activity: create(:activity, company: company))
       booking = create(:booking, client: client, session: session, amount: 20, payment_status: :unpaid)
       create(:payment, client: client, company: company, booking: booking, contract_period: nil,
                         amount: 50, status: :paid)
@@ -139,7 +183,7 @@ RSpec.describe Client do
 
     it "returns the percentage of bookings marked present, rounded" do
       client = create(:client, company: company)
-      activity = create(:activity, location: company.location)
+      activity = create(:activity, company: company)
       b1 = create(:booking, client: client, session: create(:session, activity: activity))
       b2 = create(:booking, client: client, session: create(:session, activity: activity))
       b3 = create(:booking, client: client, session: create(:session, activity: activity))

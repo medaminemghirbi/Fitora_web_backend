@@ -16,7 +16,12 @@ class ApplicationController < ActionController::API
       render_unauthorized if @current_client.nil?
     else
       @current_user = User.active.find_by(id: claims[:user_id])
-      @current_impersonator = User.active.find_by(id: claims[:impersonator_id]) if claims[:impersonator_id]
+      if claims[:impersonator_id]
+        @current_impersonator = User.active.find_by(id: claims[:impersonator_id])
+        # So every audit log written during this request says who was really
+        # at the keyboard — current_user is the impersonated owner throughout.
+        Current.impersonator = @current_impersonator
+      end
       render_unauthorized if @current_user.nil?
     end
 
@@ -31,13 +36,13 @@ class ApplicationController < ActionController::API
   # handful of tenants. Sentry.set_user/set_tags are safe no-ops on their
   # own when Sentry was never initialized (no SENTRY_DSN, see
   # config/initializers/sentry.rb). Reads current_user/current_client
-  # directly rather than the current_company helper (Api::V1::BaseController-only)
-  # so this stays safe to call from every controller that authenticates,
-  # not just that one subclass.
+  # directly rather than the current_company helper
+  # (Api::V1::BaseController-only) so this stays safe to call from every
+  # controller that authenticates, not just that one subclass.
   def tag_sentry_context!
     if current_client
       Sentry.set_user(id: current_client.id, email: current_client.email)
-      Sentry.set_tags(account_type: "client", company_id: current_client.company_id)
+      Sentry.set_tags(account_type: "client")
     elsif current_user
       Sentry.set_user(id: current_user.id, email: current_user.email)
       Sentry.set_tags(
@@ -51,11 +56,10 @@ class ApplicationController < ActionController::API
     @current_user
   end
 
-  # A Client authenticated through their own mobile login (see
-  # Api::V1::AuthController#login) — mutually exclusive with current_user.
-  # Every existing controller keeps assuming current_user is present because
-  # nothing client-facing exists yet; this is here so that surface can be
-  # built later without touching the auth core again.
+  # A member signed in on their own app — mutually exclusive with
+  # current_user, never both (see JwtService.encode). Every staff-facing
+  # controller keeps assuming current_user, so the member endpoints live in
+  # their own Api::V1::Me namespace and gate on require_client!.
   def current_client
     @current_client
   end

@@ -9,12 +9,13 @@ module Api
       # `module Client`, so "me" avoids the collision entirely.
       class BookingsController < BaseController
         before_action :require_client!
+        before_action :require_member_company!
         before_action :set_booking, only: [ :cancel ]
 
-        # GET /api/v1/me/bookings?when=upcoming|past
+        # GET /api/v1/me/bookings?when=upcoming|past&company_id=
         def index
           upcoming = params[:when] != "past"
-          scope = current_client.bookings.joins(:session)
+          scope = current_client.bookings_for(member_company).joins(:session)
                                  .where(upcoming ? "sessions.starts_at >= ?" : "sessions.starts_at < ?", Time.current)
                                  .order("sessions.starts_at #{upcoming ? 'asc' : 'desc'}")
 
@@ -23,15 +24,16 @@ module Api
 
         # POST /api/v1/me/bookings { session_id: }
         def create
-          session = ::Session.joins(location: :company)
-                              .where(companies: { id: current_client.company_id })
+          # Bookable at any gym the person has joined — and nowhere else.
+          session = ::Session.where(company_id: current_client.companies.ids) # rubocop:disable Fitora/UnscopedTenantQuery
                               .find_by(id: params[:session_id])
           return render(json: { error: "Session not found" }, status: :not_found) if session.nil?
 
-          result = Bookings::Create.call(client: current_client, session: session)
+          result = Bookings::Create.call(client: current_client, session: session, by: :member)
 
           if result.success?
-            render json: { booking: BookingSerializer.new(result.booking).as_json }, status: :created
+            render json: { booking: BookingSerializer.new(result.booking).as_json, waitlisted: result.waitlisted },
+                   status: :created
           else
             render json: { error: result.error }, status: :unprocessable_content
           end
@@ -39,7 +41,7 @@ module Api
 
         # POST /api/v1/me/bookings/:id/cancel
         def cancel
-          result = Bookings::Cancel.call(booking: @booking)
+          result = Bookings::Cancel.call(booking: @booking, by: :member)
 
           if result.success?
             render json: { booking: BookingSerializer.new(@booking.reload).as_json }

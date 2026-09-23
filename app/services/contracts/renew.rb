@@ -18,14 +18,26 @@ module Contracts
     def call
       plan = contract.contract_type
       current = contract.current_period
-      starts_at = [ current&.expires_at, Time.current ].compact.max
+
+      # Queues behind EVERYTHING already sold, not merely behind the current
+      # term: renew twice in a row and the second period starts where the
+      # first one ends. A term still running is left untouched and keeps its
+      # dates, its price and its remaining sessions until its last day — the
+      # renewal simply waits its turn (Contract#current_period).
+      starts_at = [ contract.covered_through, Time.current ].compact.max
+
+      # A renewal is a new sale, so it takes today's tariff for this
+      # activity — the previous period keeps whatever it was sold at. Falls
+      # back to that older price if the grid row has since been removed.
+      base_price = plan.price_for(contract.activity) || current&.base_price || 0
 
       period = contract.contract_periods.create!(
         status: :active,
         starts_at: starts_at,
         expires_at: starts_at + plan.duration_days.days,
         remaining_bookings: plan.unlimited_bookings? ? nil : plan.booking_limit,
-        discount: current&.discount || 0
+        discount: current&.discount || 0,
+        base_price: base_price
       )
 
       Result.new(success?: true, contract: contract.reload, error: nil)

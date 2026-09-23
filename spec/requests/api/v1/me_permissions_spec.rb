@@ -10,7 +10,7 @@ RSpec.describe "Api::V1 GET /api/v1/me/permissions", type: :request do
     expect(response).to have_http_status(:ok)
     body = response.parsed_body
     expect(body["role"]["key"]).to eq("owner")
-    expect(body["permissions"]).to match_array(ModuleCatalog.permissions_for(company.enabled_module_keys))
+    expect(body["permissions"]).to match_array(Permission::ALL)
   end
 
   it "returns a staff login's resolved role permissions" do
@@ -21,7 +21,7 @@ RSpec.describe "Api::V1 GET /api/v1/me/permissions", type: :request do
     body = response.parsed_body
     expect(body["role"]["key"]).to eq("receptionist")
     expect(body["permissions"]).to include("bookings", "payments", "sessions")
-    expect(body["permissions"]).not_to include("locations")
+    expect(body["permissions"]).not_to include("contract_types")
   end
 
   it "reflects a re-permissioned built-in role" do

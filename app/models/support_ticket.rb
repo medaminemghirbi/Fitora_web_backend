@@ -16,13 +16,35 @@ class SupportTicket < ApplicationRecord
   has_many_attached :attachments
 
   enum :status, { open: 0, resolved: 1 }
+  # `upgrade` is a plan request from the owner's subscription page.
+  enum :kind, { general: 0, upgrade: 1 }
+
+  # Digits with the usual separators, an optional leading "+" or "(+". The digit count
+  # is checked apart: "+216 22 123 456" and "22123456" are both fine.
+  PHONE_FORMAT = /\A\(?\+?[\d\s().-]+\z/
+  PHONE_DIGITS = 8..15
+
+  before_validation { self.contact_phone = contact_phone.to_s.strip.presence }
 
   validates :subject, :message, presence: true
+  # Fitora calls back to set a plan up — payment is arranged off-app — so a
+  # plan request without a number goes nowhere.
+  validates :contact_phone, presence: true, if: :upgrade?
+  validate :contact_phone_is_a_number
   validate :attachments_are_valid
 
   scope :recent, -> { order(created_at: :desc) }
 
   private
+
+  def contact_phone_is_a_number
+    return if contact_phone.blank?
+
+    digits = contact_phone.count("0-9")
+    return if contact_phone.match?(PHONE_FORMAT) && PHONE_DIGITS.cover?(digits)
+
+    errors.add(:contact_phone, "is not a valid phone number")
+  end
 
   def attachments_are_valid
     return unless attachments.attached?

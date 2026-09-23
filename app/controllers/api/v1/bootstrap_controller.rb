@@ -10,6 +10,10 @@ module Api
       # render the "trial expired" screen. Individual feature endpoints stay
       # locked by enforce_trial_lock!.
       skip_before_action :enforce_trial_lock!
+      # Nor does an unconfirmed address stop it: the shell hydrates, finds
+      # user.email_verified false, and routes to the "check your inbox"
+      # screen. Every feature endpoint stays shut by require_confirmed_email!.
+      skip_before_action :require_confirmed_email!
 
       def show
         company = current_company
@@ -22,12 +26,18 @@ module Api
           role: resolved.role,
           permissions: resolved.permissions,
           modules: company&.enabled_module_keys || [],
+          # Which parts of the product this tenant has turned on. Sent to
+          # everyone, not just the owner (whose `company` payload also
+          # carries them): a receptionist needs to know rooms exist as much
+          # as the owner does. It says what the product OFFERS here, never
+          # who may use it — that is `permissions`, resolved separately.
+          features: company&.settings&.features || {},
           roles: (company&.roles&.ordered || []).map { |r|
             { id: r.id, key: r.key, name: r.name, permissions: r.permissions, builtin: r.builtin }
           },
           permission_catalog: Permission::CATALOG,
           subscription: subscription_json(company),
-          setup: current_user.owner? ? company&.setup_state : nil,
+          onboarding: current_user.owner? ? company&.onboarding_state&.as_json : nil,
           notifications: { unread_count: current_user.notifications.unread.count }
         }
       end
@@ -39,10 +49,16 @@ module Api
         return nil if subscription.nil?
 
         {
-          status: subscription.status,
+          active: subscription.active,
           locked: subscription.locked?,
-          on_trial: subscription.on_trial?,
-          trial_days_remaining: subscription.days_remaining
+          lock_reason: subscription.lock_reason,
+          # Enough for the shell to warn before the door shuts, rather than
+          # leaving the owner to discover it mid-task.
+          current_period_paid: subscription.current_period_paid?,
+          days_before_lock: subscription.days_before_lock,
+          # The shell counts the free days down instead of the unpaid ones.
+          trial: subscription.trial?,
+          trial_days_left: subscription.trial_days_left
         }
       end
     end

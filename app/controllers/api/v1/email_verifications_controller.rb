@@ -1,7 +1,9 @@
 module Api
   module V1
-    # Confirms an email is real — informational, never blocks login. Never
-    # for a platform admin (role: :admin), same exclusion as PasswordResetsController.
+    # Confirms an email is real. For an owner that is what opens the account
+    # (Api::V1::BaseController#require_confirmed_email!); for anyone else it
+    # is informational. Never for a platform admin (role: :admin), same
+    # exclusion as PasswordResetsController.
     class EmailVerificationsController < ApplicationController
       before_action :authenticate_request!, only: [ :create ]
 
@@ -13,6 +15,9 @@ module Api
         return render(json: { error: "no_email" }, status: :unprocessable_content) if record.email.blank?
         return render(json: { error: "already_verified" }, status: :unprocessable_content) if record.email_verified?
 
+        wait = record.email_verification_resend_in
+        return render(json: { error: "too_soon", retry_in: wait }, status: :too_many_requests) if wait.positive?
+
         raw = record.generate_email_verification_token!
         AccountMailer.email_verification(record, raw).deliver_later
         head :no_content
@@ -21,8 +26,8 @@ module Api
       # PATCH /api/v1/email_verifications/:token — unauthenticated: the
       # token itself, from the emailed link, is the proof.
       def update
-        record = User.where.not(role: :admin).find_by_email_verification_token(params[:token])
-        record ||= Client.find_by_email_verification_token(params[:token])
+        record = User.where.not(role: :admin).find_by_email_verification_token(params[:token]) ||
+                 Client.find_by_email_verification_token(params[:token])
 
         return render(json: { error: "invalid_or_expired_token" }, status: :unprocessable_content) if record.nil?
 

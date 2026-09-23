@@ -34,6 +34,17 @@ RSpec.describe "Api::V1::Companies", type: :request do
       expect(created.enabled_module_keys).to match_array(%w[base] + ModuleCatalog::KEYS)
     end
 
+    it "opens on the free trial, not on a tier" do
+      post "/api/v1/companies", params: { company: { name: "Iron Box", timezone: "Africa/Tunis", currency: "TND" } },
+                                 headers: auth_headers(fresh_owner)
+
+      subscription = Company.find_by(owner: fresh_owner).subscription
+      expect(subscription).to be_active
+      expect(subscription).to be_trial
+      expect(subscription.trial_days_left).to eq(Subscription::TRIAL_DAYS)
+      expect(subscription.latest_invoice.amount_cents).to eq(0)
+    end
+
     it "becomes the owner's active company immediately" do
       post "/api/v1/companies", params: { company: { name: "Iron Box", timezone: "Africa/Tunis", currency: "TND" } },
                                  headers: auth_headers(fresh_owner)
@@ -120,10 +131,10 @@ RSpec.describe "Api::V1::Companies", type: :request do
       expect(response).to have_http_status(:not_found)
     end
 
-    it "is unaffected by another of the owner's companies being trial-locked" do
+    it "is unaffected by another of the owner's companies being locked out" do
       owner.update!(company_limit: nil)
       second = create(:company, owner: owner)
-      create(:subscription, company: company, expires_at: 1.day.ago)
+      create(:subscription, :closed, company: company)
 
       post "/api/v1/companies/#{second.id}/switch", headers: auth_headers(owner)
 
@@ -225,6 +236,17 @@ RSpec.describe "Api::V1::Companies", type: :request do
 
       expect(response).to have_http_status(:forbidden)
       expect(company.reload.primary_color).to be_nil
+    end
+  end
+
+  describe "opening hours, now that the company is the place" do
+    it "exposes them and lets the owner change them" do
+      patch "/api/v1/company", params: { company: { business_hours_start: "07:30", business_hours_end: "21:00" } },
+            headers: auth_headers(owner)
+
+      expect(response).to have_http_status(:ok)
+      expect(response.parsed_body["company"]["business_hours_start"]).to eq("07:30")
+      expect(response.parsed_body["company"]["business_hours_end"]).to eq("21:00")
     end
   end
 end

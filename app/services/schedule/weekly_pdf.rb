@@ -17,13 +17,12 @@ module Schedule
 
     DAY_NAMES = %w[Lundi Mardi Mercredi Jeudi Vendredi Samedi Dimanche].freeze
 
-    def self.call(company:, location:, week_start:, sessions:)
-      new(company: company, location: location, week_start: week_start, sessions: sessions).call
+    def self.call(company:, week_start:, sessions:)
+      new(company: company, week_start: week_start, sessions: sessions).call
     end
 
-    def initialize(company:, location:, week_start:, sessions:)
+    def initialize(company:, week_start:, sessions:)
       @company = company
-      @location = location
       @week_start = week_start
       @week_end = week_start + 6.days
       # Coaches sorted by name; sessions with no coach assigned form their
@@ -44,7 +43,7 @@ module Schedule
 
     private
 
-    attr_reader :company, :location, :week_start, :week_end
+    attr_reader :company, :week_start, :week_end
 
     def coach_full_name(coach)
       return "Sans coach assigné" if coach.nil?
@@ -65,7 +64,7 @@ module Schedule
 
       pdf.fill_color GREY
       pdf.text_box "#{fmt_date(week_start)} — #{fmt_date(week_end)}", at: [ half, top ], width: half, align: :right, size: 11
-      pdf.text_box location.name, at: [ half, top - 16 ], width: half, align: :right, size: 9
+      pdf.text_box company.name, at: [ half, top - 16 ], width: half, align: :right, size: 9
       pdf.fill_color "000000"
 
       pdf.move_cursor_to top - 44
@@ -122,7 +121,7 @@ module Schedule
         "#{fmt_time(session.starts_at)}–#{fmt_time(session.ends_at)}",
         session.activity.name,
         format_label(session.activity.session_format),
-        session.location.name,
+        session.company.name,
         "#{session.confirmed_bookings_count}/#{session.capacity}",
         status_label(session.status)
       ]

@@ -112,7 +112,8 @@ module Receipts
     # ---- line items ------------------------------------------------------
     def items_table(pdf)
       head = %w[Description Quantité Unité Prix Montant]
-      rows = [ [ item_description, "1", unit_label, num(plan.price), num(plan.price) ] ]
+      billed = contract.current_period&.base_price.to_f
+      rows = [ [ item_description, "1", unit_label, num(billed), num(billed) ] ]
       if contract.discount.to_f.positive?
         rows << [ "Remise", "", "", "", "-#{num(contract.discount)}" ]
       end
@@ -206,9 +207,10 @@ module Receipts
 
     # ---- helpers -----------------------------------------------------
     def item_description
-      return plan.name if plan.description.blank?
+      title = "#{plan.name} — #{contract.activity_label}"
+      return title if plan.description.blank?
 
-      "#{plan.name}\n<font size='8'><color rgb='#{GREY}'>#{plan.description}</color></font>"
+      "#{title}\n<font size='8'><color rgb='#{GREY}'>#{plan.description}</color></font>"
     end
 
     def unit_label

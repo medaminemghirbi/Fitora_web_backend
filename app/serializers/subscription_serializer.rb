@@ -8,13 +8,18 @@ class SubscriptionSerializer
 
     {
       id: subscription.id,
-      status: subscription.status,
-      starts_at: subscription.starts_at,
-      expires_at: subscription.expires_at,
+      # The access, and nothing else. No date is compared to read it.
+      active: subscription.active,
       billing_period: subscription.billing_period,
-      on_trial: subscription.on_trial?,
-      upgrade_requested_at: subscription.upgrade_requested_at,
-      upgrade_requested_period: subscription.upgrade_requested_period
+      lock_reason: subscription.lock_reason,
+      # What the invoices say, for the screens that show a countdown.
+      paid_through: subscription.paid_through,
+      current_period_paid: subscription.current_period_paid?,
+      days_before_lock: subscription.days_before_lock,
+      # Still on the free days (or just past them): nothing paid yet, so no
+      # tier chosen yet either.
+      trial: subscription.trial?,
+      trial_days_left: subscription.trial_days_left
     }
   end
 

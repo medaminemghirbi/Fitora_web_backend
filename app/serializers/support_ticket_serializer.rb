@@ -9,6 +9,8 @@ class SupportTicketSerializer
       subject: ticket.subject,
       message: ticket.message,
       status: ticket.status,
+      kind: ticket.kind,
+      contact_phone: ticket.contact_phone,
       created_at: ticket.created_at,
       attachments: attachments_json
     }

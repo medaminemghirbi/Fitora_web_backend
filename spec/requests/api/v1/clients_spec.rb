@@ -58,6 +58,66 @@ RSpec.describe "Api::V1::Clients", type: :request do
       expect(ids).not_to include(without_contract.id)
     end
 
+    it "narrows the list to the holders of one plan" do
+      plan = create(:contract_type, company: company)
+      holder = create(:client, company: company)
+      create(:contract, client: holder, company: company, contract_type: plan)
+      outsider = create(:client, company: company)
+
+      get "/api/v1/clients", params: { contract_type_id: plan.id }, headers: auth_headers(owner)
+
+      ids = response.parsed_body["clients"].map { |c| c["id"] }
+      expect(ids).to eq([ holder.id ])
+      expect(ids).not_to include(outsider.id)
+    end
+
+    it "counts an all-access contract as covering the activity it is filtered on" do
+      yoga = create(:activity, company: company)
+      plan = create(:contract_type, company: company, activity: yoga)
+      all_access = create(:client, company: company)
+      create(:contract, client: all_access, company: company, contract_type: plan, activity: nil)
+
+      get "/api/v1/clients", params: { activity_id: yoga.id }, headers: auth_headers(owner)
+
+      ids = response.parsed_body["clients"].map { |c| c["id"] }
+      expect(ids).to eq([ all_access.id ])
+    end
+
+    it "narrows on when someone joined the gym" do
+      old_hand = create(:client, company: company, joined_at: 2.years.ago)
+      newcomer = create(:client, company: company, joined_at: 2.days.ago)
+
+      get "/api/v1/clients", params: { joined_from: 1.month.ago.to_date.to_s }, headers: auth_headers(owner)
+
+      ids = response.parsed_body["clients"].map { |c| c["id"] }
+      expect(ids).to eq([ newcomer.id ])
+      expect(ids).not_to include(old_hand.id)
+    end
+
+    it "orders on a whitelisted column and ignores anything else" do
+      first_in = create(:client, company: company, first_name: "Zora", joined_at: 3.years.ago)
+      last_in = create(:client, company: company, first_name: "Amel", joined_at: 1.day.ago)
+
+      get "/api/v1/clients", params: { sort: "joined", direction: "desc" }, headers: auth_headers(owner)
+      expect(response.parsed_body["clients"].map { |c| c["id"] }).to eq([ last_in.id, first_in.id ])
+
+      get "/api/v1/clients", params: { sort: "; DROP TABLE clients" }, headers: auth_headers(owner)
+      expect(response).to have_http_status(:ok)
+      expect(response.parsed_body["clients"].map { |c| c["id"] }).to eq([ last_in.id, first_in.id ])
+    end
+
+    it "counts each status against the advanced filters, not the whole gym" do
+      plan = create(:contract_type, company: company)
+      holder = create(:client, company: company)
+      create(:contract, client: holder, company: company, contract_type: plan, status: :active, expires_at: 10.days.from_now)
+      create(:client, company: company)
+
+      get "/api/v1/clients", params: { contract_type_id: plan.id }, headers: auth_headers(owner)
+
+      expect(response.parsed_body["counts"]["all"]).to eq(1)
+      expect(response.parsed_body["counts"]["no_contract"]).to eq(0)
+    end
+
     it "never exposes another company's clients" do
       create(:client, company: company)
       other_org_client = create(:client)
@@ -99,52 +159,103 @@ RSpec.describe "Api::V1::Clients", type: :request do
     end
   end
 
-  describe "PATCH /api/v1/clients/:id — setting a mobile login" do
-    it "lets the owner set a login for a client" do
-      client = create(:client, company: company, email: "gymgoer@example.com")
+  describe "the filter rail's counts" do
+    it "reports how many clients each status holds, for the current search" do
+      create(:client, company: company, first_name: "Rania", active: true)
+      create(:client, company: company, first_name: "Dorra", active: false)
+      create(:client, company: company, first_name: "Sofiane", active: true)
 
-      patch "/api/v1/clients/#{client.id}", params: { client: { password: "password123" } }, headers: auth_headers(owner)
+      get "/api/v1/clients", headers: auth_headers(owner)
 
-      expect(response).to have_http_status(:ok)
-      expect(response.parsed_body["client"]["login_enabled"]).to be true
-      expect(client.reload.authenticate("password123")).to be_truthy
+      counts = response.parsed_body["counts"]
+      expect(counts["all"]).to eq(3)
+      expect(counts["active"]).to eq(2)
+      expect(counts["inactive"]).to eq(1)
+      expect(counts["no_contract"]).to eq(3)
     end
 
-    it "lets a receptionist set a client's login" do
-      receptionist = create(:staff_member, company: company, role: :receptionist)
-      client = create(:client, company: company, email: "gymgoer2@example.com")
+    it "narrows the counts with the search term rather than the picked status" do
+      create(:client, company: company, first_name: "Rania", active: true)
+      create(:client, company: company, first_name: "Dorra", active: false)
 
-      patch "/api/v1/clients/#{client.id}", params: { client: { password: "password123" } }, headers: auth_headers(receptionist.user)
+      get "/api/v1/clients", params: { search: "rania", status: "inactive" }, headers: auth_headers(owner)
 
-      expect(response).to have_http_status(:ok)
-      expect(client.reload.login_enabled?).to be true
+      counts = response.parsed_body["counts"]
+      expect(counts["all"]).to eq(1)
+      expect(counts["active"]).to eq(1)
+      expect(counts["inactive"]).to eq(0)
+    end
+  end
+
+  describe "POST /api/v1/clients — signing someone up in one go" do
+    let(:activity) { create(:activity, company: company) }
+    let(:plan) { create(:contract_type, company: company) }
+
+    before { create(:contract_type_activity, contract_type: plan, activity: activity, price: 120) }
+
+    def sign_up(subscription, user: owner)
+      post "/api/v1/clients",
+           params: {
+             client: { first_name: "Rania", last_name: "Ferjani", phone: "20000001" },
+             subscription: subscription
+           },
+           headers: auth_headers(user)
     end
 
-    it "logs an audit entry noting login was enabled" do
-      client = create(:client, company: company, email: "gymgoer3@example.com")
+    it "records the member, sells the plan and takes the money in one request" do
+      sign_up({ contract_type_id: plan.id, activity_id: activity.id, collect_payment: true, payment_method: "cash" })
 
-      patch "/api/v1/clients/#{client.id}", params: { client: { password: "password123" } }, headers: auth_headers(owner)
+      expect(response).to have_http_status(:created)
+      body = response.parsed_body
+      expect(body["client"]["first_name"]).to eq("Rania")
+      expect(body["contract"]["id"]).to be_present
+      expect(body["payment"]["amount"].to_f).to eq(120.0)
 
-      log = AuditLog.last
-      expect(log.action).to eq("client.updated")
-      expect(log.company_id).to eq(company.id)
-      expect(log.metadata["login_enabled"]).to be true
+      client = Client.find(body["client"]["id"])
+      expect(client.current_contract(company)).to be_present
+      expect(client.current_contract(company).current_period).to be_paid
     end
 
-    it "rejects enabling login without an email on file" do
-      client = create(:client, company: company, email: nil)
+    it "sells the plan without taking money when the desk is not collecting yet" do
+      sign_up({ contract_type_id: plan.id, activity_id: activity.id })
 
-      patch "/api/v1/clients/#{client.id}", params: { client: { password: "password123" } }, headers: auth_headers(owner)
+      expect(response).to have_http_status(:created)
+      expect(response.parsed_body["payment"]).to be_nil
+      expect(Client.find(response.parsed_body["client"]["id"]).current_contract(company).current_period).to be_unpaid
+    end
 
+    it "still records a member on their own when no plan is picked" do
+      post "/api/v1/clients",
+           params: { client: { first_name: "Sans", last_name: "Abonnement", phone: "20000002" } },
+           headers: auth_headers(owner)
+
+      expect(response).to have_http_status(:created)
+      expect(response.parsed_body["contract"]).to be_nil
+    end
+
+    it "leaves no half-signed-up member behind when the plan has no price for that activity" do
+      other = create(:activity, company: company, name: "Pilates")
+
+      expect { sign_up({ contract_type_id: plan.id, activity_id: other.id }) }.not_to change(Client, :count)
+
+      expect(response).to have_http_status(:unprocessable_content)
+      expect(response.parsed_body["error"]).to include("Pilates")
+    end
+
+    it "refuses another gym's plan without creating anyone" do
+      elsewhere = create(:contract_type, company: create(:company))
+
+      expect { sign_up({ contract_type_id: elsewhere.id, activity_id: activity.id }) }.not_to change(Client, :count)
       expect(response).to have_http_status(:unprocessable_content)
     end
 
-    it "rejects a too-short password" do
-      client = create(:client, company: company, email: "gymgoer3@example.com")
+    it "refuses the sale to a login that may record members but not sell plans" do
+      limited = create(:role, company: company, key: "front-desk", name: "Accueil", permissions: %w[clients])
+      staff = create(:staff_member, company: company, role: :receptionist, assigned_role: limited)
 
-      patch "/api/v1/clients/#{client.id}", params: { client: { password: "short" } }, headers: auth_headers(owner)
-
-      expect(response).to have_http_status(:unprocessable_content)
+      expect { sign_up({ contract_type_id: plan.id, activity_id: activity.id }, user: staff.user) }
+        .not_to change(Client, :count)
+      expect(response).to have_http_status(:forbidden)
     end
   end
 end

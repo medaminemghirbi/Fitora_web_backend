@@ -1,9 +1,15 @@
 class Activity < ApplicationRecord
-  belongs_to :location
+  belongs_to :company
 
   has_many :sessions, dependent: :destroy
   has_many :contract_type_activities, dependent: :destroy
   has_many :contract_types, through: :contract_type_activities
+
+  # The rooms this activity may run in. EMPTY means "anywhere" — see
+  # ActivitySpace. Never read `spaces` to answer "where can this run?";
+  # ask Space.available_for(activity), which handles the empty case.
+  has_many :activity_spaces, dependent: :destroy
+  has_many :spaces, through: :activity_spaces
 
   # How many people a session of this activity is for. The owner picks the
   # format; it constrains the capacity (see CAPACITY_BOUNDS + the validation).
@@ -29,7 +35,6 @@ class Activity < ApplicationRecord
 
   scope :active, -> { where(active: true) }
 
-  delegate :company, to: :location
 
   private
 

@@ -4,16 +4,108 @@ RSpec.describe "Api::V1::Onboarding", type: :request do
   let(:owner) { create(:user, :owner) }
   let!(:company) { create(:company, owner: owner) }
 
+  def state
+    get "/api/v1/onboarding", headers: auth_headers(owner)
+    response.parsed_body["onboarding"]
+  end
+
+  describe "GET /api/v1/onboarding" do
+    it "starts on the company step with nothing done" do
+      expect(state).to include("step" => "company", "complete" => false, "dismissed" => false, "done_count" => 0)
+    end
+
+    it "omits the spaces step until the company turns rooms on" do
+      expect(state["steps"].map { |s| s["key"] }).to eq(%w[company activities plans staff])
+
+      company.update!(settings: { features: { spaces: true } })
+
+      expect(state["steps"].map { |s| s["key"] }).to eq(%w[company activities spaces plans staff])
+    end
+
+    it "ticks a step off when its data is created anywhere in the app" do
+      create(:activity, company: company)
+
+      activities = state["steps"].find { |s| s["key"] == "activities" }
+      expect(activities).to include("state" => "done", "count" => 1)
+    end
+
+    it "asks for the first step that is neither done nor skipped" do
+      create(:activity, company: company)
+      patch "/api/v1/onboarding", params: { step: "company" }, headers: auth_headers(owner)
+
+      expect(state["step"]).to eq("plans")
+    end
+
+    it "forbids staff" do
+      staff = create(:staff_member, company: company, role: :receptionist)
+
+      get "/api/v1/onboarding", headers: auth_headers(staff.user)
+
+      expect(response).to have_http_status(:forbidden)
+    end
+  end
+
+  describe "PATCH /api/v1/onboarding" do
+    it "marks a step done and survives a reload" do
+      patch "/api/v1/onboarding", params: { step: "company" }, headers: auth_headers(owner)
+
+      expect(response).to have_http_status(:ok)
+      expect(company.reload.settings.onboarding[:completed]).to eq(%w[company])
+      expect(state["steps"].find { |s| s["key"] == "company" }["state"]).to eq("done")
+    end
+
+    it "clears a previous skip of the same step" do
+      post "/api/v1/onboarding/skip", params: { step: "staff" }, headers: auth_headers(owner)
+      patch "/api/v1/onboarding", params: { step: "staff" }, headers: auth_headers(owner)
+
+      settings = company.reload.settings.onboarding
+      expect(settings[:completed]).to eq(%w[staff])
+      expect(settings[:skipped]).to be_empty
+    end
+
+    it "rejects a step that is not in the catalogue" do
+      patch "/api/v1/onboarding", params: { step: "billing" }, headers: auth_headers(owner)
+
+      expect(response).to have_http_status(:unprocessable_content)
+      expect(company.reload.settings.onboarding[:completed]).to be_empty
+    end
+
+    it "forbids staff" do
+      staff = create(:staff_member, company: company, role: :receptionist)
+
+      patch "/api/v1/onboarding", params: { step: "company" }, headers: auth_headers(staff.user)
+
+      expect(response).to have_http_status(:forbidden)
+      expect(company.reload.settings.onboarding[:completed]).to be_empty
+    end
+  end
+
+  describe "POST /api/v1/onboarding/skip" do
+    it "skips an optional step" do
+      post "/api/v1/onboarding/skip", params: { step: "staff" }, headers: auth_headers(owner)
+
+      expect(response).to have_http_status(:ok)
+      expect(state["steps"].find { |s| s["key"] == "staff" }["state"]).to eq("skipped")
+    end
+
+    it "refuses to skip a step the business cannot run without" do
+      post "/api/v1/onboarding/skip", params: { step: "plans" }, headers: auth_headers(owner)
+
+      expect(response).to have_http_status(:unprocessable_content)
+      expect(company.reload.settings.onboarding[:skipped]).to be_empty
+    end
+  end
+
   describe "POST /api/v1/onboarding/dismiss" do
-    it "stamps setup_dismissed_at and returns the updated setup state" do
+    it "stops the app asking without pretending the steps are done" do
       post "/api/v1/onboarding/dismiss", headers: auth_headers(owner)
 
       expect(response).to have_http_status(:ok)
-      expect(response.parsed_body["setup"]).to include("dismissed" => true)
+      expect(response.parsed_body["onboarding"]).to include("dismissed" => true, "complete" => false)
       expect(company.reload.setup_dismissed_at).to be_present
     end
 
-    it "forbids staff from dismissing the guide" do
+    it "forbids staff from dismissing the flow" do
       staff = create(:staff_member, company: company, role: :receptionist)
 
       post "/api/v1/onboarding/dismiss", headers: auth_headers(staff.user)
@@ -23,19 +115,27 @@ RSpec.describe "Api::V1::Onboarding", type: :request do
     end
   end
 
-  describe "Company#setup_state" do
-    it "flips each flag as the underlying data is created" do
-      expect(company.setup_state).to include(
-        activity: false, contract_type: false, coach: false, complete: false
-      )
-
-      create(:activity, location: company.location)
+  describe "completion" do
+    it "is complete once every applicable step is done or skipped" do
+      create(:activity, company: company)
       create(:contract_type, company: company)
-      create(:coach, company: company)
+      patch "/api/v1/onboarding", params: { step: "company" }, headers: auth_headers(owner)
+      post "/api/v1/onboarding/skip", params: { step: "staff" }, headers: auth_headers(owner)
 
-      expect(company.reload.setup_state).to include(
-        activity: true, contract_type: true, coach: true, complete: true
-      )
+      expect(state).to include("complete" => true, "step" => "done")
+    end
+
+    it "is incomplete again when turning rooms on adds a step" do
+      create(:activity, company: company)
+      create(:contract_type, company: company)
+      patch "/api/v1/onboarding", params: { step: "company" }, headers: auth_headers(owner)
+      post "/api/v1/onboarding/skip", params: { step: "staff" }, headers: auth_headers(owner)
+      # reload first: `settings=` is read-modify-write on one jsonb column,
+      # so writing from a copy loaded before the requests would take the
+      # flow's own progress back out again.
+      company.reload.update!(settings: { features: { spaces: true } })
+
+      expect(state).to include("complete" => false, "step" => "spaces")
     end
   end
 end

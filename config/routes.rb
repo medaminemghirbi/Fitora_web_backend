@@ -39,10 +39,7 @@ Rails.application.routes.draw do
         end
       end
 
-      resource :company, only: [ :show, :update ] do
-        post :regenerate_mobile_key
-        get :mobile_key_qr
-      end
+      resource :company, only: [ :show, :update ]
       # Plural: an owner can run more than one company now (see
       # User#company_limit) — :show/:update above always act on whichever
       # one is currently active; these list/create/switch between them.
@@ -50,12 +47,14 @@ Rails.application.routes.draw do
         member { post :switch }
       end
       get "branding", to: "branding#show"
-      get "pairing/:mobile_auth_key", to: "pairing#show"
-      post "onboarding/dismiss", to: "onboarding#dismiss"
 
-      resource :location, only: [ :show, :update ]
-      resources :salles
+      # Resumable first-time setup. Singular: there is one flow per company.
+      resource :onboarding, only: [ :show, :update ], controller: "onboarding" do
+        post :skip
+        post :dismiss
+      end
       resources :activities
+      resources :spaces
       resources :coaches do
         member do
           post :login, to: "coaches#set_login"
@@ -82,8 +81,8 @@ Rails.application.routes.draw do
       post "data_exchange/:entity/import", to: "data_exchange#import"
 
       get "subscription", to: "subscription#show"
-      post "subscription/request_upgrade", to: "subscription#request_upgrade"
-      delete "subscription/request_upgrade", to: "subscription#cancel_upgrade"
+      # The gym's own invoices; :show is the PDF.
+      resources :invoices, only: [ :index, :show ]
 
       resources :contract_types, only: [ :index, :show, :create, :update ]
       resources :contracts, only: [ :index, :show, :create, :update, :destroy ] do
@@ -112,12 +111,23 @@ Rails.application.routes.draw do
         end
       end
 
-      # Mobile client (Client login) self-service.
+      # A member's own app: their gym's schedule, their bookings, their file.
+      # No directory and no self-signup — the gym enables the account from
+      # the member's own record (Api::V1::ClientsController#update).
       namespace :me do
+        resource :profile, only: [ :show ]
+        resources :sessions, only: [ :index ]
         resources :bookings, only: [ :index, :create ] do
           member { post :cancel }
         end
-        resources :sessions, only: [ :index ]
+      end
+
+      # A coach's own day. Only what no existing endpoint already answers:
+      # the schedule and attendance controllers narrow to a coach's own
+      # sessions themselves, and a second route to the same data would be a
+      # second place for that narrowing to be got wrong.
+      namespace :coach do
+        resources :members, only: [ :index ]
       end
 
       namespace :owner do
@@ -131,12 +141,14 @@ Rails.application.routes.draw do
           member do
             patch :subscription, to: "companies#update_subscription"
             patch :settings, to: "companies#update_settings"
-            patch :mobile_key, to: "companies#update_mobile_key"
-            patch :debt, to: "companies#update_debt"
             patch :company_limit, to: "companies#update_company_limit"
             post :impersonate, to: "companies#impersonate"
+            get :invoices, to: "companies#invoices"
+            post :invoices, to: "companies#create_invoice"
+            delete "invoices/:invoice_id", to: "companies#destroy_invoice", as: :invoice
           end
         end
+        get "metrics", to: "metrics#show"
         get "subscription_pricing", to: "subscription_pricing#show"
         patch "subscription_pricing", to: "subscription_pricing#update"
         resources :app_updates, only: [ :index, :create ]

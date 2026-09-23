@@ -72,4 +72,23 @@ RSpec.describe "Api::V1::Payments", type: :request do
       expect(log.company_id).to eq(company.id)
     end
   end
+
+  describe "the list's rail counts and cash totals" do
+    it "counts each status and sums what was actually collected" do
+      client = create(:client, company: company)
+      create(:payment, company: company, client: client, status: :paid, amount: 250, paid_at: Time.current)
+      create(:payment, company: company, client: client, status: :paid, amount: 150, paid_at: Time.current)
+      create(:payment, company: company, client: client, status: :refunded, amount: 100)
+
+      get "/api/v1/payments", headers: auth_headers(owner)
+
+      body = response.parsed_body
+      expect(body["counts"]["all"]).to eq(3)
+      expect(body["counts"]["paid"]).to eq(2)
+      expect(body["counts"]["refunded"]).to eq(1)
+      expect(body["totals"]["collected_this_month"]).to eq(400.0)
+      expect(body["totals"]["refunded_value"]).to eq(100.0)
+      expect(body["totals"]["average_payment"]).to eq(200.0)
+    end
+  end
 end

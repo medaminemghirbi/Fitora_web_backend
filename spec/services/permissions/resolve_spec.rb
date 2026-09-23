@@ -16,7 +16,7 @@ RSpec.describe Permissions::Resolve do
     result = described_class.call(user: company.owner)
 
     expect(result.role).to eq(key: "owner", name: "Propriétaire")
-    expect(result.permissions).to match_array(ModuleCatalog::ALL_PERMISSIONS)
+    expect(result.permissions).to match_array(Permission::ALL)
   end
 
   it "resolves permissions from a custom role assigned to a staff member" do

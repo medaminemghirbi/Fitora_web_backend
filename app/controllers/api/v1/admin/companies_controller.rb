@@ -3,15 +3,24 @@ module Api
     module Admin
       class CompaniesController < BaseController
         before_action :require_admin!
-        before_action :set_company, only: [ :show, :update_subscription, :update_settings, :update_mobile_key, :update_debt, :update_company_limit, :impersonate ]
+        before_action :set_company, only: [ :show, :update_subscription, :update_settings, :update_company_limit, :impersonate, :invoices, :create_invoice, :destroy_invoice ]
 
-        # GET /api/v1/admin/companies
+        # GET /api/v1/admin/companies?q=&closed=1
+        #
+        # `closed` narrows to the gyms whose access is shut. The count comes
+        # back either way, so the list says how many without a screen of its
+        # own — nobody should have to open a gym's page to find out.
         def index
-          companies = Company.includes(:owner, :subscription).search(params[:q]).order(:name)
+          companies = Company.includes(:owner, :subscription).search(params[:q])
+          closed = companies.joins(:subscription).where(subscriptions: { active: false })
+
+          only_closed = ActiveModel::Type::Boolean.new.cast(params[:closed])
+          scope = (only_closed ? closed : companies).reorder(:name)
 
           render json: {
-            companies: paginate(companies).map { |o| AdminCompanySerializer.new(o).as_json },
-            meta: pagination_meta(companies)
+            companies: paginate(scope).map { |o| AdminCompanySerializer.new(o).as_json },
+            meta: pagination_meta(scope),
+            closed_count: closed.count
           }
         end
 
@@ -24,33 +33,30 @@ module Api
           }
         end
 
-        # PATCH /api/v1/admin/companies/:id/subscription — direct admin
-        # override of a company's access status. No plans, no billing: the
-        # owner is invoiced/paid outside the app, this just grants or
-        # revokes access by hand.
+        # PATCH /api/v1/admin/companies/:id/subscription — access is a
+        # boolean, so this sets two things: whether the door is open, and
+        # whether an invoice covers one month or twelve. Neither ends a
+        # trial: only an invoice does (#create_invoice).
         def update_subscription
-          subscription = @company.subscription || @company.build_subscription(starts_at: Time.current)
-          previous_status = subscription.status
+          subscription = @company.subscription || @company.build_subscription
 
-          attrs = {
-            status: params[:status] || subscription.status,
-            # Granting ongoing access clears the free-trial deadline by
-            # default so the company is unlocked. Pass expires_at explicitly
-            # to set a new one instead (e.g. a renewal date).
-            expires_at: params[:expires_at].presence
-          }
-          if params.key?(:billing_period)
-            # Setting a billing period activates a real (paid) subscription
-            # — it also resolves any pending activation request from the owner.
-            attrs[:billing_period] = params[:billing_period].presence
-            attrs[:upgrade_requested_at] = nil
-            attrs[:upgrade_requested_period] = nil
-          end
+          attrs = {}
+          attrs[:active] = ActiveModel::Type::Boolean.new.cast(params[:active]) if params.key?(:active)
+          attrs[:billing_period] = params[:billing_period].presence if params.key?(:billing_period)
+          was_active = subscription.active
 
           if subscription.update(attrs)
+            # Only a change of access is an access event. Picking what the
+            # next invoice covers used to be logged as "access restored",
+            # which is what the owner's feed then told them.
+            action =
+              if subscription.active == was_active then "subscription.billing_period_changed"
+              elsif subscription.active? then "subscription.access_restored"
+              else "subscription.access_suspended"
+              end
             AuditLogs::Record.call(
-              company: @company, user: current_user, action: "subscription.status_overridden",
-              auditable: subscription, metadata: { from: previous_status, to: subscription.status, billing_period: subscription.billing_period }
+              company: @company, user: current_user, action: action,
+              auditable: subscription, metadata: { from: was_active, to: subscription.active, billing_period: subscription.billing_period }
             )
             render json: { company: AdminCompanySerializer.new(@company.reload).as_json }
           else
@@ -74,42 +80,10 @@ module Api
           end
         end
 
-        # PATCH /api/v1/admin/companies/:id/mobile_key — the only way to set
-        # the mobile pairing key to a specific value rather than a random
-        # one; the owner-facing endpoint can only regenerate (see
-        # Api::V1::CompaniesController#regenerate_mobile_key).
-        def update_mobile_key
-          previous_key = @company.mobile_auth_key
-
-          if @company.update(mobile_auth_key: params[:mobile_auth_key])
-            AuditLogs::Record.call(
-              company: @company, user: current_user, action: "admin.mobile_key_overridden",
-              auditable: @company, metadata: { from: previous_key, to: @company.mobile_auth_key }
-            )
-            render json: { company: AdminCompanySerializer.new(@company).as_json }
-          else
-            render json: { error: @company.errors.full_messages.first, errors: @company.errors.full_messages }, status: :unprocessable_content
-          end
-        end
-
         # PATCH /api/v1/admin/companies/:id/debt — the running balance the
         # company owes Fitora off-app. Purely informational on this side too
         # (no invoicing), just a number an admin keeps up to date so the
         # owner sees it on their modules page.
-        def update_debt
-          previous = @company.debt_cents
-
-          if @company.update(debt_cents: params[:debt_cents])
-            AuditLogs::Record.call(
-              company: @company, user: current_user, action: "admin.debt_updated",
-              auditable: @company, metadata: { from: previous, to: @company.debt_cents }
-            )
-            render json: { company: AdminCompanySerializer.new(@company).as_json }
-          else
-            render json: { error: @company.errors.full_messages.first, errors: @company.errors.full_messages }, status: :unprocessable_content
-          end
-        end
-
         # PATCH /api/v1/admin/companies/:id/company_limit — { company_limit }
         # (1, 3, or blank/null for unlimited). Reached via any one of the
         # owner's companies in the admin console, but it governs the OWNER,
@@ -144,6 +118,56 @@ module Api
           )
 
           render json: { token: JwtService.encode(owner.id, impersonator_id: current_user.id), user: UserSerializer.new(owner).as_json }
+        end
+
+        # GET /api/v1/admin/companies/:id/invoices
+        def invoices
+          render json: {
+            invoices: @company.invoices.newest_first.map { |i| InvoiceSerializer.new(i).as_json }
+          }
+        end
+
+        # POST /api/v1/admin/companies/:id/invoices — the money arrived.
+        #
+        # Issues one invoice for the next period the gym has not paid for
+        # and opens access again. Payment happens off-app, so this is the
+        # only record that it happened at all.
+        def create_invoice
+          result = Invoices::Issue.call(company: @company, issued_by: current_user, notes: params[:notes].presence)
+
+          if result.success?
+            AuditLogs::Record.call(
+              company: @company, user: current_user, action: "subscription.invoice_issued",
+              auditable: result.invoice,
+              metadata: { number: result.invoice.number, period_end: result.invoice.period_end, amount_cents: result.invoice.amount_cents }
+            )
+            Notifications::Push.call(
+              recipient: @company.owner, kind: "invoice_issued",
+              data: { number: result.invoice.number, amount: result.invoice.amount, currency: result.invoice.currency },
+              url: "/owner/subscription", dedup_key: "invoice-#{result.invoice.id}"
+            )
+            render json: {
+              invoice: InvoiceSerializer.new(result.invoice).as_json,
+              company: AdminCompanySerializer.new(@company.reload).as_json
+            }, status: :created
+          else
+            render json: { error: result.error }, status: :unprocessable_content
+          end
+        end
+
+        # DELETE /api/v1/admin/companies/:id/invoices/:invoice_id — an
+        # invoice issued in error. Deleting it takes the coverage back with
+        # it; the sweep closes access again if that leaves the gym uncovered.
+        def destroy_invoice
+          invoice = @company.invoices.find(params[:invoice_id])
+          number = invoice.number
+          invoice.destroy!
+
+          AuditLogs::Record.call(
+            company: @company, user: current_user, action: "subscription.invoice_voided",
+            auditable: @company, metadata: { number: number }
+          )
+          render json: { company: AdminCompanySerializer.new(@company.reload).as_json }
         end
 
         private

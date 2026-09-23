@@ -5,11 +5,14 @@ FactoryBot.define do
     timezone { "Africa/Tunis" }
     currency { "TND" }
 
-    # Every company has exactly one location in production (auto-created
-    # at signup) — mirrored here so specs don't need to remember to create one
-    # before exercising anything that reads company.location.
+    # Out of the directory. Set after create, not as an attribute: the column
+    # defaults to now() and Rails omits an attribute whose value matches the
+    # default it knows, so Postgres would fill it back in.
+    trait :unlisted do
+      after(:create) { |company| company.update!(listed_at: nil) }
+    end
+
     after(:create) do |company|
-      create(:location, company: company) unless company.locations.exists?
       Role.seed_defaults_for(company) if company.roles.empty?
       # An owner can run several companies now — current_company resolves
       # through active_company, not "the" company, so specs that just

@@ -23,6 +23,9 @@ class AccountMailer < ApplicationMailer
     @record = record
     @first_name = record.respond_to?(:first_name) ? record.first_name : nil
     @verify_url = "#{FRONTEND_URL}/verify-email?token=#{raw_token}"
+    @expires_in_days = EmailVerifiable::TOKEN_EXPIRY.to_i / 1.day
+    # For an owner the link is what opens the account, and the mail says so.
+    @opens_account = record.is_a?(User) && record.owner?
 
     mail(to: record.email, subject: "Confirmez votre adresse e-mail Fitora")
   end

@@ -3,14 +3,13 @@ require "rails_helper"
 RSpec.describe "Api::V1::Sessions", type: :request do
   let(:owner) { create(:user, :owner) }
   let!(:company) { create(:company, owner: owner) }
-  let!(:location) { create(:location, company: company) }
-  let!(:activity) { create(:activity, location: location) }
+  let!(:activity) { create(:activity, company: company) }
 
   describe "GET /api/v1/sessions" do
     it "never exposes another company's sessions" do
-      create(:session, activity: activity, location: location)
+      create(:session, activity: activity, company: company)
       other_activity = create(:activity)
-      other_session = create(:session, activity: other_activity, location: other_activity.location)
+      other_session = create(:session, activity: other_activity, company: other_activity.company)
 
       get "/api/v1/sessions", headers: auth_headers(owner)
 
@@ -20,10 +19,9 @@ RSpec.describe "Api::V1::Sessions", type: :request do
 
     it "limits a coach to only their own sessions" do
       coach = create(:coach, company: company)
-      create(:coach_location, coach: coach, location: location)
       coach_staff = create(:staff_member, company: company, role: :coach, coach: coach)
-      own_session = create(:session, activity: activity, location: location, coach: coach)
-      other_coach_session = create(:session, activity: activity, location: location)
+      own_session = create(:session, activity: activity, company: company, coach: coach)
+      other_coach_session = create(:session, activity: activity, company: company)
 
       get "/api/v1/sessions", headers: auth_headers(coach_staff.user)
 
@@ -36,7 +34,7 @@ RSpec.describe "Api::V1::Sessions", type: :request do
   describe "GET /api/v1/sessions/:id" do
     it "404s for a session belonging to another company" do
       other_activity = create(:activity)
-      other_session = create(:session, activity: other_activity, location: other_activity.location)
+      other_session = create(:session, activity: other_activity, company: other_activity.company)
 
       get "/api/v1/sessions/#{other_session.id}", headers: auth_headers(owner)
 
@@ -47,7 +45,7 @@ RSpec.describe "Api::V1::Sessions", type: :request do
   describe "GET /api/v1/sessions/schedule_pdf" do
     it "returns a pdf covering the week containing the given date" do
       week_start = Date.current.beginning_of_week(:monday)
-      create(:session, activity: activity, location: location, starts_at: week_start.to_time.change(hour: 9))
+      create(:session, activity: activity, company: company, starts_at: week_start.to_time.change(hour: 9))
 
       get "/api/v1/sessions/schedule_pdf", params: { from: week_start.iso8601 }, headers: auth_headers(owner)
 
@@ -58,7 +56,6 @@ RSpec.describe "Api::V1::Sessions", type: :request do
 
     it "limits a coach's pdf to their own sessions" do
       coach = create(:coach, company: company)
-      create(:coach_location, coach: coach, location: location)
       coach_staff = create(:staff_member, company: company, role: :coach, coach: coach)
 
       get "/api/v1/sessions/schedule_pdf", headers: auth_headers(coach_staff.user)
@@ -95,7 +92,7 @@ RSpec.describe "Api::V1::Sessions", type: :request do
     end
 
     context "with a client_id (individual session)" do
-      let(:solo_activity) { create(:activity, location: location, session_format: :individual, capacity: 1) }
+      let(:solo_activity) { create(:activity, company: company, session_format: :individual, capacity: 1) }
       let(:client) { create(:client, company: company) }
 
       def solo_params(client_id)
@@ -110,7 +107,7 @@ RSpec.describe "Api::V1::Sessions", type: :request do
 
       it "books the chosen member when they have a covering contract" do
         plan = create(:contract_type, company: company, unlimited_bookings: true)
-        create(:contract, client: client, contract_type: plan)
+        create(:contract, client: client, contract_type: plan, activity: solo_activity)
 
         expect {
           post "/api/v1/sessions", params: solo_params(client.id), headers: auth_headers(owner)
@@ -143,7 +140,7 @@ RSpec.describe "Api::V1::Sessions", type: :request do
   describe "PATCH /api/v1/sessions/:id" do
     it "rejects updates to another company's session" do
       other_activity = create(:activity)
-      other_session = create(:session, activity: other_activity, location: other_activity.location)
+      other_session = create(:session, activity: other_activity, company: other_activity.company)
 
       patch "/api/v1/sessions/#{other_session.id}", params: { session: { capacity: 99 } }, headers: auth_headers(owner)
 

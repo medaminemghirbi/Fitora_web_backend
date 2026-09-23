@@ -1,6 +1,6 @@
 FactoryBot.define do
   factory :activity do
-    location
+    company
     sequence(:name) { |n| "Activity #{n}" }
     session_format { :collective }
     duration { 60 }

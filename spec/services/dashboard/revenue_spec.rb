@@ -34,6 +34,52 @@ RSpec.describe Dashboard::Revenue do
     end
   end
 
+  describe ".by_month" do
+    it "returns twelve months ending with this one, oldest first" do
+      travel_to Time.zone.local(2025, 6, 18, 12, 0, 0) do
+        months = described_class.by_month(company: create(:company)).map { |m| m[:month].to_s }
+
+        expect(months.length).to eq(12)
+        expect(months.first).to eq("2024-07-01")
+        expect(months.last).to eq("2025-06-01")
+      end
+    end
+
+    # A gap in a line chart reads as missing data, not as a month where the
+    # gym took nothing. Every month is present, zero or not.
+    it "carries a zero for a month with no takings rather than leaving it out" do
+      travel_to Time.zone.local(2025, 6, 18, 12, 0, 0) do
+        company = create(:company)
+        paid_payment(company, amount: 120, paid_at: Time.zone.local(2025, 4, 9, 10, 0, 0))
+
+        by_month = described_class.by_month(company: company)
+
+        expect(by_month.find { |m| m[:month].to_s == "2025-04-01" }[:total]).to eq(120)
+        expect(by_month.find { |m| m[:month].to_s == "2025-05-01" }[:total]).to eq(0)
+        expect(by_month.map { |m| m[:total] }.sum).to eq(120)
+      end
+    end
+
+    it "sums every payment inside one month" do
+      travel_to Time.zone.local(2025, 6, 18, 12, 0, 0) do
+        company = create(:company)
+        paid_payment(company, amount: 40, paid_at: Time.zone.local(2025, 6, 2, 10, 0, 0))
+        paid_payment(company, amount: 60, paid_at: Time.zone.local(2025, 6, 17, 10, 0, 0))
+
+        expect(described_class.by_month(company: company).last).to include(total: 100)
+      end
+    end
+
+    it "leaves another company's takings out" do
+      travel_to Time.zone.local(2025, 6, 18, 12, 0, 0) do
+        company = create(:company)
+        paid_payment(create(:company), amount: 500, paid_at: Time.current)
+
+        expect(described_class.by_month(company: company).map { |m| m[:total] }.sum).to eq(0)
+      end
+    end
+  end
+
   it "only counts payments belonging to the given company" do
     travel_to Time.zone.local(2025, 6, 18, 12, 0, 0) do
       company = create(:company)

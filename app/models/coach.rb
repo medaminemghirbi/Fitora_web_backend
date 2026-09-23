@@ -1,8 +1,6 @@
 class Coach < ApplicationRecord
   belongs_to :company
 
-  has_many :coach_locations, dependent: :destroy
-  has_many :locations, through: :coach_locations
   has_many :sessions, dependent: :nullify
   has_one :staff_member, dependent: :nullify
 

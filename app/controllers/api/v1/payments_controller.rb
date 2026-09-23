@@ -7,14 +7,11 @@ module Api
 
       # GET /api/v1/payments?status=&payment_method=&date=
       def index
-        scope = current_company.payments.includes(:client)
+        searched = searched_scope
+        scope = searched
         scope = scope.where(status: params[:status]) if params[:status].present?
         scope = scope.where(payment_method: params[:payment_method]) if params[:payment_method].present?
         scope = scope.where("created_at >= ?", Date.parse(params[:date]).beginning_of_day) if params[:date].present?
-        if params[:q].present?
-          t = "%#{params[:q].strip}%"
-          scope = scope.joins(:client).where("clients.first_name ILIKE :t OR clients.last_name ILIKE :t", t: t)
-        end
         scope = scope.recent
 
         if params[:format] == "csv"
@@ -22,9 +19,37 @@ module Api
         else
           render json: {
             payments: paginate(scope).map { |p| PaymentSerializer.new(p).as_json },
-            meta: pagination_meta(scope)
+            meta: pagination_meta(scope),
+            counts: status_counts(searched),
+            method_counts: searched.group(:payment_method).count,
+            totals: cash_totals(searched)
           }
         end
+      end
+
+      # What the filter rail and the stats strip read, all on the searched set
+      # so the numbers follow the search box and not the status picked.
+      def searched_scope
+        scope = current_company.payments.includes(:client)
+        return scope if params[:q].blank?
+
+        t = "%#{params[:q].strip}%"
+        scope.joins(:client).where("clients.first_name ILIKE :t OR clients.last_name ILIKE :t", t: t)
+      end
+
+      def status_counts(searched)
+        searched.group(:status).count.merge("all" => searched.count)
+      end
+
+      def cash_totals(searched)
+        paid = searched.where(status: :paid)
+        {
+          collected_this_month: paid.where(paid_at: Time.current.beginning_of_month..).sum(:amount).to_f,
+          collected_total: paid.sum(:amount).to_f,
+          refunded_value: searched.where(status: :refunded).sum(:amount).to_f,
+          cancelled_value: searched.where(status: :cancelled).sum(:amount).to_f,
+          average_payment: paid.count.positive? ? (paid.sum(:amount).to_f / paid.count).round(2) : 0.0
+        }
       end
 
       # GET /api/v1/payments/:id

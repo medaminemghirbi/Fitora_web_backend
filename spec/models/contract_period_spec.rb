@@ -20,6 +20,34 @@ RSpec.describe ContractPeriod do
     end
   end
 
+  describe "the price snapshot" do
+    it "keeps the price it was sold at when the catalogue price changes later" do
+      activity = create(:activity)
+      plan = create(:contract_type, company: activity.company, activity: activity, price: 70)
+      contract = create(:contract, contract_type: plan, activity: activity)
+      period = contract.current_period
+
+      plan.contract_type_activities.find_by(activity: activity).update!(price: 80)
+      # Any later save used to re-read the catalogue and re-price the period.
+      period.update!(payment_status: :paid)
+
+      expect(period.reload.base_price).to eq(70)
+      expect(period.final_price).to eq(70)
+    end
+
+    it "re-applies the discount against the frozen base price, not the catalogue" do
+      activity = create(:activity)
+      plan = create(:contract_type, company: activity.company, activity: activity, price: 70)
+      contract = create(:contract, contract_type: plan, activity: activity)
+      period = contract.current_period
+
+      plan.contract_type_activities.find_by(activity: activity).update!(price: 200)
+      period.update!(discount: 10)
+
+      expect(period.reload.final_price).to eq(60)
+    end
+  end
+
   describe "#compute_final_price" do
     it "sets final_price to the plan price minus the discount" do
       contract_type = create(:contract_type, price: 100)

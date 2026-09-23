@@ -44,29 +44,23 @@ module Api
           # re-permission them or add its own from Settings.
           Role.seed_defaults_for(company)
 
-          # 14-day free trial, full access, no plan to pick. Subscription#locked?
-          # flips on once expires_at passes, unless a platform admin grants
-          # ongoing access first (which clears it). See
-          # Api::V1::BaseController#enforce_trial_lock! — this is entirely
-          # independent per company, so one of an owner's companies being
-          # locked never blocks them from creating or using another.
-          company.create_subscription!(
-            status: :active,
-            starts_at: Time.current,
-            expires_at: 14.days.from_now
+          # The free days are the first period, given away: an invoice like
+          # any other, flagged so the gym is shown as on trial rather than
+          # on a tier. Access is open because the invoice covers today.
+          subscription = company.create_subscription!(active: true, billing_period: :monthly)
+          Invoice.create!(
+            company: company,
+            number: Invoice.next_number,
+            period_start: Date.current,
+            period_end: Date.current + (Subscription::TRIAL_DAYS - 1),
+            amount_cents: 0,
+            trial: true,
+            currency: company.currency,
+            billing_period: subscription.billing_period,
+            issued_at: Time.current,
+            notes: "Période d'essai — #{Subscription::TRIAL_DAYS} jours offerts"
           )
 
-          # One location per company, always — created here so the
-          # owner never has to think about "locations" as a separate setup
-          # step before they can add activities or staff.
-          company.locations.create!(
-            name: company.name,
-            address: company.address,
-            phone: company.phone,
-            email: company.email,
-            city: company.city,
-            timezone: company.timezone
-          )
 
           current_user.update!(active_company: company)
         end
@@ -99,30 +93,6 @@ module Api
         render json: { company: CompanySerializer.new(@company).as_json }
       end
 
-      # POST /api/v1/company/regenerate_mobile_key — the owner can only
-      # roll a fresh random key, never set one by hand (that's admin-only,
-      # see Api::V1::Admin::CompaniesController#update_mobile_key).
-      def regenerate_mobile_key
-        require_company!
-        return if performed?
-
-        current_company.regenerate_mobile_auth_key!
-        AuditLogs::Record.call(company: current_company, user: current_user, action: "mobile_key.regenerated", auditable: current_company)
-        render json: { company: CompanySerializer.new(current_company).as_json }
-      end
-
-      # GET /api/v1/company/mobile_key_qr — SVG, generated fresh each call
-      # (a handful of characters is cheap to re-encode; not worth caching).
-      def mobile_key_qr
-        require_company!
-        return if performed?
-
-        qr = RQRCode::QRCode.new(current_company.mobile_auth_key)
-        svg = qr.as_svg(offset: 8, color: "000", fill: "fff", module_size: 8, use_path: true)
-
-        send_data svg, type: "image/svg+xml", disposition: "inline"
-      end
-
       private
 
       def set_owned_company
@@ -130,12 +100,43 @@ module Api
       end
 
       def company_params
-        params.require(:company).permit(
+        permitted = params.require(:company).permit(
           :name, :description, :phone, :email, :country, :city,
           :address, :latitude, :longitude, :timezone, :currency,
-          :slug, :primary_color, :logo,
-          working_days: []
+          :slug, :logo,
+          # Hours and branding are settings now, but the app still sends them
+          # flat. Accept them where they have always been and fold them in.
+          :primary_color, :business_hours_start, :business_hours_end,
+          working_days: [],
+          settings: [
+            { features: CompanySettings::FEATURES.keys },
+            { booking: CompanySettings::BOOKING.keys },
+            { hours: [ :start, :end, { working_days: [] } ] },
+            { branding: CompanySettings::BRANDING.keys }
+          ]
         )
+
+        fold_legacy_settings_keys(permitted)
+      end
+
+      # Moves the flat hours/branding keys into the settings patch, so the
+      # model sees one shape whichever way the client sent them. An explicit
+      # `settings` section wins over the flat key for the same value.
+      def fold_legacy_settings_keys(permitted)
+        hours = {
+          start: permitted.delete(:business_hours_start),
+          end: permitted.delete(:business_hours_end),
+          working_days: permitted.delete(:working_days)
+        }.compact
+        branding = { primary_color: permitted.delete(:primary_color) }.compact
+
+        return permitted if hours.empty? && branding.empty?
+
+        settings = (permitted[:settings] || {}).to_h.symbolize_keys
+        settings[:hours] = hours.merge((settings[:hours] || {}).to_h.symbolize_keys)
+        settings[:branding] = branding.merge((settings[:branding] || {}).to_h.symbolize_keys)
+        permitted[:settings] = settings
+        permitted
       end
     end
   end

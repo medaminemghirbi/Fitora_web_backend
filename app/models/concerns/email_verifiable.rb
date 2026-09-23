@@ -1,11 +1,20 @@
-# Shared by User (owner/staff — never admin) and Client. Verifying an email
-# is informational, not a login gate: it doesn't block access anywhere,
-# it just lets the frontend show "confirm your email" and lets us trust the
-# address for things like the password-reset flow itself.
+# Shared by User (owner/staff — never admin) and Client.
+#
+# For an owner it is a gate: a gym opening its own account confirms the
+# address before anything past sign-up opens (see
+# Api::V1::BaseController#require_confirmed_email!), so the trial never
+# starts on a mistyped address nobody reads. For staff and members — whose
+# addresses the gym typed in — it stays informational: it lets the frontend
+# show "confirm your email" and lets us trust the address for things like
+# the password-reset flow itself.
 module EmailVerifiable
   extend ActiveSupport::Concern
 
   TOKEN_EXPIRY = 3.days
+
+  # Between two sends of the link. Long enough that a double click, or an
+  # impatient third one, does not bury the inbox in identical messages.
+  RESEND_COOLDOWN = 60.seconds
 
   class_methods do
     def find_by_email_verification_token(raw_token)
@@ -18,6 +27,13 @@ module EmailVerifiable
 
   def email_verified?
     email_verified_at.present?
+  end
+
+  # Seconds before the link may be sent again; 0 when it may be now.
+  def email_verification_resend_in
+    return 0 if email_verification_sent_at.blank?
+
+    [ (email_verification_sent_at + RESEND_COOLDOWN - Time.current).ceil, 0 ].max
   end
 
   def generate_email_verification_token!

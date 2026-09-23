@@ -8,28 +8,25 @@ RSpec.describe Session, type: :model do
     expect(session.errors[:ends_at]).to be_present
   end
 
-  it "is invalid when the location does not match the activity's location" do
-    other_location = create(:location)
-    session = build(:session, location: other_location)
+  it "refuses an activity that belongs to another gym" do
+    session = build(:session, company: create(:company))
 
     expect(session).not_to be_valid
-    expect(session.errors[:location]).to be_present
+    expect(session.errors[:activity]).to be_present
   end
 
-  it "is invalid when the coach is not assigned to the session's location" do
-    coach = create(:coach)
-    session = build(:session, coach: coach)
+  it "refuses a coach who belongs to another gym" do
+    session = build(:session, coach: create(:coach))
 
     expect(session).not_to be_valid
     expect(session.errors[:coach]).to be_present
   end
 
-  it "is valid when the coach is assigned to the session's location" do
+  it "is valid when the coach is assigned to the session's company" do
     activity = create(:activity)
-    coach = create(:coach, company: activity.location.company)
-    create(:coach_location, coach: coach, location: activity.location)
+    coach = create(:coach, company: activity.company)
 
-    session = build(:session, activity: activity, location: activity.location, coach: coach)
+    session = build(:session, activity: activity, company: activity.company, coach: coach)
 
     expect(session).to be_valid
   end

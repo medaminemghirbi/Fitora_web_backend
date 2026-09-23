@@ -10,7 +10,9 @@ module Api
 
       # GET /api/v1/contract_types
       def index
-        plans = current_company.contract_types.order(:price)
+        # Was ordered by the flat price, which no longer exists — a plan now
+        # has one price per activity. Shortest commitment first, then name.
+        plans = current_company.contract_types.order(:billing_period, :name)
         render json: { plans: plans.map { |p| ContractTypeSerializer.new(p).as_json } }
       end
 
@@ -47,15 +49,30 @@ module Api
         @plan = current_company.contract_types.find(params[:id])
       end
 
+      # The plan's pricing grid: one { activity_id, price } per activity this
+      # plan is sold for. Activities not listed are dropped — the plan simply
+      # isn't offered for them. Ids from another company are ignored, same
+      # guard the old activity_ids sync used.
       def sync_associations(plan)
-        return unless params[:activity_ids]
+        return unless params[:activity_prices]
 
-        plan.activity_ids = Array(params[:activity_ids]) & current_company.locations.joins(:activities).pluck("activities.id")
+        own_activity_ids = current_company.activities.ids
+        rows = Array(params[:activity_prices]).filter_map do |row|
+          activity_id = row[:activity_id].presence
+          next unless own_activity_ids.include?(activity_id)
+
+          { activity_id: activity_id, price: row[:price].to_f }
+        end
+
+        plan.contract_type_activities.where.not(activity_id: rows.map { |r| r[:activity_id] }).destroy_all
+        rows.each do |row|
+          plan.contract_type_activities.find_or_initialize_by(activity_id: row[:activity_id]).update!(price: row[:price])
+        end
       end
 
       def plan_params
         params.require(:contract_type).permit(
-          :name, :description, :price, :currency, :billing_period, :session_count,
+          :name, :description, :billing_period, :session_count,
           :unlimited_bookings, :booking_limit, :priority_booking, :active, :color
         )
       end

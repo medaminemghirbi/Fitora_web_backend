@@ -6,11 +6,10 @@ module Api
       before_action :require_session_management!, only: [ :create, :update, :cancel ]
       before_action :set_session, only: [ :show, :update, :cancel ]
 
-      # GET /api/v1/sessions?location_id=&activity_id=&coach_id=&date=&status=
+      # GET /api/v1/sessions?activity_id=&coach_id=&date=&status=
       # GET /api/v1/sessions?from=&to=&... — range query, used by the calendar
       def index
         scope = base_scope
-        scope = scope.where(location_id: params[:location_id]) if params[:location_id].present?
         scope = scope.where(activity_id: params[:activity_id]) if params[:activity_id].present?
         scope = scope.where(coach_id: params[:coach_id]) if params[:coach_id].present?
         scope = scope.where(status: params[:status]) if params[:status].present?
@@ -36,7 +35,7 @@ module Api
         render json: { session: SessionSerializer.new(@session).as_json }
       end
 
-      # GET /api/v1/sessions/schedule_pdf?from=&location_id=
+      # GET /api/v1/sessions/schedule_pdf?from=
       # Prints the week containing `from` (defaults to today), one page per
       # coach. `base_scope` already keeps a coach login to their own sessions.
       def schedule_pdf
@@ -44,19 +43,16 @@ module Api
         week_end = week_start + 6.days
 
         scope = base_scope.where(starts_at: week_start.beginning_of_day..week_end.end_of_day)
-        scope = scope.where(location_id: params[:location_id]) if params[:location_id].present?
-        sessions = scope.includes(:activity, :coach, :location).order(:starts_at)
+        sessions = scope.includes(:activity, :coach).order(:starts_at)
 
-        location = current_company.locations.find_by(id: params[:location_id]) || current_company.locations.first
 
-        pdf = Schedule::WeeklyPdf.call(company: current_company, location: location, week_start: week_start, sessions: sessions)
+        pdf = Schedule::WeeklyPdf.call(company: current_company, week_start: week_start, sessions: sessions)
         send_data pdf, filename: "planning-#{week_start.strftime('%Y-%m-%d')}.pdf", type: "application/pdf", disposition: "inline"
       end
 
       # POST /api/v1/sessions
       def create
-        activity = Activity.joins(:location)
-                            .where(locations: { company_id: current_company.id })
+        activity = current_company.activities
                             .find_by(id: session_params[:activity_id])
         return render json: { error: "Activity not found" }, status: :not_found if activity.nil?
 
@@ -68,7 +64,6 @@ module Api
         return render json: { error: "Client not found" }, status: :not_found if client_id.present? && client.nil?
 
         attributes = session_params.to_h.merge(
-          location_id: activity.location_id,
           capacity: session_params[:capacity].presence || activity.capacity
         )
         # No activity-level price to fall back to — booking is always settled
@@ -116,7 +111,7 @@ module Api
       # Coach-role staff only ever see/touch their own sessions; everyone
       # else with the `sessions` capability sees the whole company.
       def base_scope
-        scope = Session.joins(:location).where(locations: { company_id: current_company.id })
+        scope = current_company.sessions
         current_staff_member&.coach? ? scope.where(coach_id: current_staff_member.coach_id) : scope
       end
 
@@ -134,7 +129,7 @@ module Api
       end
 
       def session_params
-        params.require(:session).permit(:activity_id, :coach_id, :starts_at, :ends_at, :capacity, :price, :status)
+        params.require(:session).permit(:activity_id, :coach_id, :space_id, :starts_at, :ends_at, :capacity, :price, :status)
       end
     end
   end

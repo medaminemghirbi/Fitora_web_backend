@@ -35,9 +35,18 @@ module Coaches
         first_name: coach.first_name, last_name: coach.last_name,
         email: email, password: password, role: :staff, locale: "fr"
       )
-      staff_member = coach.company.staff_members.create!(user: user, role: :coach, coach: coach)
-      staff_member.staff_member_locations.create!(location: coach.company.location)
+      staff_member = coach.company.staff_members.create!(user: user, assigned_role: coach_role, coach: coach)
       staff_member
+    end
+
+    # The company's built-in coach role. Seeded with every company, but a
+    # gym created before the role table existed may not have it — seed it
+    # rather than fail provisioning a login over it.
+    def coach_role
+      coach.company.roles.find_by(key: "coach") || begin
+        Role.seed_defaults_for(coach.company)
+        coach.company.roles.find_by!(key: "coach")
+      end
     end
   end
 end

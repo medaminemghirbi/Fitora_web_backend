@@ -1,6 +1,4 @@
 class Company < ApplicationRecord
-  MOBILE_AUTH_KEY_LENGTH = 8
-
   # Same allowlist/ceiling as HasPhoto — logo is the one has_one_attached in
   # the app that predates that concern and had no validation at all.
   # content_type below is Marcel-sniffed by Active Storage, not the
@@ -26,32 +24,42 @@ class Company < ApplicationRecord
   validate :logo_is_an_image
   validate :logo_is_not_too_large
 
-  has_many :locations, dependent: :destroy
   has_many :coaches, dependent: :destroy
+  has_many :activities, dependent: :destroy
+  has_many :spaces, dependent: :destroy
+  has_many :sessions, dependent: :destroy
+  has_many :recurring_schedules, dependent: :destroy
   has_one :subscription, dependent: :destroy
-  has_many :clients, dependent: :destroy
+  has_many :invoices, dependent: :destroy
+  has_many :memberships, dependent: :destroy
+  has_many :clients, through: :memberships
   has_many :contract_types, dependent: :destroy
   has_many :contracts, dependent: :destroy
   has_many :contract_periods, through: :contracts
   has_many :payments, dependent: :destroy
   has_many :staff_members, dependent: :destroy
   has_many :roles, dependent: :destroy
-  has_many :recurring_schedules, dependent: :destroy
   has_many :audit_logs, dependent: :destroy
   has_many :notifications, dependent: :destroy
   has_many :support_tickets, dependent: :destroy
+
+  # Keeps the column saying exactly what CompanySettings declares — every
+  # key present, nothing extra. Without it a company created after the
+  # backfill migration sits on `{}` and reads its hours from the defaults:
+  # correct behaviour, but a column that no longer describes the company,
+  # and a post-migration audit that cannot tell "defaulted" from "lost".
+  before_save :normalize_settings
+
+  # CompanySettings coerces anything unusable back to its default so the
+  # object is always coherent; this is what stops that being silent.
+  validate :settings_values_are_usable
 
   validates :name, presence: true
   validates :timezone, presence: true
   validates :currency, presence: true, inclusion: { in: CurrencyCatalog::CODES }
   validates :locale, presence: true, inclusion: { in: LOCALES }
-  # Date#wday values (0 = Sunday … 6 = Saturday). At least one day, no dupes.
-  validates :working_days, presence: true
-  validate :working_days_are_valid_weekdays
   validates :slug, uniqueness: true, allow_nil: true,
                     format: { with: /\A[a-z0-9]+(?:-[a-z0-9]+)*\z/, message: "must contain only lowercase letters, numbers, and hyphens" }
-  validates :primary_color, format: { with: /\A#[0-9a-fA-F]{6}\z/, message: "must be a hex color like #4f46e5" }, allow_nil: true
-  validates :debt_cents, numericality: { only_integer: true, greater_than_or_equal_to: 0 }
 
   # Admin company search — name / city, plus the owner's name and email.
   scope :search, ->(term) {
@@ -65,27 +73,32 @@ class Company < ApplicationRecord
     ).distinct
   }
 
-  # Pairing secret for the mobile app (QR code + plain text, shown to the
-  # owner in Settings). The owner can only regenerate it (a fresh random
-  # value); only a Fitora admin can set it to a specific value by hand
-  # (Api::V1::Admin::CompaniesController#update_mobile_key) — see
-  # Api::V1::CompaniesController for why it's excluded from company_params.
-  before_validation :assign_mobile_auth_key, on: :create
-  before_validation :normalize_working_days
 
-  validates :mobile_auth_key, presence: true, uniqueness: true, length: { minimum: 6, maximum: 32 },
-                               format: { with: /\A[a-z0-9]+\z/, message: "must contain only lowercase letters and numbers" }
-
-  # Every company has exactly one location — created automatically at
-  # signup (see Api::V1::CompaniesController#create) and never a second
-  # one. Activities, coaches, and staff all attach to it implicitly instead
-  # of asking staff to pick a location that doesn't meaningfully vary.
-  def location
-    locations.first
+  # How this company has configured the engine — a typed CompanySettings, not
+  # the raw hash. Read it (`company.settings.feature?(:spaces)`), never
+  # `company[:settings]`.
+  def settings
+    @settings ||= CompanySettings.new(self[:settings])
   end
 
-  def regenerate_mobile_auth_key!
-    update!(mobile_auth_key: self.class.generate_mobile_auth_key)
+  # Applies a patch on top of the current settings. Only the keys in the
+  # patch change, and anything CompanySettings does not declare is dropped —
+  # a client cannot grow the configuration surface by sending extra keys.
+  def settings=(patch)
+    merged = patch.is_a?(CompanySettings) ? patch : settings.merge(patch)
+    @settings = merged
+    self[:settings] = merged.to_h
+  end
+
+  # A feature being on says the product offers it here. It never says anyone
+  # is allowed to use it — that is Role/Permission, checked separately.
+  def feature?(key)
+    settings.feature?(key)
+  end
+
+  def reload(*)
+    @settings = nil
+    super
   end
 
   # The short symbol shown next to amounts across the app (e.g. "DT", "€").
@@ -93,17 +106,11 @@ class Company < ApplicationRecord
     CurrencyCatalog.symbol(currency)
   end
 
-  # "Premiers pas" getting-started checklist — the foundational things an
-  # owner sets up before running the gym day-to-day. Each flag is derived
-  # from data, so completing a step anywhere in the app ticks it off.
-  # `dismissed` hides the guide regardless; `complete` is all steps done.
-  def setup_state
-    steps = {
-      activity: location&.activities&.exists? || false,
-      contract_type: contract_types.exists?,
-      coach: coaches.exists?
-    }
-    steps.merge(dismissed: setup_dismissed_at.present?, complete: steps.values.all?)
+  # How far through first-time setup this company is — derived from its own
+  # data, so a step completed anywhere in the app ticks itself off. See
+  # Onboarding::State.
+  def onboarding_state
+    Onboarding::State.for(self)
   end
 
   # Every company has every feature — the whole product is included. Kept
@@ -133,35 +140,56 @@ class Company < ApplicationRecord
     (monthly_subscription_cents * 12 * (100 - annual_discount_percent) / 100.0).round
   end
 
-  # True when the company operates on the given date's weekday.
-  def working_day?(date)
-    working_days.include?(date.wday)
+  # Opening hours, working days and the brand colour live in `settings` now,
+  # not in columns of their own. These readers keep the rest of the app — and
+  # the API's shape — exactly as they were.
+  def business_hours_start = settings.business_hours_start
+  def business_hours_end = settings.business_hours_end
+  def working_days = settings.working_days
+  def primary_color = settings.primary_color
+
+  # Writers, so every existing caller (and `create(:company, primary_color:)`)
+  # keeps working now that the columns are gone.
+  def business_hours_start=(value)
+    self.settings = { hours: { start: value } }
   end
 
-  def self.generate_mobile_auth_key
-    loop do
-      key = SecureRandom.alphanumeric(MOBILE_AUTH_KEY_LENGTH).downcase
-      break key unless exists?(mobile_auth_key: key)
-    end
+  def business_hours_end=(value)
+    self.settings = { hours: { end: value } }
+  end
+
+  def working_days=(value)
+    self.settings = { hours: { working_days: value } }
+  end
+
+  def primary_color=(value)
+    self.settings = { branding: { primary_color: value } }
+  end
+
+  # True when the company operates on the given date's weekday.
+  def working_day?(date)
+    settings.working_day?(date)
   end
 
   private
 
-  def assign_mobile_auth_key
-    self.mobile_auth_key ||= self.class.generate_mobile_auth_key
+  SETTINGS_ERRORS = {
+    "branding.primary_color" => [ :primary_color, "must be a hex color like #4f46e5" ],
+    "hours.working_days" => [ :working_days, "must be a list of distinct weekday numbers (0–6)" ],
+    "hours.start" => [ :business_hours_start, "must be a time like 06:00" ],
+    "hours.end" => [ :business_hours_end, "must be a time like 22:00" ]
+  }.freeze
+  private_constant :SETTINGS_ERRORS
+
+  def normalize_settings
+    self[:settings] = settings.to_h
   end
 
-  def normalize_working_days
-    return if working_days.nil?
-
-    self.working_days = Array(working_days).filter_map { |d| Integer(d, exception: false) }.uniq.sort
-  end
-
-  def working_days_are_valid_weekdays
-    days = Array(working_days)
-    return if days.present? && days.all? { |d| d.is_a?(Integer) && d.between?(0, 6) } && days.uniq.length == days.length
-
-    errors.add(:working_days, "must be a list of distinct weekday numbers (0–6)")
+  def settings_values_are_usable
+    settings.invalid_values.each do |key|
+      attribute, message = SETTINGS_ERRORS[key]
+      errors.add(attribute || :settings, message || "is not valid")
+    end
   end
 
   def logo_is_an_image
