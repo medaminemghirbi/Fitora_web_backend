@@ -3,7 +3,7 @@ module Api
     # The gym's own invoices: the record that it paid, and the PDF it keeps.
     class InvoicesController < BaseController
       before_action :require_company!
-      before_action :require_owner!
+      before_action :require_admin!
       before_action :set_invoice, only: [ :show ]
 
       # GET /api/v1/invoices

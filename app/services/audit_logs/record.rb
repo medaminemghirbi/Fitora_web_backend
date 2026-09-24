@@ -11,16 +11,16 @@ module AuditLogs
       )
     end
 
-    # A Fitora admin impersonating an owner acts AS that owner — that is the
+    # A Gymly superadmin impersonating an admin acts AS that admin — that is the
     # point of impersonation, and it means an audit log would otherwise
-    # record the owner refunding a payment the admin refunded. Stamp who was
+    # record the admin refunding a payment the superadmin refunded. Stamp who was
     # really acting, on every entry, without every call site having to
     # remember to.
     def self.impersonation_metadata
-      admin = Current.impersonator
-      return {} if admin.nil?
+      superadmin = Current.impersonator
+      return {} if superadmin.nil?
 
-      { impersonated_by_id: admin.id, impersonated_by_email: admin.email }
+      { impersonated_by_id: superadmin.id, impersonated_by_email: superadmin.email }
     end
     private_class_method :impersonation_metadata
   end

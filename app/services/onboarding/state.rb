@@ -23,7 +23,7 @@ module Onboarding
 
     attr_reader :steps
 
-    # What the owner should be looking at. "done" once nothing is pending.
+    # What the admin should be looking at. "done" once nothing is pending.
     def current_key
       pending = steps.find { |step| step[:state] == "current" }
       pending ? pending[:key] : "done"
@@ -71,7 +71,7 @@ module Onboarding
     end
 
     # Exactly one "todo" is the one being asked for; the rest stay "todo" so
-    # the flow reads as a list rather than a queue of locked doors. An owner
+    # the flow reads as a list rather than a queue of locked doors. An admin
     # who wants to do plans before activities is not wrong.
     def mark_current
       first = @steps.find { |step| step[:state] == "todo" }

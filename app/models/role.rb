@@ -1,8 +1,8 @@
 # A company-scoped, editable set of permissions that staff logins are
-# assigned to. Every company starts with three built-in roles (owner,
-# receptionist, coach) seeded from DEFAULTS; the owner can rename them,
-# change their permissions (except "owner"), or add custom roles
-# ("Comptable", "Assistant·e", …) via the roles editor.
+# assigned to. Every company starts with three built-in roles seeded from
+# DEFAULTS — the admin (key `admin`), the moderator and the coach; the admin
+# can rename them, change their permissions (except the admin's own), or add
+# custom roles ("Comptable", "Assistant·e", …) via the roles editor.
 #
 # The built-in roles keep their `key` (SYSTEM_KEYS) so the backend and
 # frontend still recognise them; a custom role gets a `key` slugified from
@@ -11,29 +11,25 @@ class Role < ApplicationRecord
   belongs_to :company
   has_many :staff_members, foreign_key: :role_id, inverse_of: :assigned_role, dependent: :restrict_with_error
 
-  SYSTEM_KEYS = %w[owner moderator receptionist coach].freeze
+  SYSTEM_KEYS = %w[admin moderator coach].freeze
 
   DEFAULTS = {
-    "owner" => {
-      name: "Propriétaire",
+    # The gym's admin, "Administrateur" on screen. (Gymly's own operator is
+    # the superadmin, User#superadmin?, and has no role here.)
+    "admin" => {
+      name: "Administrateur",
       permissions: Permission::ALL
     },
-    # Runs the gym day to day AND staffs it: the one role below the owner
-    # that can add coaches. Still not the catalogues (activities, plans) or
-    # the money settings — those stay the owner's.
+    # The back office: runs the gym day to day — members, coaches, the
+    # schedule, the desk, the money taken at it. Not the catalogues
+    # (activities, plans), the settings, the roles or other staff logins:
+    # those stay the admin's, and so does who becomes a moderator.
     #
     # "payments" without "revenue" is the distinction that matters: taking
     # money at the desk is the job, reading what the gym earns is not.
     "moderator" => {
       name: "Modérateur",
       permissions: %w[sessions bookings clients contracts payments checkin reports coaches]
-    },
-    # Front desk / daily gym operations. NOT the catalogs (activities,
-    # membership plans), the coach roster, or opening hours — the owner can
-    # grant those per-role via the roles editor.
-    "receptionist" => {
-      name: "Réception",
-      permissions: %w[sessions bookings clients contracts payments checkin reports]
     },
     "coach" => {
       name: "Coach",

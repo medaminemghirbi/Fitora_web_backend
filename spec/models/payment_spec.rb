@@ -3,7 +3,7 @@ require "rails_helper"
 RSpec.describe Payment do
   let(:company) { create(:company) }
   let(:client) { create(:client, company: company) }
-  let(:booking) { create(:booking, client: client) }
+  let(:booking) { create(:booking, client: client, session: create(:session, activity: create(:activity, company: company))) }
 
   it "rejects a new card payment (card is out of scope for now)" do
     payment = build(:payment, client: client, company: company, booking: booking, payment_method: :card)

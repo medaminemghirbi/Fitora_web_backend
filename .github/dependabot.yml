@@ -1,0 +1,17 @@
+# Weekly pull requests for outdated gems and GitHub Actions. Security
+# updates come as soon as an advisory is published, whatever the schedule.
+version: 2
+updates:
+  - package-ecosystem: bundler
+    directory: "/"
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    groups:
+      rails:
+        patterns: [ "rails", "action*", "active*", "railties" ]
+
+  - package-ecosystem: github-actions
+    directory: "/"
+    schedule:
+      interval: weekly

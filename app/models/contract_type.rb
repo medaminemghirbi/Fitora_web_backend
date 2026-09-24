@@ -36,7 +36,7 @@ class ContractType < ApplicationRecord
   # `nil` asks for the all-access price — a Contract with no activity covers
   # everything the plan covers (see Contract#all_access?), and the dearest
   # covered activity is the floor for that: access to everything cannot
-  # sensibly cost less than the most expensive part of it. The owner still
+  # sensibly cost less than the most expensive part of it. The admin still
   # sets the actual figure at the point of sale (ContractPeriod#final_price);
   # this is the number the sale form starts from.
   # A plan is either unlimited or counted. Holding both — unlimited_bookings
@@ -53,7 +53,7 @@ class ContractType < ApplicationRecord
     contract_type_activities.find_by(activity_id: activity.id)&.price
   end
 
-  # avoids forcing an owner to enumerate them for a simple all-access plan.
+  # avoids forcing an admin to enumerate them for a simple all-access plan.
   # Activities are different: a plan is only sold for an activity it has a
   # priced row for, so an activity with no row is not covered.
   def grants_access_to?(activity:)

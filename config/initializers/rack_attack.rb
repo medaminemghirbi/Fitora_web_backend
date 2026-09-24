@@ -1,8 +1,8 @@
 # Brute-force protection for the real login endpoint — POST
 # /api/v1/auth/login had no rate limiting at all until now: an attacker
 # could try passwords as fast as the network allowed, for any account
-# (owner/staff/client all share this one endpoint). Also lightly covers
-# password-reset requests and owner self-registration, the other
+# (admin/staff/client all share this one endpoint). Also lightly covers
+# password-reset requests and admin self-registration, the other
 # unauthenticated account surfaces, to stop them being scripted for
 # inbox-spam or mass account creation.
 #
@@ -46,10 +46,36 @@ end
 # that actually stops password guessing — it stays tight regardless of the
 # per-IP limits above, since it doesn't matter how many legitimate logins
 # share an IP if only one of them is for the account being guessed.
-Rack::Attack.throttle("logins/email", limit: 5, period: 20.seconds) do |req|
+#
+# Three windows on the same key. The 20-second one alone still allowed about
+# 21,600 guesses a day against one account; the hourly and daily ceilings
+# bring that to 50, while someone who mistypes a few times in a row is only
+# ever held back by the short one.
+login_email = lambda do |req|
   next unless req.post? && req.path == "/api/v1/auth/login"
 
   req.params["email"].to_s.downcase.strip.presence
+end
+Rack::Attack.throttle("logins/email", limit: 5, period: 20.seconds, &login_email)
+Rack::Attack.throttle("logins/email/hour", limit: 20, period: 1.hour, &login_email)
+Rack::Attack.throttle("logins/email/day", limit: 50, period: 1.day, &login_email)
+
+# Every endpoint that takes a password to prove who you are, other than
+# login: changing it, and deleting a member account. Signed in already, but a
+# stolen token should not be a way to guess the password behind it.
+PASSWORD_CHECKS = [
+  [ "PATCH", "/api/v1/auth/password" ],
+  [ "DELETE", "/api/v1/me/account" ]
+].freeze
+Rack::Attack.throttle("password_checks/ip", limit: 10, period: 5.minutes) do |req|
+  req.ip if PASSWORD_CHECKS.include?([ req.request_method, req.path ])
+end
+
+# The emailed-token endpoints: accepting an invitation, finishing a reset,
+# confirming an address. The tokens are 256 bits and not guessable, but
+# nothing unauthenticated should take unlimited attempts.
+Rack::Attack.throttle("emailed_tokens/ip", limit: 10, period: 1.minute) do |req|
+  req.ip if req.patch? && req.path.match?(%r{\A/api/v1/(invitations|password_resets|email_verifications)/[^/]+\z})
 end
 
 Rack::Attack.throttle("password_resets/ip", limit: 5, period: 1.minute) do |req|
@@ -58,7 +84,7 @@ end
 
 # Signing up is unauthenticated, creates a User and emails the address given,
 # with no ownership check. Unthrottled, a script could mass-create accounts or
-# use Fitora's own mailer to bomb a third party's inbox.
+# use Gymly's own mailer to bomb a third party's inbox.
 Rack::Attack.throttle("register/ip", limit: 5, period: 10.minutes) do |req|
   req.ip if req.post? && req.path == "/api/v1/auth/register"
 end

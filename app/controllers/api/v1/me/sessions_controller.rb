@@ -16,7 +16,7 @@ module Api
           company_ids = member_company ? [ member_company.id ] : current_client.companies.ids
           # The scoping IS the tenancy check here: company_ids comes from the
           # client's own memberships, so a gym they have not joined cannot appear.
-          scope = ::Session.where(company_id: company_ids) # rubocop:disable Fitora/UnscopedTenantQuery
+          scope = ::Session.where(company_id: company_ids) # rubocop:disable Gymly/UnscopedTenantQuery
                             .where(status: :scheduled)
                             .upcoming
                             .order(:starts_at)

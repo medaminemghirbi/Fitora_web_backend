@@ -15,12 +15,16 @@ module RecurringSchedules
       skipped = 0
       conflicts = []
 
-      existing_starts_ats = schedule.sessions.pluck(:starts_at).to_set
+      existing_starts_ats = schedule.sessions.pluck(:starts_at).to_set(&:to_i)
 
       each_occurrence_date do |date|
-        starts_at = date.to_time(:utc).change(hour: schedule.start_time.hour, min: schedule.start_time.min)
+        # 18:00 is 18:00 at the gym. This used to build the time in UTC, so
+        # every generated class landed an hour late in Tunis — while a
+        # one-off session from the calendar, converted by the browser, was
+        # right.
+        starts_at = zone.local(date.year, date.month, date.day, schedule.start_time.hour, schedule.start_time.min)
 
-        if existing_starts_ats.include?(starts_at)
+        if existing_starts_ats.include?(starts_at.to_i)
           skipped += 1
           next
         end
@@ -41,8 +45,13 @@ module RecurringSchedules
 
     attr_reader :schedule
 
+    def zone
+      @zone ||= schedule.company.time_zone
+    end
+
     def each_occurrence_date
-      (schedule.starts_on..schedule.generation_end_date).each do |date|
+      last = Time.use_zone(zone) { schedule.generation_end_date }
+      (schedule.starts_on..last).each do |date|
         yield date if occurs_on?(date)
       end
     end

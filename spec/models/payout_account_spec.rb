@@ -2,34 +2,34 @@ require "rails_helper"
 
 RSpec.describe PayoutAccount do
   around do |example|
-    original = ENV.to_h.slice("FITORA_RIB", "FITORA_BANK_NAME", "FITORA_ACCOUNT_HOLDER", "FITORA_SWIFT")
+    original = ENV.to_h.slice("GYMLY_RIB", "GYMLY_BANK_NAME", "GYMLY_ACCOUNT_HOLDER", "GYMLY_SWIFT")
     example.run
   ensure
-    %w[FITORA_RIB FITORA_BANK_NAME FITORA_ACCOUNT_HOLDER FITORA_SWIFT].each { |k| ENV.delete(k) }
+    %w[GYMLY_RIB GYMLY_BANK_NAME GYMLY_ACCOUNT_HOLDER GYMLY_SWIFT].each { |k| ENV.delete(k) }
     original.each { |k, v| ENV[k] = v }
   end
 
   describe ".current" do
     it "is nil when no RIB is configured, so the page can fall back" do
-      ENV.delete("FITORA_RIB")
+      ENV.delete("GYMLY_RIB")
       expect(described_class.current).to be_nil
     end
 
     it "treats a blank RIB as no RIB at all" do
-      ENV["FITORA_RIB"] = "   "
+      ENV["GYMLY_RIB"] = "   "
       expect(described_class.current).to be_nil
     end
 
     it "reads the account out of the environment" do
-      ENV["FITORA_RIB"] = "  TN59 1000 6035 0123 4567 8901  "
-      ENV["FITORA_BANK_NAME"] = "BIAT"
-      ENV["FITORA_ACCOUNT_HOLDER"] = "Fitora SARL"
+      ENV["GYMLY_RIB"] = "  TN59 1000 6035 0123 4567 8901  "
+      ENV["GYMLY_BANK_NAME"] = "BIAT"
+      ENV["GYMLY_ACCOUNT_HOLDER"] = "Gymly SARL"
 
       account = described_class.current
 
       expect(account.rib).to eq("TN59 1000 6035 0123 4567 8901")
       expect(account.bank_name).to eq("BIAT")
-      expect(account.holder).to eq("Fitora SARL")
+      expect(account.holder).to eq("Gymly SARL")
       expect(account.swift).to be_nil
     end
   end

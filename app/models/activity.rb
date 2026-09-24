@@ -11,7 +11,7 @@ class Activity < ApplicationRecord
   has_many :activity_spaces, dependent: :destroy
   has_many :spaces, through: :activity_spaces
 
-  # How many people a session of this activity is for. The owner picks the
+  # How many people a session of this activity is for. The admin picks the
   # format; it constrains the capacity (see CAPACITY_BOUNDS + the validation).
   #   individual   → 1-on-1 (capacity 1)
   #   small_group  → small group (capacity 2–9)

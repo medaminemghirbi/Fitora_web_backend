@@ -1,11 +1,11 @@
 require "rails_helper"
 
 RSpec.describe "Api::V1::Onboarding", type: :request do
-  let(:owner) { create(:user, :owner) }
-  let!(:company) { create(:company, owner: owner) }
+  let(:admin) { create(:user, :admin) }
+  let!(:company) { create(:company, admin: admin) }
 
   def state
-    get "/api/v1/onboarding", headers: auth_headers(owner)
+    get "/api/v1/onboarding", headers: auth_headers(admin)
     response.parsed_body["onboarding"]
   end
 
@@ -31,13 +31,13 @@ RSpec.describe "Api::V1::Onboarding", type: :request do
 
     it "asks for the first step that is neither done nor skipped" do
       create(:activity, company: company)
-      patch "/api/v1/onboarding", params: { step: "company" }, headers: auth_headers(owner)
+      patch "/api/v1/onboarding", params: { step: "company" }, headers: auth_headers(admin)
 
       expect(state["step"]).to eq("plans")
     end
 
     it "forbids staff" do
-      staff = create(:staff_member, company: company, role: :receptionist)
+      staff = create(:staff_member, company: company, role: :moderator)
 
       get "/api/v1/onboarding", headers: auth_headers(staff.user)
 
@@ -47,7 +47,7 @@ RSpec.describe "Api::V1::Onboarding", type: :request do
 
   describe "PATCH /api/v1/onboarding" do
     it "marks a step done and survives a reload" do
-      patch "/api/v1/onboarding", params: { step: "company" }, headers: auth_headers(owner)
+      patch "/api/v1/onboarding", params: { step: "company" }, headers: auth_headers(admin)
 
       expect(response).to have_http_status(:ok)
       expect(company.reload.settings.onboarding[:completed]).to eq(%w[company])
@@ -55,8 +55,8 @@ RSpec.describe "Api::V1::Onboarding", type: :request do
     end
 
     it "clears a previous skip of the same step" do
-      post "/api/v1/onboarding/skip", params: { step: "staff" }, headers: auth_headers(owner)
-      patch "/api/v1/onboarding", params: { step: "staff" }, headers: auth_headers(owner)
+      post "/api/v1/onboarding/skip", params: { step: "staff" }, headers: auth_headers(admin)
+      patch "/api/v1/onboarding", params: { step: "staff" }, headers: auth_headers(admin)
 
       settings = company.reload.settings.onboarding
       expect(settings[:completed]).to eq(%w[staff])
@@ -64,14 +64,14 @@ RSpec.describe "Api::V1::Onboarding", type: :request do
     end
 
     it "rejects a step that is not in the catalogue" do
-      patch "/api/v1/onboarding", params: { step: "billing" }, headers: auth_headers(owner)
+      patch "/api/v1/onboarding", params: { step: "billing" }, headers: auth_headers(admin)
 
       expect(response).to have_http_status(:unprocessable_content)
       expect(company.reload.settings.onboarding[:completed]).to be_empty
     end
 
     it "forbids staff" do
-      staff = create(:staff_member, company: company, role: :receptionist)
+      staff = create(:staff_member, company: company, role: :moderator)
 
       patch "/api/v1/onboarding", params: { step: "company" }, headers: auth_headers(staff.user)
 
@@ -82,14 +82,14 @@ RSpec.describe "Api::V1::Onboarding", type: :request do
 
   describe "POST /api/v1/onboarding/skip" do
     it "skips an optional step" do
-      post "/api/v1/onboarding/skip", params: { step: "staff" }, headers: auth_headers(owner)
+      post "/api/v1/onboarding/skip", params: { step: "staff" }, headers: auth_headers(admin)
 
       expect(response).to have_http_status(:ok)
       expect(state["steps"].find { |s| s["key"] == "staff" }["state"]).to eq("skipped")
     end
 
     it "refuses to skip a step the business cannot run without" do
-      post "/api/v1/onboarding/skip", params: { step: "plans" }, headers: auth_headers(owner)
+      post "/api/v1/onboarding/skip", params: { step: "plans" }, headers: auth_headers(admin)
 
       expect(response).to have_http_status(:unprocessable_content)
       expect(company.reload.settings.onboarding[:skipped]).to be_empty
@@ -98,7 +98,7 @@ RSpec.describe "Api::V1::Onboarding", type: :request do
 
   describe "POST /api/v1/onboarding/dismiss" do
     it "stops the app asking without pretending the steps are done" do
-      post "/api/v1/onboarding/dismiss", headers: auth_headers(owner)
+      post "/api/v1/onboarding/dismiss", headers: auth_headers(admin)
 
       expect(response).to have_http_status(:ok)
       expect(response.parsed_body["onboarding"]).to include("dismissed" => true, "complete" => false)
@@ -106,7 +106,7 @@ RSpec.describe "Api::V1::Onboarding", type: :request do
     end
 
     it "forbids staff from dismissing the flow" do
-      staff = create(:staff_member, company: company, role: :receptionist)
+      staff = create(:staff_member, company: company, role: :moderator)
 
       post "/api/v1/onboarding/dismiss", headers: auth_headers(staff.user)
 
@@ -119,8 +119,8 @@ RSpec.describe "Api::V1::Onboarding", type: :request do
     it "is complete once every applicable step is done or skipped" do
       create(:activity, company: company)
       create(:contract_type, company: company)
-      patch "/api/v1/onboarding", params: { step: "company" }, headers: auth_headers(owner)
-      post "/api/v1/onboarding/skip", params: { step: "staff" }, headers: auth_headers(owner)
+      patch "/api/v1/onboarding", params: { step: "company" }, headers: auth_headers(admin)
+      post "/api/v1/onboarding/skip", params: { step: "staff" }, headers: auth_headers(admin)
 
       expect(state).to include("complete" => true, "step" => "done")
     end
@@ -128,8 +128,8 @@ RSpec.describe "Api::V1::Onboarding", type: :request do
     it "is incomplete again when turning rooms on adds a step" do
       create(:activity, company: company)
       create(:contract_type, company: company)
-      patch "/api/v1/onboarding", params: { step: "company" }, headers: auth_headers(owner)
-      post "/api/v1/onboarding/skip", params: { step: "staff" }, headers: auth_headers(owner)
+      patch "/api/v1/onboarding", params: { step: "company" }, headers: auth_headers(admin)
+      post "/api/v1/onboarding/skip", params: { step: "staff" }, headers: auth_headers(admin)
       # reload first: `settings=` is read-modify-write on one jsonb column,
       # so writing from a copy loaded before the requests would take the
       # flow's own progress back out again.

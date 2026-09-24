@@ -1,4 +1,4 @@
-# Shared by User (owner/staff — never admin, excluded at the controller
+# Shared by User (admin/staff — never superadmin, excluded at the controller
 # level, see Api::V1::PasswordResetsController) and Client. Only the token's
 # digest is ever persisted; the raw value exists only in the emailed link,
 # so a database leak alone can't be used to reset anyone's password.

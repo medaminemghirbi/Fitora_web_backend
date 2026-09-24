@@ -1,15 +1,15 @@
 module Api
   module V1
     # First-time setup, as a flow the server tracks rather than a checklist
-    # the client remembers. An owner who closes the tab halfway through
+    # the client remembers. An admin who closes the tab halfway through
     # comes back to the same step, on any device.
     #
-    # Owner-only: this is the shape of the business, not its day-to-day.
+    # Admin-only: this is the shape of the business, not its day-to-day.
     # Creating the activities, plans and staff the steps ask for happens on
     # their own endpoints, behind their own capability checks — nothing is
-    # written here except how far along the owner is.
+    # written here except how far along the admin is.
     class OnboardingController < BaseController
-      before_action :require_owner!
+      before_action :require_admin!
       before_action :require_company!
       before_action :load_step, only: [ :update, :skip ]
 
@@ -23,7 +23,7 @@ module Api
       # Only meaningful for a step nothing in the database can confirm; for
       # every other step the data is the answer, and marking it done while
       # the company still has no activities would be a lie the flow would
-      # then have to tell the owner.
+      # then have to tell the admin.
       def update
         save_onboarding(completed: current_settings[:completed] | [ @step.key ],
                         skipped: current_settings[:skipped] - [ @step.key ])

@@ -1,24 +1,32 @@
 require "rails_helper"
 
 RSpec.describe "Api::V1::Coaches", type: :request do
-  let(:owner) { create(:user, :owner) }
-  let!(:company) { create(:company, owner: owner) }
+  let(:admin) { create(:user, :admin) }
+  let!(:company) { create(:company, admin: admin) }
 
   describe "GET /api/v1/coaches" do
-    it "lets a receptionist read the roster (to assign a coach to a session)" do
+    it "lets a moderator read the roster (to assign a coach to a session)" do
       create(:coach, company: company)
-      receptionist = create(:staff_member, company: company, role: :receptionist)
+      moderator = create(:staff_member, company: company, role: :moderator)
 
-      get "/api/v1/coaches", headers: auth_headers(receptionist.user)
+      get "/api/v1/coaches", headers: auth_headers(moderator.user)
 
       expect(response).to have_http_status(:ok)
       expect(response.parsed_body["coaches"].size).to eq(1)
     end
 
-    it "forbids a receptionist from creating a coach" do
-      receptionist = create(:staff_member, company: company, role: :receptionist)
+    it "lets a moderator add a coach — managing coaches is theirs" do
+      moderator = create(:staff_member, company: company, role: :moderator)
 
-      post "/api/v1/coaches", params: { coach: { first_name: "New", last_name: "Coach" } }, headers: auth_headers(receptionist.user)
+      post "/api/v1/coaches", params: { coach: { first_name: "New", last_name: "Coach" } }, headers: auth_headers(moderator.user)
+
+      expect(response).to have_http_status(:created)
+    end
+
+    it "forbids a coach from adding one" do
+      coach_login = create(:staff_member, company: company, role: :coach)
+
+      post "/api/v1/coaches", params: { coach: { first_name: "New", last_name: "Coach" } }, headers: auth_headers(coach_login.user)
 
       expect(response).to have_http_status(:forbidden)
     end
@@ -28,7 +36,7 @@ RSpec.describe "Api::V1::Coaches", type: :request do
     it "provisions a fresh login for a coach who has none yet" do
       coach = create(:coach, company: company)
 
-      post "/api/v1/coaches/#{coach.id}/login", params: { email: "coach@example.com", password: "password123" }, headers: auth_headers(owner)
+      post "/api/v1/coaches/#{coach.id}/login", params: { email: "coach@example.com", password: "password123" }, headers: auth_headers(admin)
 
       expect(response).to have_http_status(:ok)
       body = response.parsed_body["coach"]
@@ -42,27 +50,27 @@ RSpec.describe "Api::V1::Coaches", type: :request do
 
     it "resets an existing coach login rather than creating a duplicate account" do
       coach = create(:coach, company: company)
-      post "/api/v1/coaches/#{coach.id}/login", params: { email: "coach2@example.com", password: "password123" }, headers: auth_headers(owner)
+      post "/api/v1/coaches/#{coach.id}/login", params: { email: "coach2@example.com", password: "password123" }, headers: auth_headers(admin)
       first_staff_member_id = coach.reload.staff_member.id
 
-      post "/api/v1/coaches/#{coach.id}/login", params: { email: "coach2-new@example.com", password: "newpassword123" }, headers: auth_headers(owner)
+      post "/api/v1/coaches/#{coach.id}/login", params: { email: "coach2-new@example.com", password: "newpassword123" }, headers: auth_headers(admin)
 
       expect(response).to have_http_status(:ok)
       expect(coach.reload.staff_member.id).to eq(first_staff_member_id)
       expect(response.parsed_body["coach"]["login_email"]).to eq("coach2-new@example.com")
     end
 
-    it "forbids a receptionist — managing the coach roster is not a front-desk task" do
-      receptionist = create(:staff_member, company: company, role: :receptionist)
+    it "forbids a coach — another coach's login is not theirs to set" do
+      coach_login = create(:staff_member, company: company, role: :coach)
       coach = create(:coach, company: company)
 
-      post "/api/v1/coaches/#{coach.id}/login", params: { email: "coach3@example.com", password: "password123" }, headers: auth_headers(receptionist.user)
+      post "/api/v1/coaches/#{coach.id}/login", params: { email: "coach3@example.com", password: "password123" }, headers: auth_headers(coach_login.user)
 
       expect(response).to have_http_status(:forbidden)
     end
 
     it "lets a staff member whose role grants :coaches set a login" do
-      staff = create(:staff_member, company: company, role: :receptionist,
+      staff = create(:staff_member, company: company, role: :moderator,
                      assigned_role: create(:role, company: company, permissions: %w[coaches]))
       coach = create(:coach, company: company)
 
@@ -83,7 +91,7 @@ RSpec.describe "Api::V1::Coaches", type: :request do
     it "404s for a coach belonging to another company" do
       other_coach = create(:coach)
 
-      post "/api/v1/coaches/#{other_coach.id}/login", params: { email: "x@example.com", password: "password123" }, headers: auth_headers(owner)
+      post "/api/v1/coaches/#{other_coach.id}/login", params: { email: "x@example.com", password: "password123" }, headers: auth_headers(admin)
 
       expect(response).to have_http_status(:not_found)
     end
@@ -92,7 +100,7 @@ RSpec.describe "Api::V1::Coaches", type: :request do
       create(:user, email: "taken@example.com")
       coach = create(:coach, company: company)
 
-      post "/api/v1/coaches/#{coach.id}/login", params: { email: "taken@example.com", password: "password123" }, headers: auth_headers(owner)
+      post "/api/v1/coaches/#{coach.id}/login", params: { email: "taken@example.com", password: "password123" }, headers: auth_headers(admin)
 
       expect(response).to have_http_status(:unprocessable_content)
     end

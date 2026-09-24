@@ -40,3 +40,6 @@
 # whatever local run seeded them, not something to track.
 /load_test/data/*
 !/load_test/data/.keep
+
+# SimpleCov output
+/coverage

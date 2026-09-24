@@ -1,4 +1,4 @@
-# Fitora — Transformation Progress Log
+# Gymly — Transformation Progress Log
 
 Running record of what is actually done, so any session can resume without
 re-deriving state. Update it at the end of every work block.
@@ -18,7 +18,7 @@ to the target than the brief assumed.
 `DATABASE_DESIGN.md`, `API_DESIGN.md`, `UI_ARCHITECTURE.md`,
 `MIGRATION_PLAN.md`.
 
-Four decisions taken by the product owner, recorded in
+Four decisions taken by the product admin, recorded in
 `TARGET_ARCHITECTURE.md` §0: full domain rewrite, spaces optional per
 company, keep the Contract/ContractType/ContractPeriod names, full UI
 redesign.
@@ -70,15 +70,15 @@ waitlist join, ordering, promotion and resequencing all behind the
 
 - `revenue` was missing from `ModuleCatalog::ALL_PERMISSIONS`, so
   `Permissions::Resolve` silently stripped it from every advertised
-  permission list including the owner's. Latent (no frontend guard read it
+  permission list including the admin's. Latent (no frontend guard read it
   yet); would have broken Phase 6.
 - A flaky spec: `expect(response.body).not_to include("240")` in the member
   profile spec matched random UUIDs. Now asserts on parsed values.
-- `Fitora/UnscopedTenantQuery` cop taught about `Space` and `ActivitySpace`.
+- `Gymly/UnscopedTenantQuery` cop taught about `Space` and `ActivitySpace`.
 
 **Reverted deliberately** — a `Contract` validation requiring its activity to
 be covered by its plan. Correct at the point of sale, but it would make every
-contract un-saveable (including un-cancellable) the moment an owner removed
+contract un-saveable (including un-cancellable) the moment an admin removed
 an activity from a plan. Coverage is enforced at booking time instead.
 
 ## Phase 3 — Backend core ✅ complete
@@ -97,10 +97,10 @@ All nine planned migrations are applied (09 withdrawn — see below). Suite
 
 **Migration 09 was a design error and is withdrawn.** It proposed folding
 `platform_settings` into an ENV-backed constant. But `annual_discount_percent`
-is edited at runtime by a platform admin through
-`PATCH /api/v1/admin/subscription_pricing` — a constant would have deleted a
+is edited at runtime by a platform superadmin through
+`PATCH /api/v1/superadmin/subscription_pricing` — a constant would have deleted a
 working feature. A single-row settings table is the right shape for an
-admin-editable global. `DATABASE_DESIGN.md` §3 and `MIGRATION_PLAN.md` are
+superadmin-editable global. `DATABASE_DESIGN.md` §3 and `MIGRATION_PLAN.md` are
 corrected.
 
 ### Notes on the destructive work
@@ -117,7 +117,7 @@ corrected.
 - **A staff member's "kind" became a fact about them.** The dropped enum
   carried two things: permissions (now the Role's job) and whether the login
   coaches. The second moved to `coach_id.present?` — which the five
-  coach-narrowing checks already read. Consequence: an owner can now put a
+  coach-narrowing checks already read. Consequence: an admin can now put a
   coach on a custom role and they still reach the coach shell. The API sends
   `role_key` and `is_coach` instead of `role` and `staff_role` meaning the
   same thing twice; the Angular guard and auth service follow.
@@ -136,7 +136,7 @@ corrected.
 - **Member tokens are refused on staff endpoints explicitly**
   (`BaseController#reject_member_token!`). Previously incidental, via
   `require_company!` rendering 422 — and a controller whose capability check
-  ran first would have raised on `current_user.owner?` with a nil user.
+  ran first would have raised on `current_user.admin?` with a nil user.
 - **Impersonation is auditable throughout the session**, not just at its
   start, via `Current.impersonator` read by `AuditLogs::Record`.
 - **`email_verifications#create` throttled** — the one unauthenticated
@@ -144,13 +144,13 @@ corrected.
 
 ### Corrections to the Phase 1 analysis, found by doing the work
 
-1. A tenant-scoping RuboCop cop (`Fitora/UnscopedTenantQuery`) already
+1. A tenant-scoping RuboCop cop (`Gymly/UnscopedTenantQuery`) already
    existed and fails the build on bare `Model.find` for ~19 models. Phase 1
    called for building one. `Space`/`ActivitySpace` were added to it.
 2. Rack::Attack already existed and was thorough. Phase 1 said there was no
    evidence of it.
 3. `revenue` was missing from `ModuleCatalog::ALL_PERMISSIONS`, silently
-   stripped from every advertised permission list including the owner's.
+   stripped from every advertised permission list including the admin's.
    Latent only because no frontend guard read it yet.
 
 ### Also done
@@ -167,7 +167,7 @@ corrected.
   cache column, and that no controller resolves a company from params.
   Counter caches are read from the associations that declare them, not
   guessed from names ending in `_count` — `contract_types.session_count` is
-  a field an owner sets, not a cache.
+  a field an admin sets, not a cache.
 - **Support ticket attachments verified** — `@ticket.attachments.find` under
   a `current_company`-scoped ticket. The Phase 1 doc flagged this as
   unverified; it was already correct.
@@ -182,7 +182,7 @@ them:
 - Per-endpoint capability coverage for the `/coach/*` and `/desk` surfaces,
   which do not exist yet (Phase 6).
 - The `settings` capability is defined and enforced on nothing yet — the
-  company settings endpoints still gate on `require_owner!`. It gets wired
+  company settings endpoints still gate on `require_admin!`. It gets wired
   when the settings UI is built (Phase 8).
 
 ## Phase 5 — Frontend architecture 🔶 in progress
@@ -190,7 +190,7 @@ them:
 ### Done
 
 - **The desk shell exists** (`layout/desk-shell/`, `features/desk/`). The
-  receptionist stops borrowing the owner shell. Search-first: the member
+  moderator stops borrowing the admin shell. Search-first: the member
   search is the top of every desk screen, focused on load (skipped on touch),
   debounced at 250ms, minimum two characters.
 - **`features/desk/dashboard`** — the session under way, two counts (expected
@@ -199,19 +199,19 @@ them:
 - **`features/desk/checkin`** — today's sessions only, `?session=` preselects
   one, and a stale id falls back to the picker rather than an empty roster.
 - **`deskAreaGuard`** — requires `checkin` AND `bookings` (checkin alone is a
-  coach), turns away coaches, owners and admins, and honours the trial lock.
+  coach), turns away coaches, admins and superadmins, and honours the trial lock.
 - **`AuthService#deskShellApplies`** sends desk staff to `/desk/dashboard`
   after login.
-- **`_adminlte.scss` renamed to `_shell.scss`.** Nothing in it was AdminLTE.
+- **`_adminlte.scss` renamed to `_shell.scss`.** Nothing in it was SuperadminLTE.
 - 26 new frontend examples; suite **1210 passing**, lint clean, builds clean,
   i18n complete in fr/en/ar (775 keys).
 
 ### Deliberately deferred
 
-**The `_fitora.scss` decomposition is NOT done, and the "under 250 lines"
+**The `_gymly.scss` decomposition is NOT done, and the "under 250 lines"
 target in `UI_ARCHITECTURE.md` §1 is wrong as written.** That file is mostly a
 Bootstrap *override* layer — it restyles `.btn`, `.form-control`, `.table`,
-`.alert`, `.badge` with Fitora tokens, and those classes are used across 49
+`.alert`, `.badge` with Gymly tokens, and those classes are used across 49
 templates. It cannot be scoped to components or shrunk while the templates
 still use Bootstrap classes. Splitting it cosmetically now and rewriting it
 again in Phase 7 would be wasted work, so it moves to Phase 7, where the
@@ -280,8 +280,8 @@ wrong. What was genuinely missing was the ability to *use* the gym list.
 
 Suite: backend **900 examples, 0 failures**; frontend **1226 passing**.
 
-- **The platform admin has a dashboard.** `GET /api/v1/admin/metrics` +
-  `/admin/overview`, and the console lands there rather than on the companies
+- **The platform superadmin has a dashboard.** `GET /api/v1/superadmin/metrics` +
+  `/superadmin/overview`, and the console lands there rather than on the companies
   table. Six numbers, each with a decision behind it; the one that matters
   most is `companies_with_activity` — how many gyms actually ran a session in
   30 days, the difference between a product being bought and being used.
@@ -304,7 +304,7 @@ Suite: backend **913 examples, 0 failures**; frontend **1234 passing**.
   page covers the day; the week does not exist).
 - Member portal: remaining sessions as the *headline* number rather than a
   muted line — a design change, so Phase 7.
-- Owner dashboard: exceptions-first rather than a wall of statistics. The
+- Admin dashboard: exceptions-first rather than a wall of statistics. The
   `attention` rows already exist in the dashboard payload; this is about what
   the page leads with, so it is largely Phase 7 too.
 
@@ -312,7 +312,7 @@ Suite: backend **913 examples, 0 failures**; frontend **1234 passing**.
 
 Angular's `as` binding is only legal on a *primary* `@if`, never on an
 `@else if`. I wrote `} @else if (x; as y) {` three times across the desk,
-check-in and admin screens. The build catches it every time; the unit tests
+check-in and superadmin screens. The build catches it every time; the unit tests
 do not, unless the component has a spec that compiles its template. Worth
 remembering when writing a new screen's shell.
 
@@ -320,14 +320,14 @@ remembering when writing a new screen's shell.
 
 ### Done — the foundation
 
-**Bootstrap is gone.** `_fitora.scss` had already restyled `.btn`,
+**Bootstrap is gone.** `_gymly.scss` had already restyled `.btn`,
 `.form-control`, `.table`, `.alert`, `.badge` and the tabs to the last rule,
 so the app shipped a 420 kB stylesheet whose every visible declaration it
 then overrode. What was genuinely still coming from the framework was a
 bounded set of layout utilities plus five components nobody had themed —
 which is why those five were the only places the old look still showed.
 
-- `styles/_utilities.scss` — the utilities against Fitora's tokens, keeping
+- `styles/_utilities.scss` — the utilities against Gymly's tokens, keeping
   Bootstrap's class names because 49 templates already say them. Spacing maps
   onto the token scale (`mb-3` is `--space-3`); sides are logical properties,
   so RTL comes free.
@@ -344,7 +344,7 @@ screen. It found **eight classes that had been styling nothing**:
 `fx-dashboard`, `fx-label`, `fx-session-tip-fill`, `is-video`,
 `notif-detail`. Wired up as `npm run check:css`.
 
-**`_fitora.scss` is decomposed** — thirteen partials grouped by concern, split
+**`_gymly.scss` is decomposed** — thirteen partials grouped by concern, split
 by a script against the file's own section markers, asserting every section
 landed somewhere. Compiled output is byte-identical: this moved rules, it did
 not change them.
@@ -358,7 +358,7 @@ Frontend: **1234 passing**, lint clean, 919 classes all defined.
 
 ### Done — the screens
 
-**Owner** — dashboard (exceptions first, five KPI cards to one footer line),
+**Admin** — dashboard (exceptions first, five KPI cards to one footer line),
 members (7 columns to 4), member profile (4 tabs to a banner and one
 timeline), planning (coachless sessions visible where they get fixed),
 catalogue (plans and activities composed onto one page), team (roles in
@@ -372,7 +372,7 @@ line.
 **Coach** — the session under way, or the next one, above the day's list,
 with the one action a coach takes. Session rows became real buttons.
 
-**Admin** — overview added; companies, pricing, support and updates took the
+**Superadmin** — overview added; companies, pricing, support and updates took the
 shared header.
 
 **One header across the product.** Twelve components were importing
@@ -419,7 +419,7 @@ i18n complete in fr/en/ar.
 
 ### Remaining in Phase 7
 
-Nothing blocking. The admin company-detail page (265 lines) is the largest
+Nothing blocking. The superadmin company-detail page (265 lines) is the largest
 screen not revisited; it is internal-facing and works.
 
 ## Phases 8–10 — not started
@@ -449,7 +449,7 @@ same instinct for three flags; this extends it to the whole flow and adds the
 part it lacked — a step you can decline.
 
 `company` is the one step nothing in the database can confirm: a company is
-created with a name, a currency and default hours, so "the owner has looked
+created with a name, a currency and default hours, so "the admin has looked
 at these" has to be said out loud. It is the only step `PATCH /onboarding`
 accepts, and the only reason that endpoint exists.
 
@@ -458,7 +458,7 @@ whose feature is off does not appear, is not counted, and does not hold
 `complete` back. Turning rooms on later puts it back and the flow reopens.
 
 Endpoints: `GET /onboarding`, `PATCH /onboarding`, `POST /onboarding/skip`,
-`POST /onboarding/dismiss`. Owner-only — the steps' own work happens on its
+`POST /onboarding/dismiss`. Admin-only — the steps' own work happens on its
 own endpoints behind its own capability checks; nothing is written here but
 progress.
 
@@ -469,15 +469,15 @@ serializer and the specs. Nothing in Angular ever reached them. A gym could
 turn rooms on in Settings and then had nowhere to name one — the acceptance
 criterion for this phase failed on a screen that did not exist.
 
-`/owner/spaces` now exists, on the Phase 7 list pattern. The form asks for
+`/admin/spaces` now exists, on the Phase 7 list pattern. The form asks for
 *restrictions*, not permissions: a room with nothing ticked takes any
 activity, which is what most rooms do, so the common case is the empty one.
 
 ### Features reach every role now
 
 The nav entry for rooms needed to know whether the tenant had rooms on, and
-the bootstrap payload only carried `settings` to the owner. Staff got `nil`,
-so a receptionist with the `spaces` capability would never have seen the
+the bootstrap payload only carried `settings` to the admin. Staff got `nil`,
+so a moderator with the `spaces` capability would never have seen the
 entry.
 
 `features` is now its own key in the bootstrap payload, sent to everyone, and
@@ -491,7 +491,7 @@ someone an empty screen, and `SpacesController` still answers 404 on its own.
 `Company#setup_state` → `Company#onboarding_state`; the bootstrap payload's
 `setup` → `onboarding`. `SetupChecklistComponent` and the `getting-started`
 page are gone, replaced by `OnboardingStepsComponent` (shared by the
-dashboard card and the flow page) and `/owner/onboarding`; the old route
+dashboard card and the flow page) and `/admin/onboarding`; the old route
 redirects.
 
 The `onboarding.*` i18n namespace belonged to the *create-a-company* wizard,
@@ -579,3 +579,115 @@ Backend **959 passing**, rubocop clean.
 Steps 1 and 3 of `MIGRATION_PLAN.md` §7 — dumping production, and running the
 same sequence against it in one window with the dump retained. Nothing in the
 code is waiting on that.
+
+## Phase 10 — Security & testing ✅ (2026-09-24)
+
+Started from an outside audit of the whole backend (the "Gymly backend
+audit" doc), then fixed everything it listed. Backend **1,278 examples, 0
+failures**, 95.3% lines / 79.6% branches; frontend **1,427 passing**; four
+Playwright journeys passing; rubocop, brakeman, bundler-audit, i18n and css
+checks clean.
+
+### The hole the security specs could not see
+
+Every one of the 68 security examples was a denial between gyms' *own*
+records, and all of them held. The leak was in the one model that is
+deliberately not tenant-scoped: `Client`. A second gym that typed an existing
+email adopted the person, read what the first gym had written about them
+(date of birth, address, emergency contact), could overwrite their email and
+password through `PATCH /clients/:id`, and then sign in as them. Confirmed
+end to end before the fix, and now `spec/requests/security/member_identity_spec.rb`.
+
+- **Each gym keeps its own copy.** Date of birth, gender, address and
+  emergency contact moved onto `Membership` (`KeepEachGymsOwnCopyOfAMember`,
+  backfilled to every existing membership — each could already read them —
+  with a `down` that restores from the earliest one).
+- **The identity is the person's.** Once they sign in, have been invited, or
+  train elsewhere (`Client#identity_shared_beyond?`), a gym may fill a blank
+  name, email or phone but not change one: a 422 `identity_locked`, never a
+  silent drop. The member corrects their own through `PATCH /me/profile`.
+- **Staff never choose a member's password.** `POST /clients/:id/invite`
+  emails a link; the member sets it at `/auth/accept-invitation`.
+- **Leaving works.** `DELETE /clients/:id` takes the gym's copy away and
+  cancels upcoming bookings (refused while a subscription runs; payments
+  stay); `DELETE /me/account` anonymises the person everywhere
+  (`Clients::Anonymise`).
+
+### Also found by doing it
+
+- **Sessions could not be ended.** `users.token_version` existed and nothing
+  read it. Tokens now carry it (`tv`); a new password, a deactivation or
+  "sign out everywhere" ends every session. Impersonation lasts an hour. The
+  WebSocket opens with a 30-second single-use ticket, not the login token.
+- **Cancelling a class kept everyone booked into it** and never gave their
+  session back (`Sessions::Cancel`). Writing its spec found a second one:
+  **leaving a waitlist refunded a session nobody had spent**.
+- **Payments could reach another gym's period** for a shared member, by id
+  in `POST /payments` and through the CSV import's unscoped
+  `current_contract`. Scoped, and `Payment#payable_belongs_to_this_gym`
+  holds it at the model. A double click no longer records two payments.
+- **Recurring classes landed an hour late** — built in UTC — and had no UI
+  and no nightly job. All three fixed; requests and jobs now run in the
+  gym's time zone.
+- **The deploy config could not have worked:** `DATABASE_URL` spliced a
+  `$VARIABLE` into a clear value, which Docker env files never expand. SMTP,
+  Sentry and the other secrets were missing, and with no SMTP every signup
+  would have waited forever for its confirmation link — production now
+  refuses to boot without mail. A nightly encrypted off-site backup
+  accessory, and `backup:restore_check` to prove a dump restores.
+- Invoice numbers come from an atomic per-year counter; CSV exports escape
+  formula cells; login is capped at 50 attempts a day per email.
+- Seven list endpoints queried per row — the members page nine times a
+  member. All flat now, held by `spec/requests/performance/`.
+
+### Corrections to the audit
+
+- It said missing bank details would print blanks on invoices. They do not:
+  `PayoutAccount` falls back to "settle with Gymly" on purpose, so
+  `GYMLY_RIB` is only a boot-time warning.
+- It proposed locking the name/phone fields in the member edit form. There
+  is no such form — `ClientsService.update` has no caller — so the lock lives
+  in the API and the member's own profile.
+
+### Roles, renamed and merged (2026-09-24)
+
+- **Labels first:** the gym's admin shows as "Administrateur", Gymly's
+  operator as "Super admin".
+- **Réception folded into Modérateur.** New gyms get admin, moderator and
+  coach. `FoldTheReceptionIntoTheModerator` deleted an unused Réception role
+  and kept a used one as a custom role; the next step moved those people to
+  moderator.
+- **A way up, closed:** `set_login` reset whatever login was attached to a
+  coach. A moderator (who manages coaches) could reset a moderator's or a
+  full-access login an admin had linked to a coach. Below the admin it now
+  only touches coach-role logins. `spec/requests/security/moderator_boundaries_spec.rb`
+  covers every way up.
+
+### The words, all the way down (2026-09-24)
+
+The code now says what the product says, in both repos: classes, methods,
+the `User` enum, role keys, API namespaces (`/api/v1/superadmin/*`,
+`/api/v1/admin/*`), Angular routes (`/superadmin`, `/admin`), folders, file
+names, specs, translation keys, comments — the old migrations' included —
+and these docs. Gymly's operator took the name superadmin first, and only
+then did the gym's role take the name admin, so the word never meant two
+things at once.
+
+`CallTheOwnerTheAdmin` carries the stored data across: the column naming a
+company's admin, role keys, audit action names and metadata keys, and the
+notification deep links. `users.role` is an integer enum, so no user row
+moved. Everyone on a Réception role became a moderator — one-way.
+
+A browser holding a session cached before the rename signs in again
+(`gymly_user_v2`) rather than reading its old role names with their new
+meanings.
+
+### One migration (2026-09-24)
+
+`db/migrate` held 89 migrations: creates, renames, backfills, columns added
+and dropped, data moved between roles. None of it had a production database
+to carry, so the history is squashed into one migration that only creates —
+`CreateGymlySchema`, generated from `schema.rb` and checked by running it
+on an empty database: the schema it dumps is identical, and it rolls back to
+nothing. It keeps the last version the old history reached, so a database
+built from that history counts it as run.

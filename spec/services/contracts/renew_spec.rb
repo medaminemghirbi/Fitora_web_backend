@@ -4,7 +4,7 @@ RSpec.describe Contracts::Renew do
   it "queues a new period behind the running one, and leaves the running one alone" do
     plan = create(:contract_type)
     client = create(:client, company: plan.company)
-    staff = create(:user, :owner)
+    staff = create(:user, :admin)
     original = create(:contract, client: client, contract_type: plan, company: plan.company,
                                     starts_at: 30.days.ago, expires_at: 5.days.from_now)
     original_period = original.current_period
@@ -29,7 +29,7 @@ RSpec.describe Contracts::Renew do
   it "stacks a second renewal behind the first instead of overlapping it" do
     plan = create(:contract_type)
     client = create(:client, company: plan.company)
-    staff = create(:user, :owner)
+    staff = create(:user, :admin)
     contract = create(:contract, client: client, contract_type: plan, company: plan.company,
                                  starts_at: 30.days.ago, expires_at: 5.days.from_now)
     running = contract.current_period
@@ -48,7 +48,7 @@ RSpec.describe Contracts::Renew do
   it "starts the new period today when the current one has already expired" do
     plan = create(:contract_type)
     client = create(:client, company: plan.company)
-    staff = create(:user, :owner)
+    staff = create(:user, :admin)
     original = create(:contract, client: client, contract_type: plan, company: plan.company,
                                     starts_at: 40.days.ago, expires_at: 10.days.ago, status: :expired)
 
@@ -61,7 +61,7 @@ RSpec.describe Contracts::Renew do
     activity = create(:activity)
     plan = create(:contract_type, company: activity.company, activity: activity, price: 70)
     client = create(:client, company: plan.company)
-    staff = create(:user, :owner)
+    staff = create(:user, :admin)
     contract = create(:contract, client: client, contract_type: plan, company: plan.company, activity: activity)
     first_period = contract.current_period
 
@@ -76,7 +76,7 @@ RSpec.describe Contracts::Renew do
     activity = create(:activity)
     plan = create(:contract_type, company: activity.company, activity: activity, price: 70)
     client = create(:client, company: plan.company)
-    staff = create(:user, :owner)
+    staff = create(:user, :admin)
     contract = create(:contract, client: client, contract_type: plan, company: plan.company, activity: activity)
 
     plan.contract_type_activities.find_by(activity: activity).destroy

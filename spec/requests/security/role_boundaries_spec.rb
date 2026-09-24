@@ -10,17 +10,17 @@ require "rails_helper"
 # theirs to know about; they simply may not do this. That is the opposite of
 # the cross-tenant case, which is 404 precisely so nothing is confirmed.
 RSpec.describe "Security: role boundaries", type: :request do
-  let(:owner) { create(:user, :owner) }
-  let!(:company) { create(:company, owner: owner) }
-
-  let(:receptionist) { create(:staff_member, company: company, role: :receptionist) }
-  let(:coach_staff) { create(:staff_member, company: company, role: :coach) }
   let(:admin) { create(:user, :admin) }
+  let!(:company) { create(:company, admin: admin) }
+
+  let(:moderator) { create(:staff_member, company: company, role: :moderator) }
+  let(:coach_staff) { create(:staff_member, company: company, role: :coach) }
+  let(:superadmin) { create(:user, :superadmin) }
   let(:member) { create(:client, company: company) }
 
-  describe "a receptionist" do
+  describe "a moderator" do
     it "cannot read the gym's revenue" do
-      get "/api/v1/owner/revenue", headers: auth_headers(receptionist.user)
+      get "/api/v1/admin/revenue", headers: auth_headers(moderator.user)
 
       expect(response).to have_http_status(:forbidden)
     end
@@ -29,7 +29,7 @@ RSpec.describe "Security: role boundaries", type: :request do
       activity = create(:activity, company: company)
 
       patch "/api/v1/activities/#{activity.id}", params: { activity: { name: "Renamed" } },
-                                                 headers: auth_headers(receptionist.user)
+                                                 headers: auth_headers(moderator.user)
 
       expect(response).to have_http_status(:forbidden)
       expect(activity.reload.name).not_to eq("Renamed")
@@ -39,35 +39,35 @@ RSpec.describe "Security: role boundaries", type: :request do
       plan = create(:contract_type, company: company)
 
       patch "/api/v1/contract_types/#{plan.id}", params: { contract_type: { name: "Renamed" } },
-                                                 headers: auth_headers(receptionist.user)
+                                                 headers: auth_headers(moderator.user)
 
       expect(response).to have_http_status(:forbidden)
     end
 
     it "cannot manage staff" do
-      get "/api/v1/staff", headers: auth_headers(receptionist.user)
+      get "/api/v1/staff", headers: auth_headers(moderator.user)
 
       expect(response).to have_http_status(:forbidden)
     end
 
     it "cannot edit the company's roles" do
-      get "/api/v1/roles", headers: auth_headers(receptionist.user)
+      get "/api/v1/roles", headers: auth_headers(moderator.user)
 
       expect(response).to have_http_status(:forbidden)
     end
 
     it "can still do the desk job it exists for" do
-      get "/api/v1/clients", headers: auth_headers(receptionist.user)
+      get "/api/v1/clients", headers: auth_headers(moderator.user)
       expect(response).to have_http_status(:ok)
 
-      get "/api/v1/payments", headers: auth_headers(receptionist.user)
+      get "/api/v1/payments", headers: auth_headers(moderator.user)
       expect(response).to have_http_status(:ok)
     end
   end
 
   describe "a coach" do
     it "cannot read the gym's revenue" do
-      get "/api/v1/owner/revenue", headers: auth_headers(coach_staff.user)
+      get "/api/v1/admin/revenue", headers: auth_headers(coach_staff.user)
 
       expect(response).to have_http_status(:forbidden)
     end
@@ -109,31 +109,31 @@ RSpec.describe "Security: role boundaries", type: :request do
   end
 
   describe "any staff login" do
-    it "cannot reach the platform admin console" do
-      get "/api/v1/admin/companies", headers: auth_headers(receptionist.user)
+    it "cannot reach the platform superadmin console" do
+      get "/api/v1/superadmin/companies", headers: auth_headers(moderator.user)
       expect(response).to have_http_status(:forbidden)
 
-      get "/api/v1/admin/companies", headers: auth_headers(coach_staff.user)
+      get "/api/v1/superadmin/companies", headers: auth_headers(coach_staff.user)
       expect(response).to have_http_status(:forbidden)
     end
 
     it "cannot reach the member's own app" do
-      get "/api/v1/me/profile", headers: auth_headers(receptionist.user)
+      get "/api/v1/me/profile", headers: auth_headers(moderator.user)
 
       expect(response).to have_http_status(:forbidden)
     end
 
     it "cannot set the platform's subscription pricing" do
-      patch "/api/v1/admin/subscription_pricing", params: { annual_discount_percent: 90 },
-                                                  headers: auth_headers(receptionist.user)
+      patch "/api/v1/superadmin/subscription_pricing", params: { annual_discount_percent: 90 },
+                                                  headers: auth_headers(moderator.user)
 
       expect(response).to have_http_status(:forbidden)
     end
   end
 
-  describe "an owner" do
-    it "cannot reach the platform admin console" do
-      get "/api/v1/admin/companies", headers: auth_headers(owner)
+  describe "an admin" do
+    it "cannot reach the platform superadmin console" do
+      get "/api/v1/superadmin/companies", headers: auth_headers(admin)
 
       expect(response).to have_http_status(:forbidden)
     end
@@ -153,7 +153,7 @@ RSpec.describe "Security: role boundaries", type: :request do
       get "/api/v1/contracts", headers: auth_headers(member)
       expect(response).to have_http_status(:forbidden)
 
-      get "/api/v1/owner/revenue", headers: auth_headers(member)
+      get "/api/v1/admin/revenue", headers: auth_headers(member)
       expect(response).to have_http_status(:forbidden)
     end
 
@@ -168,22 +168,22 @@ RSpec.describe "Security: role boundaries", type: :request do
       expect(response).to have_http_status(:forbidden)
     end
 
-    it "cannot reach the platform admin console" do
-      get "/api/v1/admin/companies", headers: auth_headers(member)
+    it "cannot reach the platform superadmin console" do
+      get "/api/v1/superadmin/companies", headers: auth_headers(member)
 
       expect(response).to have_http_status(:forbidden)
     end
   end
 
-  describe "a platform admin" do
+  describe "a platform superadmin" do
     it "has no company of their own to operate" do
-      get "/api/v1/clients", headers: auth_headers(admin)
+      get "/api/v1/clients", headers: auth_headers(superadmin)
 
       expect(response).not_to have_http_status(:ok)
     end
 
     it "is given no permissions at all by the resolver" do
-      result = Permissions::Resolve.call(user: admin)
+      result = Permissions::Resolve.call(user: superadmin)
 
       expect(result.permissions).to be_empty
       expect(result.role).to be_nil

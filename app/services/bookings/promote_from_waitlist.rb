@@ -23,6 +23,8 @@ module Bookings
       return nil unless session&.company&.feature?(:waitlist)
 
       locked_session = Session.lock.find(session.id)
+      # Never into a class that has been called off.
+      return nil unless locked_session.scheduled?
       return nil if locked_session.held_bookings_count >= locked_session.capacity
 
       next_up = locked_session.bookings.queued.first
@@ -31,6 +33,7 @@ module Bookings
       next_up.update!(status: :confirmed, waitlist_position: nil)
       next_up.contract_period&.contract&.consume_booking!(period: next_up.contract_period)
       resequence(locked_session)
+      tell_member(next_up, locked_session)
 
       next_up
     end
@@ -38,6 +41,18 @@ module Bookings
     private
 
     attr_reader :session
+
+    # A seat that came free is only worth having if the member knows.
+    def tell_member(booking, locked_session)
+      Notifications::Push.call(
+        recipient: booking.client, company: locked_session.company, kind: "waitlist_promoted", subject: booking,
+        dedup_key: "waitlist_promoted:#{booking.id}", url: "/member/bookings",
+        data: {
+          activity_name: locked_session.activity.name, starts_at: locked_session.starts_at.iso8601,
+          gym_name: locked_session.company.name
+        }
+      )
+    end
 
     # Close the gap the promotion left, so positions stay 1, 2, 3 rather
     # than drifting into 2, 5, 9 as people come and go.

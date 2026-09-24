@@ -1,8 +1,8 @@
 require "rails_helper"
 
 RSpec.describe "Api::V1::AppUpdates", type: :request do
-  let(:owner) { create(:user, :owner) }
-  let!(:company) { create(:company, owner: owner) }
+  let(:admin) { create(:user, :admin) }
+  let!(:company) { create(:company, admin: admin) }
 
   describe "authorization" do
     it "forbids staff" do
@@ -19,7 +19,7 @@ RSpec.describe "Api::V1::AppUpdates", type: :request do
       create(:app_update, version: "1.0.0", published_at: 2.days.ago)
       create(:app_update, version: "1.1.0", published_at: 1.day.ago)
 
-      get "/api/v1/app_updates", headers: auth_headers(owner)
+      get "/api/v1/app_updates", headers: auth_headers(admin)
 
       expect(response).to have_http_status(:ok)
       versions = response.parsed_body["app_updates"].map { |u| u["version"] }

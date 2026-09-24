@@ -38,7 +38,7 @@ module Api
           sync_activities(space)
           render json: { space: SpaceSerializer.new(space.reload).as_json }, status: :created
         else
-          render_invalid(space)
+          render_errors(space)
         end
       end
 
@@ -48,7 +48,7 @@ module Api
           sync_activities(@space)
           render json: { space: SpaceSerializer.new(@space.reload).as_json }
         else
-          render_invalid(@space)
+          render_errors(@space)
         end
       end
 
@@ -86,11 +86,6 @@ module Api
 
       def space_params
         params.require(:space).permit(:name, :kind, :capacity, :active)
-      end
-
-      def render_invalid(record)
-        render json: { error: record.errors.full_messages.first, errors: record.errors.full_messages },
-               status: :unprocessable_content
       end
 
       # A company that has not turned rooms on has no rooms to talk about.

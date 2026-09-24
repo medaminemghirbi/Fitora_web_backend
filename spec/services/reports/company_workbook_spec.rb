@@ -27,7 +27,7 @@ RSpec.describe Reports::CompanyWorkbook do
     expect(sheets.map(&:name)).to eq(%w[Résumé Clients])
 
     summary = sheets.find { |s| s.name == "Résumé" }
-    expect(summary.rows.first.cells.first.value).to eq("Rapport Fitora — Studio Test")
+    expect(summary.rows.first.cells.first.value).to eq("Rapport Gymly — Studio Test")
     expect(summary.rows[1].cells.first.value).to eq("Période : #{period.label}")
 
     revenue_row = summary.rows.find { |r| r.cells[0]&.value == "Revenu total" }

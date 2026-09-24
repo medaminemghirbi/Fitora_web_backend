@@ -1,12 +1,12 @@
 require "rails_helper"
 
 RSpec.describe "Api::V1::Branding", type: :request do
-  let(:owner) { create(:user, :owner) }
-  let!(:company) { create(:company, owner: owner, name: "Power Gym", primary_color: "#ff5500") }
+  let(:admin) { create(:user, :admin) }
+  let!(:company) { create(:company, admin: admin, name: "Power Gym", primary_color: "#ff5500") }
 
   describe "GET /api/v1/branding" do
-    it "returns the company's name, primary color, and logo for the owner" do
-      get "/api/v1/branding", headers: auth_headers(owner)
+    it "returns the company's name, primary color, and logo for the admin" do
+      get "/api/v1/branding", headers: auth_headers(admin)
 
       expect(response).to have_http_status(:ok)
       body = response.parsed_body["branding"]
@@ -25,7 +25,7 @@ RSpec.describe "Api::V1::Branding", type: :request do
 
     it "never leaks another company's branding" do
       other_company = create(:company, name: "Titan Fitness")
-      other_staff = create(:staff_member, company: other_company, role: :receptionist)
+      other_staff = create(:staff_member, company: other_company, role: :moderator)
 
       get "/api/v1/branding", headers: auth_headers(other_staff.user)
 

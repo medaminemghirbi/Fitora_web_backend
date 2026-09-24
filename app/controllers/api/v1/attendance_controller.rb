@@ -39,17 +39,17 @@ module Api
       end
 
       def can_mark?(session)
-        return true if current_user.owner?
+        return true if current_user.admin?
         return false unless current_staff_member&.active? && current_staff_member.can?(:checkin)
 
         current_staff_member.coach? ? session.coach_id == current_staff_member.coach_id : true
       end
 
-      # "checkin" (manager/receptionist/coach all have it) is enough to reach
+      # "checkin" (manager/moderator/coach all have it) is enough to reach
       # this controller — the finer-grained coach-owns-this-session check
       # happens in can_mark?/accessible_sessions.
       def require_attendance_access!
-        return if current_user.owner?
+        return if current_user.admin?
         return if current_staff_member&.active? && current_staff_member.can?(:checkin)
 
         render_forbidden

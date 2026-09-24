@@ -1,6 +1,6 @@
 module Contracts
   class Create
-    Result = Struct.new(:success?, :contract, :payment, :error, keyword_init: true)
+    Result = ServiceResult.define(:contract, :payment)
 
     def self.call(client:, contract_type:, activity:, created_by:, starts_on: Date.current, discount: 0,
                    collect_payment: false, payment_method: nil, payment_notes: nil)

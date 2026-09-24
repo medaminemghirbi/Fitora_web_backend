@@ -1,17 +1,17 @@
 module Api
   module V1
     class CompaniesController < BaseController
-      before_action :require_owner!
+      before_action :require_admin!
       before_action :set_owned_company, only: [ :switch ]
 
-      # GET /api/v1/company — the owner's currently ACTIVE company (see
+      # GET /api/v1/company — the admin's currently ACTIVE company (see
       # #switch). Everything else in the API (current_company) follows
       # whichever one this is.
       def show
         render json: { company: CompanySerializer.new(current_company).as_json }
       end
 
-      # GET /api/v1/companies — every company this owner runs, for the
+      # GET /api/v1/companies — every company this admin runs, for the
       # navbar switcher. Order is oldest-first (predictable, matches
       # signup order) rather than alphabetical, which would reorder itself
       # as they rename one.
@@ -23,51 +23,21 @@ module Api
       end
 
       # POST /api/v1/companies — a second (or third…) company under the
-      # same owner login. Capped by company_limit (see User#company_limit);
+      # same admin login. Capped by company_limit (see User#company_limit);
       # nil means unlimited. Becomes the active company immediately.
       def create
         if current_user.company_limit_reached?
           return render json: {
             error: "company_limit_reached",
             message: "Your plan allows #{current_user.company_limit} " \
-                     "#{current_user.company_limit == 1 ? 'company' : 'companies'}. Contact Fitora to upgrade."
+                     "#{current_user.company_limit == 1 ? 'company' : 'companies'}. Contact Gymly to upgrade."
           }, status: :unprocessable_content
         end
 
-        company = Company.new(company_params)
-        company.owner = current_user
+        result = Companies::Open.call(admin: current_user, attributes: company_params)
+        return render_errors(result.company.errors.any? ? result.company : result.error) unless result.success?
 
-        ActiveRecord::Base.transaction do
-          company.save!
-
-          # Built-in roles (owner/manager/receptionist/coach) — a company can
-          # re-permission them or add its own from Settings.
-          Role.seed_defaults_for(company)
-
-          # The free days are the first period, given away: an invoice like
-          # any other, flagged so the gym is shown as on trial rather than
-          # on a tier. Access is open because the invoice covers today.
-          subscription = company.create_subscription!(active: true, billing_period: :monthly)
-          Invoice.create!(
-            company: company,
-            number: Invoice.next_number,
-            period_start: Date.current,
-            period_end: Date.current + (Subscription::TRIAL_DAYS - 1),
-            amount_cents: 0,
-            trial: true,
-            currency: company.currency,
-            billing_period: subscription.billing_period,
-            issued_at: Time.current,
-            notes: "Période d'essai — #{Subscription::TRIAL_DAYS} jours offerts"
-          )
-
-
-          current_user.update!(active_company: company)
-        end
-
-        render json: { company: CompanySerializer.new(company).as_json }, status: :created
-      rescue ActiveRecord::RecordInvalid => e
-        render json: { error: e.record.errors.full_messages.first, errors: e.record.errors.full_messages }, status: :unprocessable_content
+        render json: { company: CompanySerializer.new(result.company).as_json }, status: :created
       end
 
       # PATCH /api/v1/company
@@ -75,17 +45,17 @@ module Api
         require_company!
         return if performed?
 
-        # currency + locale are tenant-wide settings a Fitora admin manages
-        # (Api::V1::Admin::CompaniesController#update_settings); the owner
+        # currency + locale are tenant-wide settings a Gymly superadmin manages
+        # (Api::V1::Superadmin::CompaniesController#update_settings); the admin
         # only picks a currency once, at signup.
         if current_company.update(company_params.except(:currency))
           render json: { company: CompanySerializer.new(current_company).as_json }
         else
-          render json: { error: current_company.errors.full_messages.first, errors: current_company.errors.full_messages }, status: :unprocessable_content
+          render_errors(current_company)
         end
       end
 
-      # POST /api/v1/companies/:id/switch — moves the owner's active
+      # POST /api/v1/companies/:id/switch — moves the admin's active
       # session to another of their OWN companies (set_owned_company 404s
       # on anything else, same as every other tenant-scoped lookup).
       def switch

@@ -1,8 +1,8 @@
 require "rails_helper"
 
 RSpec.describe "Api::V1::Payments", type: :request do
-  let(:owner) { create(:user, :owner) }
-  let!(:company) { create(:company, owner: owner) }
+  let(:admin) { create(:user, :admin) }
+  let!(:company) { create(:company, admin: admin) }
 
   describe "GET /api/v1/payments" do
     it "never exposes another company's payments" do
@@ -10,7 +10,7 @@ RSpec.describe "Api::V1::Payments", type: :request do
       other_company = create(:company)
       other_payment = create(:payment, company: other_company, client: create(:client, company: other_company))
 
-      get "/api/v1/payments", headers: auth_headers(owner)
+      get "/api/v1/payments", headers: auth_headers(admin)
 
       ids = response.parsed_body["payments"].map { |p| p["id"] }
       expect(ids).not_to include(other_payment.id)
@@ -30,7 +30,7 @@ RSpec.describe "Api::V1::Payments", type: :request do
       other_company = create(:company)
       other_payment = create(:payment, company: other_company, client: create(:client, company: other_company))
 
-      get "/api/v1/payments/#{other_payment.id}", headers: auth_headers(owner)
+      get "/api/v1/payments/#{other_payment.id}", headers: auth_headers(admin)
 
       expect(response).to have_http_status(:not_found)
     end
@@ -40,7 +40,7 @@ RSpec.describe "Api::V1::Payments", type: :request do
     it "rejects a client_id belonging to another company" do
       other_client = create(:client)
 
-      post "/api/v1/payments", params: { client_id: other_client.id, amount: 50, payment_method: "cash" }, headers: auth_headers(owner)
+      post "/api/v1/payments", params: { client_id: other_client.id, amount: 50, payment_method: "cash" }, headers: auth_headers(admin)
 
       expect(response).to have_http_status(:not_found)
     end
@@ -51,7 +51,7 @@ RSpec.describe "Api::V1::Payments", type: :request do
 
       post "/api/v1/payments",
            params: { client_id: client.id, amount: 50, payment_method: "cash", contract_period_id: contract.current_period.id },
-           headers: auth_headers(owner)
+           headers: auth_headers(admin)
 
       expect(response).to have_http_status(:created)
       log = AuditLog.last
@@ -64,7 +64,7 @@ RSpec.describe "Api::V1::Payments", type: :request do
     it "logs an audit entry for the refund" do
       payment = create(:payment, company: company, client: create(:client, company: company), status: :paid)
 
-      post "/api/v1/payments/#{payment.id}/refund", headers: auth_headers(owner)
+      post "/api/v1/payments/#{payment.id}/refund", headers: auth_headers(admin)
 
       expect(response).to have_http_status(:ok)
       log = AuditLog.last
@@ -80,7 +80,7 @@ RSpec.describe "Api::V1::Payments", type: :request do
       create(:payment, company: company, client: client, status: :paid, amount: 150, paid_at: Time.current)
       create(:payment, company: company, client: client, status: :refunded, amount: 100)
 
-      get "/api/v1/payments", headers: auth_headers(owner)
+      get "/api/v1/payments", headers: auth_headers(admin)
 
       body = response.parsed_body
       expect(body["counts"]["all"]).to eq(3)

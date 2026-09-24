@@ -1,8 +1,8 @@
 require "rails_helper"
 
 RSpec.describe "Api::V1::Coach::Members", type: :request do
-  let(:owner) { create(:user, :owner) }
-  let!(:company) { create(:company, owner: owner) }
+  let(:admin) { create(:user, :admin) }
+  let!(:company) { create(:company, admin: admin) }
   let(:coach) { create(:coach, company: company) }
   let(:coach_staff) { create(:staff_member, company: company, role: :coach, coach: coach) }
   let(:activity) { create(:activity, company: company) }
@@ -104,16 +104,16 @@ RSpec.describe "Api::V1::Coach::Members", type: :request do
   end
 
   describe "who may ask" do
-    it "refuses a receptionist — this is a coach's own roster, not a directory" do
-      receptionist = create(:staff_member, company: company, role: :receptionist)
+    it "refuses a moderator — this is a coach's own roster, not a directory" do
+      moderator = create(:staff_member, company: company, role: :moderator)
 
-      get "/api/v1/coach/members", headers: auth_headers(receptionist.user)
+      get "/api/v1/coach/members", headers: auth_headers(moderator.user)
 
       expect(response).to have_http_status(:forbidden)
     end
 
-    it "refuses the owner, who has the full member list elsewhere" do
-      get "/api/v1/coach/members", headers: auth_headers(owner)
+    it "refuses the admin, who has the full member list elsewhere" do
+      get "/api/v1/coach/members", headers: auth_headers(admin)
 
       expect(response).to have_http_status(:forbidden)
     end

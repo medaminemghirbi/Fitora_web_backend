@@ -1,4 +1,4 @@
-# Fitora — Permissions & Access Control
+# Gymly — Permissions & Access Control
 
 ## 1. Three independent gates
 
@@ -20,8 +20,8 @@ anyone's permissions.
 
 | Principal | Token claim | Tenant | Notes |
 |---|---|---|---|
-| Platform admin | `user_id`, `User#admin?` | **none** | Operates Fitora, not a gym. Reaches company data only through explicit, audited impersonation. |
-| Owner | `user_id`, `User#owner?` | `users.active_company_id` | All capabilities inside their active company, unconditionally. |
+| Superadmin | `user_id`, `User#superadmin?` | **none** | Operates Gymly, not a gym. Reaches company data only through explicit, audited impersonation. |
+| Admin | `user_id`, `User#admin?` | `users.active_company_id` | The gym's admin. All capabilities inside their active company, unconditionally. The only one who creates staff logins, assigns roles and edits them. |
 | Staff | `user_id`, `User#staff?` | `staff_members.company_id` | Capabilities come from the assigned `Role`. |
 | Client | `client_id` | via `memberships` | Only `/api/v1/me/*`. |
 
@@ -50,7 +50,7 @@ platform; the roles built from them are the per-company configurable part.
 
 Two deliberate splits:
 
-- **`payments` vs `revenue`** — taking money at the desk is the receptionist's
+- **`payments` vs `revenue`** — taking money at the desk is the moderator's
   job; knowing what the business earns is not.
 - **`reports` vs `revenue`** — a dashboard of today's operations carries no
   money figures unless `revenue` is also held.
@@ -59,17 +59,23 @@ Two deliberate splits:
 
 ## 4. Built-in roles
 
-Seeded per company, renameable and re-permissionable (except `owner`),
+Seeded per company, renameable and re-permissionable (except `admin`),
 deletable only if custom and unassigned.
 
 | Role | `key` | Permissions |
 |---|---|---|
-| Owner | `owner` | all (implicit — never checked against the array) |
-| Moderator | `moderator` | `sessions bookings clients contracts payments checkin reports coaches` |
-| Receptionist | `receptionist` | `sessions bookings clients contracts payments checkin reports` |
+| Administrateur | `admin` | all (implicit — never checked against the array) |
+| Modérateur | `moderator` | `sessions bookings clients contracts payments checkin reports coaches` |
 | Coach | `coach` | `checkin` (+ read of own schedule and own members, which is namespace-gated, not capability-gated) |
 
+On screen: "Administrateur" and "Super admin". The code says `admin` for
+the gym's admin and `superadmin` for Gymly's operator.
+
 Custom roles are any subset of the catalogue.
+
+A moderator manages members and coaches — including a coach's own login,
+but only a login on the coach role (`CoachesController#set_login`): an admin
+may link a coach to a higher login, and resetting that one would be a way up.
 
 ## 5. Enforcement
 
@@ -112,14 +118,14 @@ Guards (`capabilityGuard`, `roleGuard`, `staffRoleGuard`) and
 `NavigationService` filtering exist so the UI is not misleading. They are
 **not** security, and no backend check may be omitted because a guard exists.
 
-## 6. Platform admin isolation
+## 6. Platform superadmin isolation
 
-`Api::V1::Admin::*` controllers have **no `current_company`**. An admin
+`Api::V1::Superadmin::*` controllers have **no `current_company`**. A superadmin
 reaching gym data does so only by impersonation:
 
-- `POST /admin/companies/:id/impersonate` issues a token carrying both
-  `user_id` (the owner) and `impersonator_id` (the admin).
-- The start of the session is logged as `admin.impersonation_started`, and
+- `POST /superadmin/companies/:id/impersonate` issues a token carrying both
+  `user_id` (the admin) and `impersonator_id` (the superadmin).
+- The start of the session is logged as `superadmin.impersonation_started`, and
   every audited action taken *during* it carries `impersonated_by_id` /
   `impersonated_by_email` in its metadata — stamped by `AuditLogs::Record`
   from `Current.impersonator`, so no call site has to remember to.
@@ -127,7 +133,7 @@ reaching gym data does so only by impersonation:
   was resolved on every request but read by nothing.)
 - The frontend shows a persistent, unmissable impersonation banner.
 
-An admin token alone reaches aggregate/company-metadata endpoints only —
+A superadmin token alone reaches aggregate/company-metadata endpoints only —
 never member records, bookings, or payments.
 
 ## 7. The tests that must exist
@@ -135,18 +141,20 @@ never member records, bookings, or payments.
 `spec/requests/security/` — one file per rule, each asserting a denial:
 
 ```
-Owner of company A  → any company B resource        404 (not 403)
-Receptionist        → GET /owner/revenue            403
-Receptionist        → PATCH /company (settings)     403
-Coach               → GET /owner/revenue            403
+Admin of company A  → any company B resource        404 (not 403)
+Moderator           → POST /staff, PATCH /staff/:id 403
+Moderator           → POST/PATCH/DELETE /roles      403
+Moderator           → PATCH /company (settings)     403
+Moderator           → coach login on a higher role  403
+Coach               → GET /admin/revenue            403
 Coach               → GET /payments                 403
 Coach               → PATCH /activities/:id         403
 Client              → GET /clients                  403
 Client              → GET /me/bookings?client_id=X  own data only, X ignored
 Client              → another client's booking      404
-Client              → /admin/*                      403
-Staff               → /admin/*                      403
-Admin               → GET /clients                  403 (no tenant)
+Client              → /superadmin/*                      403
+Staff               → /superadmin/*                      403
+Superadmin               → GET /clients                  403 (no tenant)
 Unauthenticated     → every endpoint                401
 Locked company staff→ every operational endpoint    402
 Mass assignment     → company_id / role_id in body  ignored, never applied

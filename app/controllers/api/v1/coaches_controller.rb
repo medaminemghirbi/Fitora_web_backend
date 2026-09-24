@@ -10,7 +10,7 @@ module Api
 
       # GET /api/v1/coaches
       def index
-        render json: { coaches: current_company.coaches.order(:first_name).map { |c| CoachSerializer.new(c).as_json } }
+        render json: { coaches: current_company.coaches.includes(:staff_member).order(:first_name).map { |c| CoachSerializer.new(c).as_json } }
       end
 
       # GET /api/v1/coaches/:id
@@ -25,7 +25,7 @@ module Api
         if coach.save
           render json: { coach: CoachSerializer.new(coach.reload).as_json }, status: :created
         else
-          render json: { error: coach.errors.full_messages.first, errors: coach.errors.full_messages }, status: :unprocessable_content
+          render_errors(coach)
         end
       end
 
@@ -34,7 +34,7 @@ module Api
         if @coach.update(coach_params)
           render json: { coach: CoachSerializer.new(@coach).as_json }
         else
-          render json: { error: @coach.errors.full_messages.first, errors: @coach.errors.full_messages }, status: :unprocessable_content
+          render_errors(@coach)
         end
       end
 
@@ -45,10 +45,17 @@ module Api
       end
 
       # POST /api/v1/coaches/:id/login — provisions (or resets) the coach's
-      # own mobile-app login. Owner and manager already reach this via the
-      # blanket :coaches capability; this is also how a receptionist gets to
-      # do it, without being handed general staff management.
+      # own login. Reached through the :coaches capability, which moderators
+      # hold. It resets whatever login is attached to the coach, so below the
+      # admin it only touches a login on the coach role: an admin can link a
+      # coach to a moderator's or a full-access login, and resetting that one
+      # would hand its access to whoever did it.
       def set_login
+        attached = @coach.staff_member
+        if attached && !current_user.admin? && attached.role_key != "coach"
+          return render_forbidden("Only the admin can change this login.")
+        end
+
         result = Coaches::SetLogin.call(coach: @coach, email: params[:email], password: params[:password])
 
         if result.success?

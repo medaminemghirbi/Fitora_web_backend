@@ -8,7 +8,7 @@ Rails.application.routes.draw do
   # else, and only mounted at all once SIDEKIQ_WEB_PASSWORD is set.
   unless Rails.env.development?
     Sidekiq::Web.use Rack::Auth::Basic do |user, password|
-      expected_user = ENV.fetch("SIDEKIQ_WEB_USER", "fitora")
+      expected_user = ENV.fetch("SIDEKIQ_WEB_USER", "gymly")
       expected_pass = ENV["SIDEKIQ_WEB_PASSWORD"].to_s
       expected_pass.present? &&
         ActiveSupport::SecurityUtils.secure_compare(::Digest::SHA256.hexdigest(user), ::Digest::SHA256.hexdigest(expected_user)) &
@@ -22,14 +22,18 @@ Rails.application.routes.draw do
       post "auth/register", to: "auth#register"
       post "auth/login", to: "auth#login"
       post "auth/logout", to: "auth#logout"
+      patch "auth/password", to: "auth#change_password"
       get "auth/me", to: "auth#me"
       get "me/permissions", to: "auth#permissions"
       get "bootstrap", to: "bootstrap#show"
+      # A 30-second, single-use pass for opening /cable — see JwtService.
+      post "cable_ticket", to: "auth#cable_ticket"
       get "app_version", to: "app_version#show"
 
       # Account recovery / email confirmation (token in the URL, unauthenticated)
       resources :email_verifications, only: [ :create, :update ], param: :token
       resources :password_resets, only: [ :create, :update ], param: :token
+      resources :invitations, only: [ :update ], param: :token
 
       resources :notifications, only: [ :index, :show ] do
         member { patch :read }
@@ -40,7 +44,7 @@ Rails.application.routes.draw do
       end
 
       resource :company, only: [ :show, :update ]
-      # Plural: an owner can run more than one company now (see
+      # Plural: an admin can run more than one company now (see
       # User#company_limit) — :show/:update above always act on whichever
       # one is currently active; these list/create/switch between them.
       resources :companies, only: [ :index, :create ] do
@@ -74,11 +78,14 @@ Rails.application.routes.draw do
           post :remind
         end
       end
-      resources :clients, only: [ :index, :show, :create, :update ]
+      resources :clients, only: [ :index, :show, :create, :update, :destroy ] do
+        member { post :invite }
+      end
 
       get "data_exchange/:entity/template", to: "data_exchange#template"
       get "data_exchange/:entity/export", to: "data_exchange#export"
       post "data_exchange/:entity/import", to: "data_exchange#import"
+      get "data_exchange/imports/:id", to: "data_exchange#show_import"
 
       get "subscription", to: "subscription#show"
       # The gym's own invoices; :show is the PDF.
@@ -115,7 +122,16 @@ Rails.application.routes.draw do
       # No directory and no self-signup — the gym enables the account from
       # the member's own record (Api::V1::ClientsController#update).
       namespace :me do
-        resource :profile, only: [ :show ]
+        resource :profile, only: [ :show, :update ]
+        # Leaving Gymly altogether — see Clients::Anonymise.
+        resource :account, only: [ :destroy ]
+        resources :notifications, only: [ :index, :show ] do
+          member { patch :read }
+          collection do
+            post :read_all
+            get :unread_count
+          end
+        end
         resources :sessions, only: [ :index ]
         resources :bookings, only: [ :index, :create ] do
           member { post :cancel }
@@ -130,13 +146,13 @@ Rails.application.routes.draw do
         resources :members, only: [ :index ]
       end
 
-      namespace :owner do
+      namespace :admin do
         get "dashboard", to: "dashboard#show"
         get "revenue", to: "revenue#show"
         get "reports/export", to: "reports#export"
       end
 
-      namespace :admin do
+      namespace :superadmin do
         resources :companies, only: [ :index, :show ] do
           member do
             patch :subscription, to: "companies#update_subscription"

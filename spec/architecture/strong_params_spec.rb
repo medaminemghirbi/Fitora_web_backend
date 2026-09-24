@@ -56,7 +56,7 @@ RSpec.describe "Strong parameters", type: :model do
   it "every counter cache column stays out of every permit list" do
     # Taken from the associations that actually declare one, not from column
     # names ending in _count: contract_types.session_count is how many
-    # sessions a plan includes, a real field an owner sets, and a name-based
+    # sessions a plan includes, a real field an admin sets, and a name-based
     # guess would call it a counter cache.
     Rails.application.eager_load!
     counter_columns = ApplicationRecord.descendants.flat_map { |model|

@@ -1,6 +1,6 @@
 module Coaches
   class SetLogin
-    Result = Struct.new(:success?, :staff_member, :error, keyword_init: true)
+    Result = ServiceResult.define(:staff_member)
 
     def self.call(coach:, email:, password:)
       new(coach: coach, email: email, password: password).call
@@ -13,7 +13,7 @@ module Coaches
     end
 
     # A Coach may already have a login (staff_member present, set up by the
-    # owner earlier or by an earlier call here) — in that case this just
+    # admin earlier or by an earlier call here) — in that case this just
     # resets the linked User's email/password. Otherwise it provisions a
     # fresh staff account (role: coach) and links it to this Coach.
     def call

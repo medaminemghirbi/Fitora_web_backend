@@ -66,19 +66,19 @@ namespace :migration do
   task spot_check: :environment do
     failures = []
 
-    Company.includes(:owner, :subscription).find_each do |company|
+    Company.includes(:admin, :subscription).find_each do |company|
       label = "#{company.name} (#{company.id})"
       reads = {
-        # Owner shell: the dashboard is the widest read in the product —
+        # Admin shell: the dashboard is the widest read in the product —
         # members, contracts, today's schedule, money and the attention list
         # in one call.
-        "owner dashboard" => -> { Dashboard::Statistics.call(company: company) },
+        "admin dashboard" => -> { Dashboard::Statistics.call(company: company) },
         # What the shell itself is built from.
         "company payload" => -> { CompanySerializer.new(company).as_json },
         "branding" => -> { CompanyBrandingSerializer.new(company).as_json },
         "settings" => -> { company.settings.to_h },
         "setup flow" => -> { company.onboarding_state.as_json },
-        "owner permissions" => -> { Permissions::Resolve.call(user: company.owner).permissions },
+        "admin permissions" => -> { Permissions::Resolve.call(user: company.admin).permissions },
         # Desk / coach: the schedule, and the roster behind it.
         "schedule" => -> { company.sessions.includes(:activity, :coach, :space).limit(50).map { |s| SessionSerializer.new(s).as_json } },
         "team" => -> { company.staff_members.includes(:user, :role).map { |s| StaffMemberSerializer.new(s).as_json } },

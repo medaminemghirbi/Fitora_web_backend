@@ -1,7 +1,7 @@
-# One period of Fitora access, paid for and recorded.
+# One period of Gymly access, paid for and recorded.
 #
 # Payment happens off-app, so an invoice is not a demand — it is the proof
-# that money arrived. A Fitora admin confirms it, the invoice is issued, and
+# that money arrived. A Gymly superadmin confirms it, the invoice is issued, and
 # it lands in the gym's own account to download.
 #
 # Everything about the subscription that used to be stored is read from
@@ -32,15 +32,18 @@ class Invoice < ApplicationRecord
   end
 
   # FIT-2026-0042: the year it was issued in, then a counter within that
-  # year. Taken under a lock so two admins confirming at once cannot land on
-  # the same number.
+  # year, from one counter row per year (invoice_sequences). Atomic under
+  # concurrent callers,
+  # and inside the caller's transaction, so a rolled-back invoice does not
+  # leave a gap.
   def self.next_number(now: Time.current)
     year = now.year
-    transaction do
-      last = where("number LIKE ?", "FIT-#{year}-%").lock.order(:number).last
-      sequence = last ? last.number.split("-").last.to_i + 1 : 1
-      format("FIT-%<year>d-%<sequence>04d", year: year, sequence: sequence)
-    end
+    sequence = connection.select_value(sanitize_sql_array([ <<~SQL, year ]))
+      INSERT INTO invoice_sequences (year, last_value) VALUES (?, 1)
+      ON CONFLICT (year) DO UPDATE SET last_value = invoice_sequences.last_value + 1
+      RETURNING last_value
+    SQL
+    format("FIT-%<year>d-%<sequence>04d", year: year, sequence: sequence)
   end
 
   private

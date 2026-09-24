@@ -1,5 +1,5 @@
 # Serializes a booking together with its attendance status, for the coach
-# session view / receptionist check-in list.
+# session view / moderator check-in list.
 class AttendanceBookingSerializer
   def initialize(booking)
     @booking = booking

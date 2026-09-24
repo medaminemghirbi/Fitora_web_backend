@@ -1,5 +1,5 @@
-# A problem report from the owner's "Contact" tab (modules marketplace
-# page), with optional file/video attachments — reviewed by a Fitora admin
+# A problem report from the admin's "Contact" tab (modules marketplace
+# page), with optional file/video attachments — reviewed by a Gymly superadmin
 # from a cross-company inbox rather than per-company like module requests.
 class SupportTicket < ApplicationRecord
   ALLOWED_ATTACHMENT_TYPES = %w[
@@ -16,7 +16,7 @@ class SupportTicket < ApplicationRecord
   has_many_attached :attachments
 
   enum :status, { open: 0, resolved: 1 }
-  # `upgrade` is a plan request from the owner's subscription page.
+  # `upgrade` is a plan request from the admin's subscription page.
   enum :kind, { general: 0, upgrade: 1 }
 
   # Digits with the usual separators, an optional leading "+" or "(+". The digit count
@@ -27,7 +27,7 @@ class SupportTicket < ApplicationRecord
   before_validation { self.contact_phone = contact_phone.to_s.strip.presence }
 
   validates :subject, :message, presence: true
-  # Fitora calls back to set a plan up — payment is arranged off-app — so a
+  # Gymly calls back to set a plan up — payment is arranged off-app — so a
   # plan request without a number goes nowhere.
   validates :contact_phone, presence: true, if: :upgrade?
   validate :contact_phone_is_a_number

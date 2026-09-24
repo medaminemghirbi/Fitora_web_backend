@@ -4,13 +4,13 @@ require "rails_helper"
 # form sends email: "", the model kept it, and the unique index on
 # lower(email) exempts NULL but not "".
 RSpec.describe "Api::V1::Clients without an email", type: :request do
-  let(:owner) { create(:user, :owner) }
-  let!(:company) { create(:company, owner: owner) }
+  let(:admin) { create(:user, :admin) }
+  let!(:company) { create(:company, admin: admin) }
 
   def add!(first_name, email:)
     post "/api/v1/clients",
          params: { client: { first_name: first_name, last_name: "Sansmail", phone: "20#{rand(100000..999999)}", email: email } },
-         headers: auth_headers(owner)
+         headers: auth_headers(admin)
   end
 
   it "saves a member with no email at all" do

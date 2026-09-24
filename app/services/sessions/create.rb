@@ -1,6 +1,6 @@
 module Sessions
   class Create
-    Result = Struct.new(:success?, :session, :error, keyword_init: true)
+    Result = ServiceResult.define(:session)
 
     COACH_OVERLAP_CONSTRAINT = "no_overlapping_coach_sessions".freeze
 

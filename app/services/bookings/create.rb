@@ -9,7 +9,7 @@ module Bookings
   class Create
     # `waitlisted` is true when the session was full and the gym runs a
     # queue: the booking exists, but it is a place in line, not a seat.
-    Result = Struct.new(:success?, :booking, :error, :waitlisted, keyword_init: true)
+    Result = ServiceResult.define(:booking, :waitlisted)
 
     def self.call(client:, session:, by: :staff)
       new(client: client, session: session, by: by).call

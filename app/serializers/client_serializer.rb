@@ -7,12 +7,30 @@ class ClientSerializer
   # one grouped query for the whole page (see
   # Api::V1::ClientsController#last_visits_for), and computing it per record
   # would make that impossible.
-  def initialize(client, detailed: false, company: nil, last_visit_at: :unset)
+  # A list passes `membership` and `current_contract` in too, loaded for the
+  # whole page at once (see .page_context); on its own a row would look each
+  # up itself — a membership and a contract per member.
+  def initialize(client, detailed: false, company: nil, last_visit_at: :unset, membership: :unset, current_contract: :unset)
     @client = client
     @detailed = detailed
     @company = company
-    @membership = company && client.membership_for(company)
+    @membership = membership == :unset ? company && client.membership_for(company) : membership
+    @current_contract = current_contract
     @last_visit_at = last_visit_at
+  end
+
+  # Everything a list of these reads, for a whole page, in three queries.
+  def self.page_context(clients, company)
+    ids = clients.map(&:id)
+    contracts = company.contracts.for_serializer
+                       .where(client_id: ids)
+                       .joins(:contract_periods).merge(ContractPeriod.currently_active)
+                       .order("contract_periods.expires_at DESC")
+                       .to_a.uniq
+    {
+      memberships: company.memberships.where(client_id: ids).index_by(&:client_id),
+      current_contracts: contracts.group_by(&:client_id).transform_values(&:first)
+    }
   end
 
   def as_json(*)
@@ -26,7 +44,7 @@ class ClientSerializer
       phone: client.phone,
       active: membership ? membership.active : client.active,
       joined_at: membership&.joined_at,
-      current_contract: ContractSerializer.new(client.current_contract(company)).as_json
+      current_contract: ContractSerializer.new(current_contract).as_json
     }
 
     # Only when the caller supplied it. A list sends it; anything that did
@@ -36,12 +54,19 @@ class ClientSerializer
     return base unless detailed
 
     base.merge(
-      date_of_birth: client.date_of_birth,
-      gender: client.gender,
-      address: client.address,
-      emergency_contact_name: client.emergency_contact_name,
-      emergency_contact_phone: client.emergency_contact_phone,
+      # This gym's own copy — another gym that knows the same person never
+      # sees it (see Membership).
+      date_of_birth: membership&.date_of_birth,
+      gender: membership&.gender,
+      address: membership&.address,
+      emergency_contact_name: membership&.emergency_contact_name,
+      emergency_contact_phone: membership&.emergency_contact_phone,
       notes: membership&.notes,
+      # Name, email and phone are the person's once they sign in or train
+      # elsewhere; the form locks them rather than letting a save bounce.
+      identity_locked: company ? client.identity_shared_beyond?(company) : true,
+      invitation_pending: client.invitation_pending?,
+      invited_at: client.invitation_sent_at,
       outstanding_balance: client.outstanding_balance(company),
       attendance_rate: client.attendance_rate(company),
       last_visit_at: @last_visit_at == :unset ?
@@ -53,4 +78,8 @@ class ClientSerializer
   private
 
   attr_reader :client, :detailed, :company, :membership
+
+  def current_contract
+    @current_contract == :unset ? client.current_contract(company) : @current_contract
+  end
 end

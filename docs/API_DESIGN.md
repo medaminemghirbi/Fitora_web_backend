@@ -1,4 +1,4 @@
-# Fitora — API Design
+# Gymly — API Design
 
 `/api/v1`, JSON, JWT bearer auth. One version; the rewrite happens inside it
 rather than behind a `/v2`, because there is exactly one client and shipping
@@ -8,11 +8,11 @@ two live surfaces would double the security review.
 
 | Namespace | Audience | Principal |
 |---|---|---|
-| `/api/v1/*` (root) | staff-side operations | `User` (owner or staff) |
-| `/api/v1/owner/*` | owner-privileged reads (revenue, exports) | `User#owner?` or `revenue` capability |
+| `/api/v1/*` (root) | staff-side operations | `User` (admin or staff) |
+| `/api/v1/admin/*` | admin-privileged reads (revenue, exports) | `User#admin?` or `revenue` capability |
 | `/api/v1/coach/*` | a coach's own day **(new)** | staff on the coach role |
 | `/api/v1/me/*` | the member's own app | `Client` |
-| `/api/v1/admin/*` | the SaaS itself | `User#admin?`, no tenant |
+| `/api/v1/superadmin/*` | the SaaS itself | `User#superadmin?`, no tenant |
 
 This is the audit unit: to review what a coach can reach, read one directory.
 
@@ -91,12 +91,12 @@ POST   /onboarding/dismiss            → replaced, see §4
 data_exchange/:entity/{template,export,import}
 ```
 
-### `/owner`
+### `/admin`
 
 ```
-GET /owner/dashboard
-GET /owner/revenue
-GET /owner/reports/export
+GET /admin/dashboard
+GET /admin/revenue
+GET /admin/reports/export
 ```
 
 ### `/coach`
@@ -136,17 +136,17 @@ three more things to keep scoped correctly.
 ```
 ```
 
-### `/admin`
+### `/superadmin`
 
 ```
-resources /admin/companies         index, show
+resources /superadmin/companies         index, show
   PATCH  :id/subscription | :id/settings | :id/company_limit
   POST   :id/impersonate
   GET    :id/invoices | POST :id/invoices | DELETE :id/invoices/:invoice_id
-GET/PATCH /admin/subscription_pricing
-resources /admin/app_updates       index, create
-resources /admin/support_tickets   index; PATCH :id/resolve; GET :id/attachments/:id
-GET  /admin/metrics                platform KPIs                                      (new)
+GET/PATCH /superadmin/subscription_pricing
+resources /superadmin/app_updates       index, create
+resources /superadmin/support_tickets   index; PATCH :id/resolve; GET :id/attachments/:id
+GET  /superadmin/metrics                platform KPIs                                      (new)
 ```
 
 ## 4. Onboarding

@@ -95,7 +95,9 @@ module Api
       # another coach's booking is a BookingPolicy#show? 403 (a role check),
       # not a 404 — only a booking truly outside the company should 404.
       def searched_scope
-        scope = org_scope.order(created_at: :desc)
+        # Everything BookingSerializer reads, once for the page.
+        scope = org_scope.preload(:client, session: [ :activity, :company, :coach ], contract_period: { contract: :contract_type })
+                         .order(created_at: :desc)
         return scope if params[:q].blank?
 
         t = "%#{params[:q].strip}%"
@@ -126,7 +128,7 @@ module Api
       end
 
       def bookings_csv(scope)
-        CSV.generate do |csv|
+        CsvSafe.generate do |csv|
           csv << [ "Client", "Activity", "Session start", "Status", "Amount", "Payment status" ]
           scope.includes(:client, session: :activity).find_each do |b|
             csv << [ b.client.full_name, b.session.activity.name, b.session.starts_at, b.status, b.amount, b.payment_status ]

@@ -1,14 +1,14 @@
 require "rails_helper"
 
 RSpec.describe "Api::V1::Spaces", type: :request do
-  let(:owner) { create(:user, :owner) }
-  let!(:company) { create(:company, owner: owner, settings: { features: { spaces: true } }) }
+  let(:admin) { create(:user, :admin) }
+  let!(:company) { create(:company, admin: admin, settings: { features: { spaces: true } }) }
 
   describe "the feature flag" do
     it "404s for a gym that has not turned rooms on" do
       company.update!(settings: { features: { spaces: false } })
 
-      get "/api/v1/spaces", headers: auth_headers(owner)
+      get "/api/v1/spaces", headers: auth_headers(admin)
 
       expect(response).to have_http_status(:not_found)
     end
@@ -16,7 +16,7 @@ RSpec.describe "Api::V1::Spaces", type: :request do
     it "serves the list once rooms are on" do
       create(:space, company: company)
 
-      get "/api/v1/spaces", headers: auth_headers(owner)
+      get "/api/v1/spaces", headers: auth_headers(admin)
 
       expect(response).to have_http_status(:ok)
       expect(response.parsed_body["spaces"].size).to eq(1)
@@ -28,18 +28,18 @@ RSpec.describe "Api::V1::Spaces", type: :request do
       mine = create(:space, company: company)
       theirs = create(:space)
 
-      get "/api/v1/spaces", headers: auth_headers(owner)
+      get "/api/v1/spaces", headers: auth_headers(admin)
 
       ids = response.parsed_body["spaces"].map { |s| s["id"] }
       expect(ids).to include(mine.id)
       expect(ids).not_to include(theirs.id)
     end
 
-    it "lets a receptionist read them — needed to fill the new-session form" do
+    it "lets a moderator read them — needed to fill the new-session form" do
       create(:space, company: company)
-      receptionist = create(:staff_member, company: company, role: :receptionist)
+      moderator = create(:staff_member, company: company, role: :moderator)
 
-      get "/api/v1/spaces", headers: auth_headers(receptionist.user)
+      get "/api/v1/spaces", headers: auth_headers(moderator.user)
 
       expect(response).to have_http_status(:ok)
     end
@@ -56,7 +56,7 @@ RSpec.describe "Api::V1::Spaces", type: :request do
       create(:space, company: company, name: "Reformer Studio")
       create(:space, company: company, name: "Boxing Ring")
 
-      get "/api/v1/spaces", params: { q: "reformer" }, headers: auth_headers(owner)
+      get "/api/v1/spaces", params: { q: "reformer" }, headers: auth_headers(admin)
 
       expect(response.parsed_body["spaces"].map { |s| s["name"] }).to eq([ "Reformer Studio" ])
     end
@@ -66,17 +66,17 @@ RSpec.describe "Api::V1::Spaces", type: :request do
     it "404s for another gym's room rather than saying it exists" do
       theirs = create(:space)
 
-      get "/api/v1/spaces/#{theirs.id}", headers: auth_headers(owner)
+      get "/api/v1/spaces/#{theirs.id}", headers: auth_headers(admin)
 
       expect(response).to have_http_status(:not_found)
     end
   end
 
   describe "POST /api/v1/spaces" do
-    it "creates a room for the owner's own gym" do
+    it "creates a room for the admin's own gym" do
       post "/api/v1/spaces",
            params: { space: { name: "Studio 2", kind: "studio", capacity: 10 } },
-           headers: auth_headers(owner)
+           headers: auth_headers(admin)
 
       expect(response).to have_http_status(:created)
       expect(company.spaces.pluck(:name)).to include("Studio 2")
@@ -87,17 +87,17 @@ RSpec.describe "Api::V1::Spaces", type: :request do
 
       post "/api/v1/spaces",
            params: { space: { name: "Smuggled", company_id: other.id } },
-           headers: auth_headers(owner)
+           headers: auth_headers(admin)
 
       expect(response).to have_http_status(:created)
       expect(Space.find_by(name: "Smuggled").company_id).to eq(company.id)
       expect(other.spaces).to be_empty
     end
 
-    it "forbids a receptionist — the room catalogue is not a desk job" do
-      receptionist = create(:staff_member, company: company, role: :receptionist)
+    it "forbids a moderator — the room catalogue is not a desk job" do
+      moderator = create(:staff_member, company: company, role: :moderator)
 
-      post "/api/v1/spaces", params: { space: { name: "Nope" } }, headers: auth_headers(receptionist.user)
+      post "/api/v1/spaces", params: { space: { name: "Nope" } }, headers: auth_headers(moderator.user)
 
       expect(response).to have_http_status(:forbidden)
     end
@@ -105,7 +105,7 @@ RSpec.describe "Api::V1::Spaces", type: :request do
     it "reports a duplicate name rather than raising" do
       create(:space, company: company, name: "Studio A")
 
-      post "/api/v1/spaces", params: { space: { name: "Studio A" } }, headers: auth_headers(owner)
+      post "/api/v1/spaces", params: { space: { name: "Studio A" } }, headers: auth_headers(admin)
 
       expect(response).to have_http_status(:unprocessable_content)
       expect(response.parsed_body["error"]).to be_present
@@ -117,17 +117,17 @@ RSpec.describe "Api::V1::Spaces", type: :request do
 
       post "/api/v1/spaces",
            params: { space: { name: "Studio 3", activity_ids: [ mine.id, theirs.id ] } },
-           headers: auth_headers(owner)
+           headers: auth_headers(admin)
 
       expect(response.parsed_body["space"]["activity_ids"]).to contain_exactly(mine.id)
     end
   end
 
   describe "PATCH /api/v1/spaces/:id" do
-    it "updates the owner's own room" do
+    it "updates the admin's own room" do
       space = create(:space, company: company, name: "Old")
 
-      patch "/api/v1/spaces/#{space.id}", params: { space: { name: "New" } }, headers: auth_headers(owner)
+      patch "/api/v1/spaces/#{space.id}", params: { space: { name: "New" } }, headers: auth_headers(admin)
 
       expect(response).to have_http_status(:ok)
       expect(space.reload.name).to eq("New")
@@ -136,7 +136,7 @@ RSpec.describe "Api::V1::Spaces", type: :request do
     it "404s for another gym's room" do
       theirs = create(:space)
 
-      patch "/api/v1/spaces/#{theirs.id}", params: { space: { name: "Hijacked" } }, headers: auth_headers(owner)
+      patch "/api/v1/spaces/#{theirs.id}", params: { space: { name: "Hijacked" } }, headers: auth_headers(admin)
 
       expect(response).to have_http_status(:not_found)
       expect(theirs.reload.name).not_to eq("Hijacked")
@@ -147,7 +147,7 @@ RSpec.describe "Api::V1::Spaces", type: :request do
     it "deletes a room nothing is scheduled in" do
       space = create(:space, company: company)
 
-      delete "/api/v1/spaces/#{space.id}", headers: auth_headers(owner)
+      delete "/api/v1/spaces/#{space.id}", headers: auth_headers(admin)
 
       expect(response).to have_http_status(:ok)
       expect(Space.exists?(space.id)).to be(false)
@@ -157,7 +157,7 @@ RSpec.describe "Api::V1::Spaces", type: :request do
       space = create(:space, company: company)
       session = create(:session, company: company, activity: create(:activity, company: company), space: space)
 
-      delete "/api/v1/spaces/#{space.id}", headers: auth_headers(owner)
+      delete "/api/v1/spaces/#{space.id}", headers: auth_headers(admin)
 
       expect(response).to have_http_status(:ok)
       expect(space.reload.active).to be(false)

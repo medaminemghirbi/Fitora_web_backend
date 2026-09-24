@@ -1,8 +1,8 @@
 require "rails_helper"
 
 RSpec.describe "Api::V1::Bookings", type: :request do
-  let(:owner) { create(:user, :owner) }
-  let(:company) { create(:company, owner: owner) }
+  let(:admin) { create(:user, :admin) }
+  let(:company) { create(:company, admin: admin) }
   let(:activity) { create(:activity, company: company) }
   let(:session) { create(:session, activity: activity, company: company, capacity: 1) }
   let(:client) { create(:client, company: company) }
@@ -13,18 +13,18 @@ RSpec.describe "Api::V1::Bookings", type: :request do
   end
 
   describe "POST /api/v1/bookings" do
-    it "lets the owner book a client into a session" do
-      post "/api/v1/bookings", params: { client_id: client.id, session_id: session.id }, headers: auth_headers(owner)
+    it "lets the admin book a client into a session" do
+      post "/api/v1/bookings", params: { client_id: client.id, session_id: session.id }, headers: auth_headers(admin)
 
       expect(response).to have_http_status(:created)
       expect(response.parsed_body["booking"]["status"]).to eq("confirmed")
       expect(response.parsed_body["booking"]["client"]["id"]).to eq(client.id)
     end
 
-    it "lets a receptionist (bookings capability) book a client" do
-      receptionist = create(:staff_member, company: company, role: :receptionist)
+    it "lets a moderator (bookings capability) book a client" do
+      moderator = create(:staff_member, company: company, role: :moderator)
 
-      post "/api/v1/bookings", params: { client_id: client.id, session_id: session.id }, headers: auth_headers(receptionist.user)
+      post "/api/v1/bookings", params: { client_id: client.id, session_id: session.id }, headers: auth_headers(moderator.user)
 
       expect(response).to have_http_status(:created)
     end
@@ -40,7 +40,7 @@ RSpec.describe "Api::V1::Bookings", type: :request do
     it "returns a friendly error when the session is full" do
       create(:booking, client: create(:client, company: company), session: session, status: :confirmed)
 
-      post "/api/v1/bookings", params: { client_id: client.id, session_id: session.id }, headers: auth_headers(owner)
+      post "/api/v1/bookings", params: { client_id: client.id, session_id: session.id }, headers: auth_headers(admin)
 
       expect(response).to have_http_status(:unprocessable_content)
       expect(response.parsed_body["error"]).to eq("This session is full.")
@@ -48,21 +48,21 @@ RSpec.describe "Api::V1::Bookings", type: :request do
   end
 
   describe "POST /api/v1/bookings/:id/cancel" do
-    it "lets the owner cancel a client's booking" do
+    it "lets the admin cancel a client's booking" do
       booking = create(:booking, client: client, session: session)
 
-      post "/api/v1/bookings/#{booking.id}/cancel", headers: auth_headers(owner)
+      post "/api/v1/bookings/#{booking.id}/cancel", headers: auth_headers(admin)
 
       expect(response).to have_http_status(:ok)
       expect(response.parsed_body["booking"]["status"]).to eq("cancelled")
     end
 
-    it "404s for another company's owner — set_booking is company-scoped, never reaches BookingPolicy" do
-      other_owner = create(:user, :owner)
-      create(:company, owner: other_owner)
+    it "404s for another company's admin — set_booking is company-scoped, never reaches BookingPolicy" do
+      other_admin = create(:user, :admin)
+      create(:company, admin: other_admin)
       booking = create(:booking, client: client, session: session)
 
-      post "/api/v1/bookings/#{booking.id}/cancel", headers: auth_headers(other_owner)
+      post "/api/v1/bookings/#{booking.id}/cancel", headers: auth_headers(other_admin)
 
       expect(response).to have_http_status(:not_found)
     end
@@ -72,18 +72,18 @@ RSpec.describe "Api::V1::Bookings", type: :request do
     it "returns the booking for the company that owns it" do
       booking = create(:booking, client: client, session: session)
 
-      get "/api/v1/bookings/#{booking.id}", headers: auth_headers(owner)
+      get "/api/v1/bookings/#{booking.id}", headers: auth_headers(admin)
 
       expect(response).to have_http_status(:ok)
       expect(response.parsed_body["booking"]["id"]).to eq(booking.id)
     end
 
     it "404s for another company entirely — set_booking is company-scoped" do
-      other_owner = create(:user, :owner)
-      create(:company, owner: other_owner)
+      other_admin = create(:user, :admin)
+      create(:company, admin: other_admin)
       booking = create(:booking, client: client, session: session)
 
-      get "/api/v1/bookings/#{booking.id}", headers: auth_headers(other_owner)
+      get "/api/v1/bookings/#{booking.id}", headers: auth_headers(other_admin)
 
       expect(response).to have_http_status(:not_found)
     end
@@ -94,7 +94,7 @@ RSpec.describe "Api::V1::Bookings", type: :request do
       create(:booking, client: client, session: session)
       create(:booking, client: create(:client), session: create(:session, capacity: 5))
 
-      get "/api/v1/bookings", headers: auth_headers(owner)
+      get "/api/v1/bookings", headers: auth_headers(admin)
 
       body = response.parsed_body["bookings"]
       expect(body.size).to eq(1)
@@ -130,7 +130,7 @@ RSpec.describe "Api::V1::Bookings", type: :request do
     it "sends the reminder and returns sent" do
       allow(Bookings::SendReminder).to receive(:call).and_return(Bookings::SendReminder::Result.new(success?: true, error: nil))
 
-      post "/api/v1/bookings/#{booking.id}/remind", headers: auth_headers(owner)
+      post "/api/v1/bookings/#{booking.id}/remind", headers: auth_headers(admin)
 
       expect(response).to have_http_status(:ok)
       expect(response.parsed_body["status"]).to eq("sent")
@@ -140,7 +140,7 @@ RSpec.describe "Api::V1::Bookings", type: :request do
     it "surfaces a gateway/config failure as a 422" do
       allow(Bookings::SendReminder).to receive(:call).and_return(Bookings::SendReminder::Result.new(success?: false, error: "TUNISIESMS_API_KEY is not set"))
 
-      post "/api/v1/bookings/#{booking.id}/remind", headers: auth_headers(owner)
+      post "/api/v1/bookings/#{booking.id}/remind", headers: auth_headers(admin)
 
       expect(response).to have_http_status(:unprocessable_content)
       expect(response.parsed_body["error"]).to eq("TUNISIESMS_API_KEY is not set")
@@ -160,7 +160,7 @@ RSpec.describe "Api::V1::Bookings", type: :request do
       confirmed = create(:booking, session: session, client: create(:client, company: company), status: :confirmed)
       create(:booking, session: session, client: create(:client, company: company), status: :cancelled)
 
-      get "/api/v1/bookings", params: { status: "confirmed" }, headers: auth_headers(owner)
+      get "/api/v1/bookings", params: { status: "confirmed" }, headers: auth_headers(admin)
 
       expect(response.parsed_body["bookings"].map { |b| b["id"] }).to eq([ confirmed.id ])
       expect(response.parsed_body["counts"]["confirmed"]).to eq(1)
@@ -174,7 +174,7 @@ RSpec.describe "Api::V1::Bookings", type: :request do
                              starts_at: 10.days.from_now.change(hour: 9), ends_at: 10.days.from_now.change(hour: 10))
       create(:booking, session: other_session, client: create(:client, company: company))
 
-      get "/api/v1/bookings", params: { date: session.starts_at.to_date.to_s }, headers: auth_headers(owner)
+      get "/api/v1/bookings", params: { date: session.starts_at.to_date.to_s }, headers: auth_headers(admin)
 
       expect(response.parsed_body["bookings"].map { |b| b["id"] }).to eq([ today.id ])
     end
@@ -182,7 +182,7 @@ RSpec.describe "Api::V1::Bookings", type: :request do
     it "ignores an unparseable date rather than blowing up" do
       create(:booking, session: session, client: create(:client, company: company))
 
-      get "/api/v1/bookings", params: { date: "pas-une-date" }, headers: auth_headers(owner)
+      get "/api/v1/bookings", params: { date: "pas-une-date" }, headers: auth_headers(admin)
 
       expect(response).to have_http_status(:ok)
       expect(response.parsed_body["bookings"].size).to eq(1)

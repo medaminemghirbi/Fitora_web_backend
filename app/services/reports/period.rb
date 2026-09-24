@@ -1,5 +1,5 @@
 module Reports
-  # Parses the "month" or "year" period the owner picked in the export
+  # Parses the "month" or "year" period the admin picked in the export
   # dialog into a concrete time range, plus a human label and a filename
   # slug — used by Reports::CompanyWorkbook to scope revenue figures.
   class Period

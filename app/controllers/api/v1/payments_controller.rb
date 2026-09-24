@@ -30,7 +30,8 @@ module Api
       # What the filter rail and the stats strip read, all on the searched set
       # so the numbers follow the search box and not the status picked.
       def searched_scope
-        scope = current_company.payments.includes(:client)
+        scope = current_company.payments.includes(:client, :company, :created_by)
+                                 .preload(contract_period: { contract: :contract_type }, booking: { session: :activity })
         return scope if params[:q].blank?
 
         t = "%#{params[:q].strip}%"
@@ -66,8 +67,9 @@ module Api
         result = Payments::Record.call(
           client: client, company: current_company, created_by: current_user,
           amount: params[:amount], payment_method: params[:payment_method], notes: params[:notes],
-          contract_period: find_payable(client.contract_periods, params[:contract_period_id]),
-          booking: find_payable(client.bookings, params[:booking_id])
+          # This gym's only: the person may owe other gyms too.
+          contract_period: find_payable(current_company.contract_periods.where(contracts: { client_id: client.id }), params[:contract_period_id]),
+          booking: find_payable(client.bookings_for(current_company), params[:booking_id])
         )
 
         if result.success?
@@ -110,7 +112,7 @@ module Api
       end
 
       def payments_csv(scope)
-        CSV.generate do |csv|
+        CsvSafe.generate do |csv|
           csv << [ "Client", "Amount", "Currency", "Method", "Status", "Paid at" ]
           scope.includes(:client).find_each do |p|
             csv << [ p.client.full_name, p.amount, p.currency, p.payment_method, p.status, p.paid_at ]

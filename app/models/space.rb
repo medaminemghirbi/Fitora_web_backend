@@ -47,7 +47,7 @@ class Space < ApplicationRecord
 
   # Sessions are nullified rather than destroyed when a room is deleted: a
   # room closing is not a reason to erase the history of what happened in it.
-  # An owner deletes a room they stopped using; the past stays readable.
+  # An admin deletes a room they stopped using; the past stays readable.
   def deletable?
     sessions.scheduled.upcoming.none?
   end

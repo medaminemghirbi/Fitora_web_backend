@@ -1,6 +1,6 @@
 # The public-within-the-app subset of Company — safe for any authenticated
-# member (owner or staff) to read, unlike CompanySerializer's full profile
-# (phone/email/address/etc.), which stays owner-only.
+# member (admin or staff) to read, unlike CompanySerializer's full profile
+# (phone/email/address/etc.), which stays admin-only.
 class CompanyBrandingSerializer
   def initialize(company)
     @company = company

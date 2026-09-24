@@ -1,10 +1,10 @@
 # The platform's monthly subscription price for one currency AND one
-# company-limit tier — an owner's tier caps how many companies they may
+# company-limit tier — an admin's tier caps how many companies they may
 # run (see User#company_limit), and each tier is priced independently.
 # A company sees its price in its own Company#currency (30 TND for a
 # Tunisian gym, 30 EUR for a European one), not one fixed platform
-# currency. Payment happens outside the app — the admin just sets the
-# number the owner sees.
+# currency. Payment happens outside the app — the superadmin just sets the
+# number the admin sees.
 class SubscriptionPrice < ApplicationRecord
   # The currency every tier is first priced in — a (currency, tier)
   # combination seen for the first time copies its starting price from
@@ -22,7 +22,7 @@ class SubscriptionPrice < ApplicationRecord
   TIERS = [ 1, 3, UNLIMITED ].freeze
 
   # Seed multiplier for a (currency, tier) combination that's never been
-  # priced anywhere yet — a starting point only; the admin reprices each
+  # priced anywhere yet — a starting point only; the superadmin reprices each
   # one independently from there.
   DEFAULT_MULTIPLIERS = { 1 => 1.0, 3 => 2.5, UNLIMITED => 5.0 }.freeze
 

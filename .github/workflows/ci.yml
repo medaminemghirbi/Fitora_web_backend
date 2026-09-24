@@ -37,6 +37,21 @@ jobs:
       - name: Brakeman
         run: bundle exec brakeman --no-pager -q
 
+  bundler-audit:
+    name: Bundler Audit
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Ruby
+        uses: ruby/setup-ruby@v1
+        with:
+          bundler-cache: true
+
+      # Gem versions with a published advisory (ruby-advisory-db).
+      - name: Bundler Audit
+        run: bundle exec bundle-audit check --update
+
   rspec:
     name: RSpec
     runs-on: ubuntu-latest
@@ -82,5 +97,25 @@ jobs:
       - name: Set up database
         run: bin/rails db:schema:load
 
+      # CI=true (set by GitHub) also turns on: Bullet raising on any N+1, and
+      # the coverage floor in spec/spec_helper.rb.
       - name: RSpec
         run: bundle exec rspec
+
+      - name: Coverage report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage
+          path: coverage/
+          if-no-files-found: ignore
+
+      # The API contract: doc/openapi.yaml, rewritten from the request specs.
+      # Fixed order, because the generator merges examples as they arrive. A
+      # diff means the API changed without the committed contract changing —
+      # regenerate it with the same command and commit it.
+      - name: API contract is up to date
+        run: |
+          rm -f doc/openapi.yaml
+          OPENAPI=1 COVERAGE=0 bundle exec rspec spec/requests --order defined
+          git diff --exit-code doc/openapi.yaml

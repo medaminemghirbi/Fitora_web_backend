@@ -24,7 +24,7 @@ module Api
         if activity.save
           render json: { activity: ActivitySerializer.new(activity).as_json }, status: :created
         else
-          render json: { error: activity.errors.full_messages.first, errors: activity.errors.full_messages }, status: :unprocessable_content
+          render_errors(activity)
         end
       end
 
@@ -33,7 +33,7 @@ module Api
         if @activity.update(activity_params)
           render json: { activity: ActivitySerializer.new(@activity).as_json }
         else
-          render json: { error: @activity.errors.full_messages.first, errors: @activity.errors.full_messages }, status: :unprocessable_content
+          render_errors(@activity)
         end
       end
 

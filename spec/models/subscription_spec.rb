@@ -175,7 +175,7 @@ RSpec.describe Subscription do
     end
 
     # Reporting zero here read as "nothing due" right beside "paid through:
-    # never", which is the pair of figures an admin acts on.
+    # never", which is the pair of figures a superadmin acts on.
     it "owes the period in progress when nothing was ever invoiced" do
       subscription = create(:subscription, company: company, billing_period: :monthly)
       expect(subscription.arrears_cents).to eq(company.monthly_subscription_cents)

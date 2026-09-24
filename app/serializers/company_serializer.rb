@@ -31,7 +31,7 @@ class CompanySerializer
       slug: company.slug,
       primary_color: company.primary_color,
       logo_url: logo_url,
-      # Every feature is included — the key list the owner's subscription
+      # Every feature is included — the key list the admin's subscription
       # page renders as "what's included" (names/descriptions i18n'd
       # client-side as modules.<key>.*).
       included_modules: ModuleCatalog::KEYS,
@@ -43,7 +43,7 @@ class CompanySerializer
       monthly_subscription_cents: company.monthly_subscription_cents,
       annual_subscription_cents: company.annual_subscription_cents,
       annual_discount_percent: company.annual_discount_percent
-      # What the company currently owes Fitora — set by hand by an admin,
+      # What the company currently owes Gymly — set by hand by a superadmin,
     }
   end
 

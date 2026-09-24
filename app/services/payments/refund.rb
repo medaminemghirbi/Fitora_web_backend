@@ -1,6 +1,6 @@
 module Payments
   class Refund
-    Result = Struct.new(:success?, :error, keyword_init: true)
+    Result = ServiceResult.define
 
     def self.call(payment:)
       new(payment: payment).call

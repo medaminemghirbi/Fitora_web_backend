@@ -1,19 +1,19 @@
 require "rails_helper"
 
 RSpec.describe "Api::V1::ContractTypes", type: :request do
-  let(:owner) { create(:user, :owner) }
-  let!(:company) { create(:company, owner: owner) }
+  let(:admin) { create(:user, :admin) }
+  let!(:company) { create(:company, admin: admin) }
 
   let(:plan_params) do
     { contract_type: { name: "Mensuel", billing_period: "monthly", unlimited_bookings: true } }
   end
 
   describe "GET /api/v1/contract_types" do
-    it "lets a receptionist read the catalogue (needed to sign a member up)" do
+    it "lets a moderator read the catalogue (needed to sign a member up)" do
       create(:contract_type, company: company)
-      receptionist = create(:staff_member, company: company, role: :receptionist)
+      moderator = create(:staff_member, company: company, role: :moderator)
 
-      get "/api/v1/contract_types", headers: auth_headers(receptionist.user)
+      get "/api/v1/contract_types", headers: auth_headers(moderator.user)
 
       expect(response).to have_http_status(:ok)
       expect(response.parsed_body["plans"].size).to eq(1)
@@ -21,22 +21,22 @@ RSpec.describe "Api::V1::ContractTypes", type: :request do
   end
 
   describe "POST /api/v1/contract_types" do
-    it "lets the owner create a plan" do
-      post "/api/v1/contract_types", params: plan_params, headers: auth_headers(owner)
+    it "lets the admin create a plan" do
+      post "/api/v1/contract_types", params: plan_params, headers: auth_headers(admin)
 
       expect(response).to have_http_status(:created)
     end
 
-    it "forbids a receptionist — editing the plan catalogue is configuration" do
-      receptionist = create(:staff_member, company: company, role: :receptionist)
+    it "forbids a moderator — editing the plan catalogue is configuration" do
+      moderator = create(:staff_member, company: company, role: :moderator)
 
-      post "/api/v1/contract_types", params: plan_params, headers: auth_headers(receptionist.user)
+      post "/api/v1/contract_types", params: plan_params, headers: auth_headers(moderator.user)
 
       expect(response).to have_http_status(:forbidden)
     end
 
     it "lets a staff member whose role grants :contract_types create a plan" do
-      staff = create(:staff_member, company: company, role: :receptionist,
+      staff = create(:staff_member, company: company, role: :moderator,
                      assigned_role: create(:role, company: company, permissions: %w[contracts contract_types]))
 
       post "/api/v1/contract_types", params: plan_params, headers: auth_headers(staff.user)
@@ -55,7 +55,7 @@ RSpec.describe "Api::V1::ContractTypes", type: :request do
              { activity_id: boxe.id, price: 50 },
              { activity_id: pilates.id, price: 70 }
            ]),
-           headers: auth_headers(owner)
+           headers: auth_headers(admin)
 
       expect(response).to have_http_status(:created)
       prices = response.parsed_body["plan"]["activity_prices"].to_h { |row| [ row["activity_name"], row["price"].to_f ] }
@@ -68,7 +68,7 @@ RSpec.describe "Api::V1::ContractTypes", type: :request do
 
       patch "/api/v1/contract_types/#{plan.id}",
             params: plan_params.merge(activity_prices: [ { activity_id: boxe.id, price: 55 } ]),
-            headers: auth_headers(owner)
+            headers: auth_headers(admin)
 
       expect(response).to have_http_status(:ok)
       expect(plan.reload.price_for(boxe)).to eq(55)
@@ -80,7 +80,7 @@ RSpec.describe "Api::V1::ContractTypes", type: :request do
 
       post "/api/v1/contract_types",
            params: plan_params.merge(activity_prices: [ { activity_id: foreign.id, price: 10 } ]),
-           headers: auth_headers(owner)
+           headers: auth_headers(admin)
 
       expect(response).to have_http_status(:created)
       expect(response.parsed_body["plan"]["activity_prices"]).to be_empty

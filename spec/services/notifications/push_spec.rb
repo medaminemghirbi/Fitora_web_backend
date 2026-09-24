@@ -2,17 +2,17 @@ require "rails_helper"
 
 RSpec.describe Notifications::Push do
   let(:company) { create(:company) }
-  let(:owner) { company.owner }
+  let(:admin) { company.admin }
 
   def push(dedup: "contract_exp:1")
     described_class.call(
-      recipient: owner, kind: "contract_expiring", data: { "title" => "X" },
-      url: "/owner/x", dedup_key: dedup
+      recipient: admin, kind: "contract_expiring", data: { "title" => "X" },
+      url: "/admin/x", dedup_key: dedup
     )
   end
 
   it "creates a notification for the recipient" do
-    expect { push }.to change(owner.notifications, :count).by(1)
+    expect { push }.to change(admin.notifications, :count).by(1)
   end
 
   it "is idempotent on the dedup key" do

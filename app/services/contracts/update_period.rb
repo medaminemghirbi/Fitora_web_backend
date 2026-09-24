@@ -3,7 +3,7 @@ module Contracts
   # still unpaid) the discount. Changing the start date re-derives the end
   # date from the plan's billing period unless an explicit end date is given.
   class UpdatePeriod
-    Result = Struct.new(:success?, :contract, :error, keyword_init: true)
+    Result = ServiceResult.define(:contract)
 
     def self.call(contract:, starts_on: nil, expires_on: nil, discount: nil)
       new(contract: contract, starts_on: starts_on, expires_on: expires_on, discount: discount).call

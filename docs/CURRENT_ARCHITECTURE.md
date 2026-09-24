@@ -1,7 +1,7 @@
-# Fitora — Current Architecture (Phase 1 analysis)
+# Gymly — Current Architecture (Phase 1 analysis)
 
 Snapshot date: 2026-09-19. Branch `FEATURE` (backend + frontend are two
-separate git repositories under `/home/amine/Documents/fitora/`).
+separate git repositories under `/home/amine/Documents/gymly/`).
 
 This document records what exists today, verified against the code and the
 schema — not what the roadmap wants. Gaps against the target vision are
@@ -28,7 +28,7 @@ Backend: 33 models, 39 controllers, ~20 service namespaces, 24 serializers,
 ## 2. Domain model as built
 
 ```
-User (owner | staff | admin)
+User (admin | staff | superadmin)
  ├─ owns → Company (a user may own several; User#company_limit)
  └─ StaffMember → Company, Role, optional Coach
 
@@ -46,7 +46,7 @@ Company (the tenant AND the venue — there is no Location/Space table)
  │                       base_price/discount/final_price, payment_status)
  ├─ Membership      (Client ↔ Company join)
  ├─ Payment, Invoice, AuditLog, Notification, SupportTicket
- └─ Subscription    (the gym's own SaaS subscription to Fitora)
+ └─ Subscription    (the gym's own SaaS subscription to Gymly)
 
 Client (GLOBAL person, not company-scoped — own login, own password digest)
  ├─ Membership → Company (many)
@@ -81,10 +81,10 @@ Key modelling facts:
 `ApplicationController#authenticate_request!` decodes a bearer JWT and
 resolves **exactly one** of two principals, never both:
 
-- `claims[:user_id]` → `@current_user` (staff-side: owner, staff, admin)
+- `claims[:user_id]` → `@current_user` (staff-side: admin, staff, superadmin)
 - `claims[:client_id]` → `@current_client` (member-side)
 
-`claims[:impersonator_id]` supports admin impersonation of an owner.
+`claims[:impersonator_id]` supports superadmin impersonation of an admin.
 `users.token_version` allows global token invalidation. Sentry gets
 user/company tags per request.
 
@@ -103,7 +103,7 @@ def current_company
 end
 ```
 
-- An owner's tenant is `users.active_company_id`, switched through
+- An admin's tenant is `users.active_company_id`, switched through
   `POST /companies/:id/switch` — not a request parameter.
 - A staff member's tenant is `staff_members.company_id`.
 - For member logins, `?company_id=` is *checked* against the client's own
@@ -117,18 +117,18 @@ Authorization is capability-based:
   `activities`, `coaches`, `sessions`, `bookings`, `contracts`,
   `contract_types`, `payments`, `reports`, `revenue`, `checkin`).
 - `Role` — company-scoped rows holding a subset of those, seeded with four
-  built-ins (`owner`, `moderator`, `receptionist`, `coach`), renameable and
-  re-permissionable; custom roles allowed. `receptionist` already omits
+  built-ins (`admin`, `moderator`, `moderator`, `coach`), renameable and
+  re-permissionable; custom roles allowed. `moderator` already omits
   catalogues and `revenue`; `coach` has only `checkin`.
-- Controllers gate with `require_capability!`, `require_owner!`,
-  `require_admin!`, `require_client!`, `require_staff!`.
-- The owner always passes `capability?` unconditionally.
+- Controllers gate with `require_capability!`, `require_admin!`,
+  `require_superadmin!`, `require_client!`, `require_staff!`.
+- The admin always passes `capability?` unconditionally.
 
-Platform admin (`users.role == admin`) is separated by namespace: everything
-it can do lives under `Api::V1::Admin::*`. It has no `current_company`.
+Platform superadmin (`users.role == superadmin`) is separated by namespace: everything
+it can do lives under `Api::V1::Superadmin::*`. It has no `current_company`.
 
 **Commercial gating** is separate from authorization: `enforce_trial_lock!`
-returns 402 for a locked company, with a narrow allowlist so a locked owner
+returns 402 for a locked company, with a narrow allowlist so a locked admin
 can still read their subscription, their invoices, and switch companies.
 
 `ModuleCatalog` still exists but is now inert: every company has every
@@ -146,8 +146,8 @@ four audiences:
   `/contract_types`, `/payments`, `/staff`, `/roles`, `/attendance`,
   `/recurring_schedules`, `/audit_logs`, …) — staff-side
 - `/me/*` — member portal (profile, sessions, bookings, cancel)
-- `/owner/*` — dashboard, revenue, report export
-- `/admin/*` — companies, impersonation, invoices, SaaS pricing, support,
+- `/admin/*` — dashboard, revenue, report export
+- `/superadmin/*` — companies, impersonation, invoices, SaaS pricing, support,
   release notes
 
 `GET /bootstrap` returns the whole post-login context in one call (user,
@@ -173,21 +173,21 @@ core/        auth, guards, interceptors, models (typed), services (1 per API res
 shared/      components/ (modal, toast, pagination, confirm, empty-state…)
              ui/         (page-header, kpi-card, drawer, form-modal, skeleton,
                           searchable-select, filter-rail, wizard-steps, checkin-panel…)
-layout/      owner-shell, coach-shell, member-shell, admin-shell, navbar, mobile-bar
-features/    landing, auth, b2b/auth, owner/*, coach/*, member/*, admin/*, account-locked
+layout/      admin-shell, coach-shell, member-shell, superadmin-shell, navbar, mobile-bar
+features/    landing, auth, b2b/auth, admin/*, coach/*, member/*, superadmin/*, account-locked
 ```
 
-- Four shells, four experiences, routed by role: `/owner`, `/coach`,
-  `/member`, `/admin`.
+- Four shells, four experiences, routed by role: `/admin`, `/coach`,
+  `/member`, `/superadmin`.
 - Guards: `authGuard`, `guestGuard`, `roleGuard(role)`,
   `staffRoleGuard(key)`, `capabilityGuard(key)`, `companyGuard`,
   `noCompanyGuard`, `memberGuard`, `settingsAccessGuard`,
-  `ownerAreaGuard` — applied per route, including per-capability on
-  individual owner-area routes.
+  `adminAreaGuard` — applied per route, including per-capability on
+  individual admin-area routes.
 - `NAV_BLUEPRINT` (`core/configuration/navigation.ts`) is filtered by
-  permission and `ownerOnly` at runtime by `NavigationService`, so the menu
+  permission and `adminOnly` at runtime by `NavigationService`, so the menu
   is already role-derived rather than hardcoded per role.
-- A design token layer exists: `styles/_tokens.scss`, `_fitora.scss`,
+- A design token layer exists: `styles/_tokens.scss`, `_gymly.scss`,
   `_bootstrap-vars.scss`, plus `_adminlte.scss` and `_marketing.scss`.
 - Every component has a `.spec.ts` alongside it.
 
@@ -197,7 +197,7 @@ features/    landing, auth, b2b/auth, owner/*, coach/*, member/*, admin/*, accou
 
 1. Tenancy derived server-side from the token; `company_id` from the client
    is never trusted, and the member path validates it against memberships.
-2. Capability catalogue + editable company-scoped roles — the receptionist /
+2. Capability catalogue + editable company-scoped roles — the moderator /
    coach / moderator distinction is data, not `if role == "x"`.
 3. Plan definition separated from member subscription state, with a
    many-to-many plan↔activity join already in place.
@@ -219,7 +219,7 @@ features/    landing, auth, b2b/auth, owner/*, coach/*, member/*, admin/*, accou
 | G1 | **No `companies.settings` JSONB.** Configuration is a scatter of typed columns (`business_hours_start/end`, `working_days`, `primary_color`, `locale`, `timezone`). There is nowhere to put booking rules (`cancellation_hours`, `online_booking`) without a migration per rule. | `db/schema.rb` `companies` | High |
 | G2 | **No `spaces` table.** Sessions have no room. A studio with two rooms cannot run two concurrent sessions distinguishably, and nothing prevents overbooking a physical room. Deliberately removed earlier ("a Company is the venue") — the multi-room business types in the new brief reverse that call. | no model, no column | High |
 | G3 | **`contracts.activity_id` is NOT NULL** — a member subscription is bound to exactly one activity, even though `ContractType` supports many through `contract_type_activities`. A multi-activity plan cannot be sold as one contract. | `db/schema.rb` `contracts` | High |
-| G4 | **No receptionist shell.** The receptionist logs into the *owner* shell with items filtered out. The front-desk workflow (search → check-in → book → take payment) is not a screen. | `app.routes.ts`, no `features/receptionist` | High |
+| G4 | **No moderator shell.** The moderator logs into the *admin* shell with items filtered out. The front-desk workflow (search → check-in → book → take payment) is not a screen. | `app.routes.ts`, no `features/moderator` | High |
 | G5 | **Coach area is one page** (`/coach/today`). No schedule, member list, attendance-taking, or session detail. | `features/coach/` | High |
 | G6 | **Member portal is three pages** (schedule, bookings, profile). ~~No subscription view, no remaining-sessions display, no booking history~~ — **this was wrong**: the profile page already shows the subscription, remaining sessions, attendance rate and recent history. The real gap was gym switching: the app read `gyms[0]`, so someone with two memberships could only reach one. Fixed in Phase 6. Notifications remain missing. | `features/member/` | Medium |
 | G7 | **Onboarding is a dismissible checklist**, not the seven-step guided setup (company → activities → spaces → plans → staff). | `onboarding_controller.rb` | Medium |
@@ -232,18 +232,18 @@ features/    landing, auth, b2b/auth, owner/*, coach/*, member/*, admin/*, accou
 | D1 | **Dual role system.** `staff_members.role` (integer enum) *and* `staff_members.role_id` → `Role`, kept in sync by a `before_validation` hook. Two sources of truth for the same fact. | Collapse onto `Role`. |
 | D2 | **`ModuleCatalog` is dead weight.** Every company has every permission; `permissions_for` ignores its argument and the `mod_*` columns are gone. | Delete or repurpose as the feature-toggle map (G1). |
 | D3 | **`companies.locations_count`** — counter for a deleted table. | Drop. |
-| D4 | **Naming drift.** `ContractType`/`Contract`/`ContractPeriod` for what the product, the brief and the UI all call plans and subscriptions. Frontend routes say `/owner/contracts/plans` and `/owner/contracts/activities` — activities nested under contracts is a taxonomy accident. | Rename in one deliberate pass or not at all. |
+| D4 | **Naming drift.** `ContractType`/`Contract`/`ContractPeriod` for what the product, the brief and the UI all call plans and subscriptions. Frontend routes say `/admin/contracts/plans` and `/admin/contracts/activities` — activities nested under contracts is a taxonomy accident. | Rename in one deliberate pass or not at all. |
 | D5 | **`platform_settings`** holds a single integer (`annual_discount_percent`) in a full table. | Fine, but note it. |
-| D7 | **`revenue` was missing from `ModuleCatalog::ALL_PERMISSIONS`.** `Permissions::Resolve` intersects a role's permissions with that list, so `revenue` was silently stripped from every permission list the API advertised — including the owner's. Latent, not live, because no frontend guard read it yet. Fixed in Phase 3. | Fixed. |
-| D6 | **Owner bypasses every capability check** (`capability? → true if owner?`). Correct today; it means an audit of capability coverage cannot be done by testing as an owner. | Keep, document. |
+| D7 | **`revenue` was missing from `ModuleCatalog::ALL_PERMISSIONS`.** `Permissions::Resolve` intersects a role's permissions with that list, so `revenue` was silently stripped from every permission list the API advertised — including the admin's. Latent, not live, because no frontend guard read it yet. Fixed in Phase 3. | Fixed. |
+| D6 | **Admin bypasses every capability check** (`capability? → true if admin?`). Correct today; it means an audit of capability coverage cannot be done by testing as an admin. | Keep, document. |
 
 ### 9.3 Security items to verify in Phase 4 (not yet confirmed as bugs)
 
 - **Correction (found during Phase 3):** a custom RuboCop cop,
-  `Fitora/UnscopedTenantQuery`
-  (`lib/rubocop/cop/fitora/unscoped_tenant_query.rb`), already fails the
+  `Gymly/UnscopedTenantQuery`
+  (`lib/rubocop/cop/gymly/unscoped_tenant_query.rb`), already fails the
   build on a bare `Model.find/find_by/where` for any of ~19 tenant-scoped
-  models, exempting only `/controllers/api/v1/admin/`. It was written after
+  models, exempting only `/controllers/api/v1/superadmin/`. It was written after
   a real bug in `BookingsController#set_booking`. So the sweep this section
   called for is largely automated already; what remains is keeping
   `TENANT_MODELS` complete (`Space` and `ActivitySpace` were added in

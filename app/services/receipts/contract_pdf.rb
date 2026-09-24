@@ -86,7 +86,7 @@ module Receipts
       pdf.fill_color GREY
       pdf.text_box "Destinataire:", at: [ 0, top ], width: 90, size: 10
       pdf.fill_color INK
-      dest = [ client.full_name, client.address, client.phone, client.email ].compact_blank
+      dest = [ client.full_name, client.membership_for(company)&.address, client.phone, client.email ].compact_blank
       pdf.text_box dest.join("\n"), at: [ 95, top ], width: 220, size: 10, leading: 3
       pdf.fill_color "000000"
 
@@ -197,7 +197,7 @@ module Receipts
         pdf.stroke_color "000000"
 
         pdf.fill_color GREY
-        pdf.text_box "Édité avec le logiciel Fitora · Tous droits réservés",
+        pdf.text_box "Édité avec le logiciel Gymly · Tous droits réservés",
                      at: [ x, 66 ], width: w, align: :center, size: 8
         pdf.text_box "Reçu ##{invoice_number} · #{fmt_date(Time.current)}",
                      at: [ x, 52 ], width: w, align: :center, size: 7

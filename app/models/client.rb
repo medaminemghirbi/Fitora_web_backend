@@ -15,6 +15,8 @@
 class Client < ApplicationRecord
   include PasswordResettable
   include EmailVerifiable
+  include TokenVersioned
+  include Invitable
 
   has_many :memberships, dependent: :destroy
   has_many :companies, through: :memberships
@@ -23,10 +25,14 @@ class Client < ApplicationRecord
   has_many :contracts, dependent: :destroy
   has_many :contract_periods, through: :contracts
   has_many :payments, dependent: :destroy
+  # What their own app tells them: a class called off, a seat from the
+  # waitlist, a subscription running out.
+  has_many :notifications, as: :recipient, dependent: :destroy
 
   # Optional, unlike User's: a walk-in the gym wrote down is a perfectly
-  # valid member with no login at all. Enabling one is what sets a password
-  # (Api::V1::ClientsController#update).
+  # valid member with no login at all. The member sets one by accepting an
+  # invitation the gym sends (Api::V1::ClientsController#invite) — staff
+  # never choose it.
   has_secure_password validations: false
 
   # A member with no email has NULL, never "".
@@ -68,6 +74,18 @@ class Client < ApplicationRecord
 
   def login_enabled?
     password_digest.present?
+  end
+
+  # What identifies the person, as opposed to what one gym wrote down about
+  # them (which lives on Membership).
+  IDENTITY_FIELDS = %w[first_name last_name email phone].freeze
+
+  # Whether the name, email and phone are still this gym's to change. Once
+  # the person signs in themselves, has been invited to, or trains somewhere
+  # else too, they are not: one gym editing them would be editing them for
+  # everyone. A gym can still fill in whatever is blank.
+  def identity_shared_beyond?(company)
+    login_enabled? || invitation_pending? || memberships.where.not(company_id: company.id).exists?
   end
 
   def membership_for(company)

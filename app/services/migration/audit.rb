@@ -30,13 +30,17 @@ module Migration
     # letting a later check fail confusingly.
     DROPPED_COLUMNS = {
       "companies" => %w[business_hours_start business_hours_end working_days primary_color locations_count],
-      "staff_members" => %w[role]
+      "staff_members" => %w[role],
+      # Each gym's copy of a member's details moved onto the membership.
+      "clients" => %w[date_of_birth gender address emergency_contact_name emergency_contact_phone]
     }.freeze
 
     ADDED_COLUMNS = {
       "companies" => %w[settings],
       "sessions" => %w[space_id],
-      "bookings" => %w[waitlist_position]
+      "bookings" => %w[waitlist_position],
+      "memberships" => %w[date_of_birth gender address emergency_contact_name emergency_contact_phone],
+      "clients" => %w[token_version invitation_token_digest invitation_sent_at]
     }.freeze
 
     REQUIRED_CONSTRAINTS = %w[

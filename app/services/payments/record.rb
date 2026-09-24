@@ -1,6 +1,6 @@
 module Payments
   class Record
-    Result = Struct.new(:success?, :payment, :error, keyword_init: true)
+    Result = ServiceResult.define(:payment)
 
     def self.call(client:, company:, created_by:, amount:, payment_method:, currency: nil, notes: nil,
                    contract_period: nil, booking: nil)
@@ -24,8 +24,18 @@ module Payments
 
     def call
       payment = nil
+      error = nil
 
       ActiveRecord::Base.transaction do
+        # Two clicks on "Encaisser" arrive as two requests. The lock queues
+        # the second behind the first, which then finds nothing left to pay.
+        payable = contract_period || booking
+        payable&.lock!
+        if payable&.paid?
+          error = "This is already paid."
+          raise ActiveRecord::Rollback
+        end
+
         payment = Payment.create!(
           client: client, company: company, created_by: created_by,
           amount: amount, currency: currency, payment_method: payment_method, notes: notes,
@@ -35,6 +45,8 @@ module Payments
 
         update_payable_status!
       end
+
+      return Result.new(success?: false, payment: nil, error: error) if error
 
       Result.new(success?: true, payment: payment, error: nil)
     rescue ActiveRecord::RecordInvalid => e

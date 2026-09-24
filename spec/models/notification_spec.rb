@@ -10,7 +10,7 @@ RSpec.describe Notification do
   it "enforces one notification per (company, dedup_key)" do
     company = create(:company)
     create(:notification, company: company, dedup_key: "doc_exp:1")
-    dup = build(:notification, company: company, recipient: company.owner, dedup_key: "doc_exp:1")
+    dup = build(:notification, company: company, recipient: company.admin, dedup_key: "doc_exp:1")
     expect(dup).not_to be_valid
   end
 
@@ -34,7 +34,7 @@ RSpec.describe Notification do
   it "broadcasts to the recipient on create" do
     company = create(:company)
     expect {
-      create(:notification, company: company, recipient: company.owner, dedup_key: "x")
-    }.to have_broadcasted_to(company.owner).from_channel(NotificationChannel).at_least(:once)
+      create(:notification, company: company, recipient: company.admin, dedup_key: "x")
+    }.to have_broadcasted_to(company.admin).from_channel(NotificationChannel).at_least(:once)
   end
 end

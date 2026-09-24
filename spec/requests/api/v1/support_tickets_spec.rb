@@ -1,8 +1,8 @@
 require "rails_helper"
 
 RSpec.describe "Api::V1::SupportTickets", type: :request do
-  let(:owner) { create(:user, :owner) }
-  let!(:company) { create(:company, owner: owner) }
+  let(:admin) { create(:user, :admin) }
+  let!(:company) { create(:company, admin: admin) }
   let(:sample_file) { fixture_file_upload("sample.png", "image/png") }
 
   describe "authorization" do
@@ -19,7 +19,7 @@ RSpec.describe "Api::V1::SupportTickets", type: :request do
     it "creates a ticket with an attachment" do
       post "/api/v1/support_tickets",
            params: { subject: "Erreur de paiement", message: "Le paiement échoue systématiquement.", attachments: [ sample_file ] },
-           headers: auth_headers(owner)
+           headers: auth_headers(admin)
 
       expect(response).to have_http_status(:created)
       body = response.parsed_body["support_ticket"]
@@ -30,16 +30,16 @@ RSpec.describe "Api::V1::SupportTickets", type: :request do
     end
 
     it "rejects a ticket with no subject" do
-      post "/api/v1/support_tickets", params: { message: "..." }, headers: auth_headers(owner)
+      post "/api/v1/support_tickets", params: { message: "..." }, headers: auth_headers(admin)
 
       expect(response).to have_http_status(:unprocessable_content)
     end
 
-    # Payment is arranged off-app: Fitora calls back to set the plan up.
+    # Payment is arranged off-app: Gymly calls back to set the plan up.
     it "refuses a plan request with no number to call back" do
       post "/api/v1/support_tickets",
            params: { subject: "Formule Club", message: "…", kind: "upgrade" },
-           headers: auth_headers(owner)
+           headers: auth_headers(admin)
 
       expect(response).to have_http_status(:unprocessable_content)
       expect(response.parsed_body["errors"].join).to include("Contact phone")
@@ -48,7 +48,7 @@ RSpec.describe "Api::V1::SupportTickets", type: :request do
     it "files a plan request with its number, marked as one" do
       post "/api/v1/support_tickets",
            params: { subject: "Formule Club", message: "…", kind: "upgrade", contact_phone: "+216 22 123 456" },
-           headers: auth_headers(owner)
+           headers: auth_headers(admin)
 
       expect(response).to have_http_status(:created)
       body = response.parsed_body["support_ticket"]
@@ -59,7 +59,7 @@ RSpec.describe "Api::V1::SupportTickets", type: :request do
     it "treats an unknown kind as an ordinary ticket" do
       post "/api/v1/support_tickets",
            params: { subject: "Bug", message: "…", kind: "whatever" },
-           headers: auth_headers(owner)
+           headers: auth_headers(admin)
 
       expect(response.parsed_body.dig("support_ticket", "kind")).to eq("general")
     end
@@ -67,10 +67,10 @@ RSpec.describe "Api::V1::SupportTickets", type: :request do
 
   describe "GET /api/v1/support_tickets" do
     it "lists only this company's tickets" do
-      create(:support_ticket, company: company, created_by: owner, subject: "Mine")
+      create(:support_ticket, company: company, created_by: admin, subject: "Mine")
       create(:support_ticket, subject: "Someone else's")
 
-      get "/api/v1/support_tickets", headers: auth_headers(owner)
+      get "/api/v1/support_tickets", headers: auth_headers(admin)
 
       subjects = response.parsed_body["support_tickets"].map { |t| t["subject"] }
       expect(subjects).to eq([ "Mine" ])
@@ -79,10 +79,10 @@ RSpec.describe "Api::V1::SupportTickets", type: :request do
 
   describe "GET /api/v1/support_tickets/:id/attachments/:attachment_id" do
     it "streams the attachment back" do
-      ticket = create(:support_ticket, company: company, created_by: owner)
+      ticket = create(:support_ticket, company: company, created_by: admin)
       ticket.attachments.attach(sample_file)
 
-      get "/api/v1/support_tickets/#{ticket.id}/attachments/#{ticket.attachments.first.id}", headers: auth_headers(owner)
+      get "/api/v1/support_tickets/#{ticket.id}/attachments/#{ticket.attachments.first.id}", headers: auth_headers(admin)
 
       expect(response).to have_http_status(:ok)
       expect(response.headers["Content-Type"]).to include("image/png")

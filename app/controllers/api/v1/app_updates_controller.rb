@@ -1,10 +1,10 @@
 module Api
   module V1
-    # The owner's read-only view of the platform changelog — same data as
-    # Admin::AppUpdatesController, minus the ability to publish. Reached from
-    # the "system_update" notification's deep link (/owner/updates).
+    # The admin's read-only view of the platform changelog — same data as
+    # Superadmin::AppUpdatesController, minus the ability to publish. Reached from
+    # the "system_update" notification's deep link (/admin/updates).
     class AppUpdatesController < BaseController
-      before_action :require_owner!
+      before_action :require_admin!
 
       # GET /api/v1/app_updates
       def index

@@ -21,15 +21,15 @@ module Api
 
         render json: {
           user: UserSerializer.new(current_user).as_json,
-          company: current_user.owner? ? CompanySerializer.new(company).as_json : nil,
+          company: current_user.admin? ? CompanySerializer.new(company).as_json : nil,
           branding: CompanyBrandingSerializer.new(company).as_json,
           role: resolved.role,
           permissions: resolved.permissions,
           modules: company&.enabled_module_keys || [],
           # Which parts of the product this tenant has turned on. Sent to
-          # everyone, not just the owner (whose `company` payload also
-          # carries them): a receptionist needs to know rooms exist as much
-          # as the owner does. It says what the product OFFERS here, never
+          # everyone, not just the admin (whose `company` payload also
+          # carries them): a moderator needs to know rooms exist as much
+          # as the admin does. It says what the product OFFERS here, never
           # who may use it — that is `permissions`, resolved separately.
           features: company&.settings&.features || {},
           roles: (company&.roles&.ordered || []).map { |r|
@@ -37,7 +37,7 @@ module Api
           },
           permission_catalog: Permission::CATALOG,
           subscription: subscription_json(company),
-          onboarding: current_user.owner? ? company&.onboarding_state&.as_json : nil,
+          onboarding: current_user.admin? ? company&.onboarding_state&.as_json : nil,
           notifications: { unread_count: current_user.notifications.unread.count }
         }
       end
@@ -53,7 +53,7 @@ module Api
           locked: subscription.locked?,
           lock_reason: subscription.lock_reason,
           # Enough for the shell to warn before the door shuts, rather than
-          # leaving the owner to discover it mid-task.
+          # leaving the admin to discover it mid-task.
           current_period_paid: subscription.current_period_paid?,
           days_before_lock: subscription.days_before_lock,
           # The shell counts the free days down instead of the unpaid ones.

@@ -51,14 +51,8 @@ module Api
 
       # POST /api/v1/contracts — staff gives a client a contract
       def create
-        client = current_company.clients.find_by(id: params[:client_id])
-        return render json: { error: "Client not found" }, status: :not_found if client.nil?
-
-        plan = current_company.contract_types.active.find_by(id: params[:contract_type_id])
-        return render json: { error: "Contract plan not found" }, status: :not_found if plan.nil?
-
-        activity = current_company.activities.find_by(id: params[:activity_id])
-        return render json: { error: "Activity not found" }, status: :not_found if activity.nil?
+        client, plan, activity = sale_parties
+        return if performed?
 
         result = Contracts::Create.call(
           client: client, contract_type: plan, activity: activity, created_by: current_user,
@@ -67,18 +61,16 @@ module Api
           collect_payment: params[:collect_payment], payment_method: params[:payment_method]
         )
 
-        if result.success?
-          AuditLogs::Record.call(
-            company: current_company, user: current_user, action: "contract.created",
-            auditable: result.contract, metadata: { client: client.full_name, plan: plan.name }
-          )
-          render json: {
-            contract: ContractSerializer.new(result.contract).as_json,
-            payment: PaymentSerializer.new(result.payment).as_json
-          }, status: :created
-        else
-          render json: { error: result.error }, status: :unprocessable_content
-        end
+        return render_errors(result.error) unless result.success?
+
+        AuditLogs::Record.call(
+          company: current_company, user: current_user, action: "contract.created",
+          auditable: result.contract, metadata: { client: client.full_name, plan: plan.name }
+        )
+        render json: {
+          contract: ContractSerializer.new(result.contract).as_json,
+          payment: PaymentSerializer.new(result.payment).as_json
+        }, status: :created
       end
 
       # PATCH /api/v1/contracts/:id — edit the current period (dates, discount)
@@ -150,6 +142,21 @@ module Api
 
       private
 
+      # Who is buying, which plan, for which activity — each this gym's own,
+      # or a 404 naming which one was not found.
+      def sale_parties
+        client = current_company.clients.find_by(id: params[:client_id])
+        return render(json: { error: "Client not found" }, status: :not_found) if client.nil?
+
+        plan = current_company.contract_types.active.find_by(id: params[:contract_type_id])
+        return render(json: { error: "Contract plan not found" }, status: :not_found) if plan.nil?
+
+        activity = current_company.activities.find_by(id: params[:activity_id])
+        return render(json: { error: "Activity not found" }, status: :not_found) if activity.nil?
+
+        [ client, plan, activity ]
+      end
+
       # The list's status filter, and its counts, both look at each contract's
       # CURRENT period only — not any period in its history, and not a
       # renewal queued for later.
@@ -200,8 +207,7 @@ module Api
         # that matched the filter. Contract#current_period reads the loaded
         # association, so a filtered one would make it answer about the wrong
         # period. `preload` always fetches them in a query of its own.
-        scope = current_company.contracts.includes(:contract_type, :client)
-                               .preload(:contract_periods).order(created_at: :desc)
+        scope = current_company.contracts.for_serializer.order(created_at: :desc)
         return scope if params[:q].blank?
 
         t = "%#{params[:q].strip}%"

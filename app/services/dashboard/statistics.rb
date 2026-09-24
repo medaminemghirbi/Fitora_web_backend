@@ -1,8 +1,8 @@
 module Dashboard
   class Statistics
     # `revenue: false` keeps the volumes and drops every figure in money.
-    # A moderator or a receptionist chases the eight subscriptions running
-    # out this week; what the gym earns is the owner's to read.
+    # A moderator or a moderator chases the eight subscriptions running
+    # out this week; what the gym earns is the admin's to read.
     def self.call(company:, revenue: true)
       new(company: company, revenue: revenue).call
     end
@@ -80,7 +80,7 @@ module Dashboard
         end
     end
 
-    # What a gym owner has to DO today, as opposed to what happened.
+    # What a gym admin has to DO today, as opposed to what happened.
     #
     # One row per kind of overdue work, each with the count that makes it
     # worth looking at and — where money is involved — what it is worth. A

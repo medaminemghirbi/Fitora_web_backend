@@ -6,11 +6,11 @@ require "rails_helper"
 # supplying one of its ids, and each is refused for a different reason:
 # a scoped lookup, or a model validation.
 #
-# These are the cases the Fitora/UnscopedTenantQuery cop cannot see, because
+# These are the cases the Gymly/UnscopedTenantQuery cop cannot see, because
 # nothing here is a bare `Model.find` — the id arrives inside a nested write.
 RSpec.describe "Security: foreign ids in nested writes", type: :request do
-  let(:owner) { create(:user, :owner) }
-  let!(:company) { create(:company, owner: owner) }
+  let(:admin) { create(:user, :admin) }
+  let!(:company) { create(:company, admin: admin) }
   let!(:other_company) { create(:company) }
 
   describe "assigning a staff seat" do
@@ -18,21 +18,21 @@ RSpec.describe "Security: foreign ids in nested writes", type: :request do
       theirs = create(:coach, company: other_company)
 
       post "/api/v1/staff",
-           params: { staff_member: { first_name: "A", last_name: "B", email: "ab@fitora.test",
+           params: { staff_member: { first_name: "A", last_name: "B", email: "ab@gymly.test",
                                      password: "password123", role: "coach", coach_id: theirs.id } },
-           headers: auth_headers(owner)
+           headers: auth_headers(admin)
 
       expect(response).to have_http_status(:unprocessable_content)
       expect(other_company.reload.staff_members).to be_empty
     end
 
     it "refuses a role belonging to another gym" do
-      theirs = other_company.roles.find_by(key: "receptionist")
+      theirs = other_company.roles.find_by(key: "moderator")
 
       post "/api/v1/staff",
-           params: { staff_member: { first_name: "A", last_name: "B", email: "ab2@fitora.test",
+           params: { staff_member: { first_name: "A", last_name: "B", email: "ab2@gymly.test",
                                      password: "password123", role_id: theirs.id } },
-           headers: auth_headers(owner)
+           headers: auth_headers(admin)
 
       # Resolved through current_company.roles, so it is not found at all.
       expect(response).to have_http_status(:not_found)
@@ -41,9 +41,9 @@ RSpec.describe "Security: foreign ids in nested writes", type: :request do
 
     it "refuses an unknown role key rather than creating a seat with no role" do
       post "/api/v1/staff",
-           params: { staff_member: { first_name: "A", last_name: "B", email: "ab3@fitora.test",
+           params: { staff_member: { first_name: "A", last_name: "B", email: "ab3@gymly.test",
                                      password: "password123", role: "sorcerer" } },
-           headers: auth_headers(owner)
+           headers: auth_headers(admin)
 
       expect(response).to have_http_status(:not_found)
       expect(company.staff_members).to be_empty
@@ -57,7 +57,7 @@ RSpec.describe "Security: foreign ids in nested writes", type: :request do
       post "/api/v1/sessions",
            params: { session: { activity_id: theirs.id, starts_at: 2.days.from_now,
                                 ends_at: 2.days.from_now + 1.hour, capacity: 10 } },
-           headers: auth_headers(owner)
+           headers: auth_headers(admin)
 
       expect(response).not_to have_http_status(:created)
       expect(company.sessions).to be_empty
@@ -70,7 +70,7 @@ RSpec.describe "Security: foreign ids in nested writes", type: :request do
       post "/api/v1/sessions",
            params: { session: { activity_id: mine.id, coach_id: theirs.id, starts_at: 2.days.from_now,
                                 ends_at: 2.days.from_now + 1.hour, capacity: 10 } },
-           headers: auth_headers(owner)
+           headers: auth_headers(admin)
 
       expect(response).not_to have_http_status(:created)
       expect(company.sessions).to be_empty
@@ -84,7 +84,7 @@ RSpec.describe "Security: foreign ids in nested writes", type: :request do
       post "/api/v1/sessions",
            params: { session: { activity_id: mine.id, space_id: theirs.id, starts_at: 2.days.from_now,
                                 ends_at: 2.days.from_now + 1.hour, capacity: 10 } },
-           headers: auth_headers(owner)
+           headers: auth_headers(admin)
 
       expect(response).not_to have_http_status(:created)
       expect(company.sessions).to be_empty
@@ -98,7 +98,7 @@ RSpec.describe "Security: foreign ids in nested writes", type: :request do
 
       post "/api/v1/spaces",
            params: { space: { name: "Studio", activity_ids: [ theirs.id ] } },
-           headers: auth_headers(owner)
+           headers: auth_headers(admin)
 
       expect(response).to have_http_status(:created)
       expect(response.parsed_body["space"]["activity_ids"]).to be_empty
@@ -107,19 +107,19 @@ RSpec.describe "Security: foreign ids in nested writes", type: :request do
 
   describe "downloading a support ticket attachment" do
     it "cannot fetch an attachment through another gym's ticket" do
-      theirs = create(:support_ticket, company: other_company, created_by: other_company.owner)
+      theirs = create(:support_ticket, company: other_company, created_by: other_company.admin)
 
       get "/api/v1/support_tickets/#{theirs.id}/attachments/#{SecureRandom.uuid}",
-          headers: auth_headers(owner)
+          headers: auth_headers(admin)
 
       expect(response).to have_http_status(:not_found)
     end
 
     it "cannot fetch an attachment id that belongs to a different ticket" do
-      mine = create(:support_ticket, company: company, created_by: owner)
+      mine = create(:support_ticket, company: company, created_by: admin)
 
       get "/api/v1/support_tickets/#{mine.id}/attachments/#{SecureRandom.uuid}",
-          headers: auth_headers(owner)
+          headers: auth_headers(admin)
 
       expect(response).to have_http_status(:not_found)
     end

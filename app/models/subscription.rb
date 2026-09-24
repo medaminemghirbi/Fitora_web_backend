@@ -1,7 +1,7 @@
-# A gym's access to Fitora.
+# A gym's access to Gymly.
 #
 # `active` IS the access: every check reads it, nothing computes a date at
-# read time. It is set false by a Fitora admin suspending the gym, and by
+# read time. It is set false by a Gymly superadmin suspending the gym, and by
 # the nightly sweep once the last invoice's period has run out and the three
 # days of grace with it (Subscriptions::CloseUnpaid). Issuing an invoice
 # sets it back to true.
@@ -9,7 +9,7 @@
 # Everything else about paying lives in the invoices: "paid until" is the
 # latest period_end, arrears are the periods with no invoice. The free trial
 # is the first period, given away: an invoice like any other, flagged
-# `trial` so the gym is shown as trying Fitora rather than as already on a
+# `trial` so the gym is shown as trying Gymly rather than as already on a
 # tier it never chose.
 class Subscription < ApplicationRecord
   belongs_to :company
@@ -22,7 +22,7 @@ class Subscription < ApplicationRecord
   GRACE_DAYS = 3
 
   # What signup gives away. Everything is included; the salle cap is still
-  # the owner's (User#company_limit).
+  # the admin's (User#company_limit).
   TRIAL_DAYS = 14
 
   # Explicit attribute so the enum resolves even when the dev server's code

@@ -1,19 +1,19 @@
 require "rails_helper"
 
 RSpec.describe "Api::V1::Companies", type: :request do
-  let(:owner) { create(:user, :owner) }
-  let!(:company) { create(:company, owner: owner) }
+  let(:admin) { create(:user, :admin) }
+  let!(:company) { create(:company, admin: admin) }
 
   describe "GET /api/v1/company" do
-    it "returns the owner's company" do
-      get "/api/v1/company", headers: auth_headers(owner)
+    it "returns the admin's company" do
+      get "/api/v1/company", headers: auth_headers(admin)
 
       expect(response).to have_http_status(:ok)
       expect(response.parsed_body["company"]["id"]).to eq(company.id)
     end
 
     it "forbids staff from reading company settings" do
-      staff = create(:staff_member, company: company, role: :receptionist)
+      staff = create(:staff_member, company: company, role: :moderator)
 
       get "/api/v1/company", headers: auth_headers(staff.user)
 
@@ -22,76 +22,76 @@ RSpec.describe "Api::V1::Companies", type: :request do
   end
 
   describe "POST /api/v1/companies — signup" do
-    let(:fresh_owner) { create(:user, :owner) }
+    let(:fresh_admin) { create(:user, :admin) }
 
     it "gives the new company every feature" do
       post "/api/v1/companies",
            params: { company: { name: "Iron Box", timezone: "Africa/Tunis", currency: "TND" } },
-           headers: auth_headers(fresh_owner)
+           headers: auth_headers(fresh_admin)
 
       expect(response).to have_http_status(:created)
-      created = Company.find_by(owner: fresh_owner)
+      created = Company.find_by(admin: fresh_admin)
       expect(created.enabled_module_keys).to match_array(%w[base] + ModuleCatalog::KEYS)
     end
 
     it "opens on the free trial, not on a tier" do
       post "/api/v1/companies", params: { company: { name: "Iron Box", timezone: "Africa/Tunis", currency: "TND" } },
-                                 headers: auth_headers(fresh_owner)
+                                 headers: auth_headers(fresh_admin)
 
-      subscription = Company.find_by(owner: fresh_owner).subscription
+      subscription = Company.find_by(admin: fresh_admin).subscription
       expect(subscription).to be_active
       expect(subscription).to be_trial
       expect(subscription.trial_days_left).to eq(Subscription::TRIAL_DAYS)
       expect(subscription.latest_invoice.amount_cents).to eq(0)
     end
 
-    it "becomes the owner's active company immediately" do
+    it "becomes the admin's active company immediately" do
       post "/api/v1/companies", params: { company: { name: "Iron Box", timezone: "Africa/Tunis", currency: "TND" } },
-                                 headers: auth_headers(fresh_owner)
+                                 headers: auth_headers(fresh_admin)
 
-      created = Company.find_by(owner: fresh_owner)
-      expect(fresh_owner.reload.active_company).to eq(created)
+      created = Company.find_by(admin: fresh_admin)
+      expect(fresh_admin.reload.active_company).to eq(created)
     end
 
-    it "lets an owner already on the unlimited tier create as many companies as they like" do
-      owner.update!(company_limit: nil)
+    it "lets an admin already on the unlimited tier create as many companies as they like" do
+      admin.update!(company_limit: nil)
 
       post "/api/v1/companies", params: { company: { name: "Second Gym", timezone: "Africa/Tunis", currency: "TND" } },
-                                 headers: auth_headers(owner)
+                                 headers: auth_headers(admin)
 
       expect(response).to have_http_status(:created)
-      expect(owner.companies.count).to eq(2)
+      expect(admin.companies.count).to eq(2)
     end
 
-    it "blocks a second company once the owner's tier limit (1) is reached" do
+    it "blocks a second company once the admin's tier limit (1) is reached" do
       post "/api/v1/companies", params: { company: { name: "Second Gym", timezone: "Africa/Tunis", currency: "TND" } },
-                                 headers: auth_headers(owner)
+                                 headers: auth_headers(admin)
 
       expect(response).to have_http_status(:unprocessable_content)
       expect(response.parsed_body["error"]).to eq("company_limit_reached")
-      expect(owner.companies.count).to eq(1)
+      expect(admin.companies.count).to eq(1)
     end
 
     it "allows a third company on the tier-3 plan, then blocks a fourth" do
-      owner.update!(company_limit: 3)
-      create(:company, owner: owner)
+      admin.update!(company_limit: 3)
+      create(:company, admin: admin)
 
       post "/api/v1/companies", params: { company: { name: "Third Gym", timezone: "Africa/Tunis", currency: "TND" } },
-                                 headers: auth_headers(owner)
+                                 headers: auth_headers(admin)
       expect(response).to have_http_status(:created)
 
       post "/api/v1/companies", params: { company: { name: "Fourth Gym", timezone: "Africa/Tunis", currency: "TND" } },
-                                 headers: auth_headers(owner)
+                                 headers: auth_headers(admin)
       expect(response).to have_http_status(:unprocessable_content)
     end
   end
 
   describe "GET /api/v1/companies" do
-    it "lists every company this owner runs, flagging which one is active" do
-      owner.update!(company_limit: nil)
-      second = create(:company, owner: owner)
+    it "lists every company this admin runs, flagging which one is active" do
+      admin.update!(company_limit: nil)
+      second = create(:company, admin: admin)
 
-      get "/api/v1/companies", headers: auth_headers(owner)
+      get "/api/v1/companies", headers: auth_headers(admin)
 
       expect(response).to have_http_status(:ok)
       body = response.parsed_body["companies"]
@@ -100,10 +100,10 @@ RSpec.describe "Api::V1::Companies", type: :request do
       expect(body.find { |c| c["id"] == second.id }["active"]).to be false
     end
 
-    it "never lists another owner's companies" do
+    it "never lists another admin's companies" do
       other = create(:company)
 
-      get "/api/v1/companies", headers: auth_headers(owner)
+      get "/api/v1/companies", headers: auth_headers(admin)
 
       ids = response.parsed_body["companies"].map { |c| c["id"] }
       expect(ids).not_to include(other.id)
@@ -111,32 +111,32 @@ RSpec.describe "Api::V1::Companies", type: :request do
   end
 
   describe "POST /api/v1/companies/:id/switch" do
-    it "moves the owner's active company and current_company follows on the next request" do
-      owner.update!(company_limit: nil)
-      second = create(:company, owner: owner)
+    it "moves the admin's active company and current_company follows on the next request" do
+      admin.update!(company_limit: nil)
+      second = create(:company, admin: admin)
 
-      post "/api/v1/companies/#{second.id}/switch", headers: auth_headers(owner)
+      post "/api/v1/companies/#{second.id}/switch", headers: auth_headers(admin)
       expect(response).to have_http_status(:ok)
       expect(response.parsed_body["company"]["id"]).to eq(second.id)
 
-      get "/api/v1/company", headers: auth_headers(owner)
+      get "/api/v1/company", headers: auth_headers(admin)
       expect(response.parsed_body["company"]["id"]).to eq(second.id)
     end
 
-    it "404s when switching to a company this owner doesn't own" do
+    it "404s when switching to a company this admin doesn't own" do
       other = create(:company)
 
-      post "/api/v1/companies/#{other.id}/switch", headers: auth_headers(owner)
+      post "/api/v1/companies/#{other.id}/switch", headers: auth_headers(admin)
 
       expect(response).to have_http_status(:not_found)
     end
 
-    it "is unaffected by another of the owner's companies being locked out" do
-      owner.update!(company_limit: nil)
-      second = create(:company, owner: owner)
+    it "is unaffected by another of the admin's companies being locked out" do
+      admin.update!(company_limit: nil)
+      second = create(:company, admin: admin)
       create(:subscription, :closed, company: company)
 
-      post "/api/v1/companies/#{second.id}/switch", headers: auth_headers(owner)
+      post "/api/v1/companies/#{second.id}/switch", headers: auth_headers(admin)
 
       expect(response).to have_http_status(:ok)
     end
@@ -145,7 +145,7 @@ RSpec.describe "Api::V1::Companies", type: :request do
   describe "GET /api/v1/company — subscription info" do
     it "lists every feature as included and the monthly / annual price in the company's currency" do
       SubscriptionPrice.for("TND", company_limit: 1).update!(monthly_cents: 20_000)
-      get "/api/v1/company", headers: auth_headers(owner)
+      get "/api/v1/company", headers: auth_headers(admin)
       body = response.parsed_body["company"]
 
       expect(body["included_modules"]).to match_array(ModuleCatalog::KEYS)
@@ -159,7 +159,7 @@ RSpec.describe "Api::V1::Companies", type: :request do
       SubscriptionPrice.for("TND", company_limit: 1).update!(monthly_cents: 18_000)
       company.update!(currency: "EUR")
 
-      get "/api/v1/company", headers: auth_headers(owner)
+      get "/api/v1/company", headers: auth_headers(admin)
 
       expect(response.parsed_body["company"]["monthly_subscription_cents"]).to eq(18_000)
       expect(SubscriptionPrice.for("EUR", company_limit: 1).monthly_cents).to eq(18_000)
@@ -168,7 +168,7 @@ RSpec.describe "Api::V1::Companies", type: :request do
 
   describe "PATCH /api/v1/company — branding" do
     it "sets a slug and a primary color" do
-      patch "/api/v1/company", params: { company: { slug: "power-gym", primary_color: "#ff5500" } }, headers: auth_headers(owner)
+      patch "/api/v1/company", params: { company: { slug: "power-gym", primary_color: "#ff5500" } }, headers: auth_headers(admin)
 
       expect(response).to have_http_status(:ok)
       body = response.parsed_body["company"]
@@ -177,20 +177,20 @@ RSpec.describe "Api::V1::Companies", type: :request do
     end
 
     it "uploads a logo" do
-      patch "/api/v1/company", params: { company: { logo: fixture_file_upload("sample.png", "image/png") } }, headers: auth_headers(owner)
+      patch "/api/v1/company", params: { company: { logo: fixture_file_upload("sample.png", "image/png") } }, headers: auth_headers(admin)
 
       expect(response).to have_http_status(:ok)
       expect(response.parsed_body["company"]["logo_url"]).to be_present
     end
 
     it "rejects an invalid hex color" do
-      patch "/api/v1/company", params: { company: { primary_color: "orange" } }, headers: auth_headers(owner)
+      patch "/api/v1/company", params: { company: { primary_color: "orange" } }, headers: auth_headers(admin)
 
       expect(response).to have_http_status(:unprocessable_content)
     end
 
     it "rejects a slug with uppercase or spaces" do
-      patch "/api/v1/company", params: { company: { slug: "Power Gym" } }, headers: auth_headers(owner)
+      patch "/api/v1/company", params: { company: { slug: "Power Gym" } }, headers: auth_headers(admin)
 
       expect(response).to have_http_status(:unprocessable_content)
     end
@@ -198,19 +198,19 @@ RSpec.describe "Api::V1::Companies", type: :request do
     it "rejects a slug already used by another company" do
       create(:company, slug: "power-gym")
 
-      patch "/api/v1/company", params: { company: { slug: "power-gym" } }, headers: auth_headers(owner)
+      patch "/api/v1/company", params: { company: { slug: "power-gym" } }, headers: auth_headers(admin)
 
       expect(response).to have_http_status(:unprocessable_content)
     end
 
     it "defaults working_days to Monday–Friday" do
-      get "/api/v1/company", headers: auth_headers(owner)
+      get "/api/v1/company", headers: auth_headers(admin)
 
       expect(response.parsed_body["company"]["working_days"]).to eq([ 1, 2, 3, 4, 5 ])
     end
 
     it "updates working_days (a Saturday-opening gym)" do
-      patch "/api/v1/company", params: { company: { working_days: [ 6, 1, 2, 3, 4 ] } }, headers: auth_headers(owner)
+      patch "/api/v1/company", params: { company: { working_days: [ 6, 1, 2, 3, 4 ] } }, headers: auth_headers(admin)
 
       expect(response).to have_http_status(:ok)
       expect(response.parsed_body["company"]["working_days"]).to eq([ 1, 2, 3, 4, 6 ])
@@ -218,19 +218,19 @@ RSpec.describe "Api::V1::Companies", type: :request do
     end
 
     it "rejects an empty working_days list" do
-      patch "/api/v1/company", params: { company: { working_days: [ "" ] } }, headers: auth_headers(owner)
+      patch "/api/v1/company", params: { company: { working_days: [ "" ] } }, headers: auth_headers(admin)
 
       expect(response).to have_http_status(:unprocessable_content)
     end
 
     it "rejects an out-of-range weekday" do
-      patch "/api/v1/company", params: { company: { working_days: [ 1, 2, 7 ] } }, headers: auth_headers(owner)
+      patch "/api/v1/company", params: { company: { working_days: [ 1, 2, 7 ] } }, headers: auth_headers(admin)
 
       expect(response).to have_http_status(:unprocessable_content)
     end
 
     it "forbids staff from changing branding" do
-      staff = create(:staff_member, company: company, role: :receptionist)
+      staff = create(:staff_member, company: company, role: :moderator)
 
       patch "/api/v1/company", params: { company: { primary_color: "#ff5500" } }, headers: auth_headers(staff.user)
 
@@ -240,9 +240,9 @@ RSpec.describe "Api::V1::Companies", type: :request do
   end
 
   describe "opening hours, now that the company is the place" do
-    it "exposes them and lets the owner change them" do
+    it "exposes them and lets the admin change them" do
       patch "/api/v1/company", params: { company: { business_hours_start: "07:30", business_hours_end: "21:00" } },
-            headers: auth_headers(owner)
+            headers: auth_headers(admin)
 
       expect(response).to have_http_status(:ok)
       expect(response.parsed_body["company"]["business_hours_start"]).to eq("07:30")

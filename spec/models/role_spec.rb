@@ -39,29 +39,30 @@ RSpec.describe Role do
     let(:company) { create(:company) }
 
     it "is false for built-in roles" do
-      expect(company.roles.find_by(key: "receptionist")).not_to be_deletable
+      expect(company.roles.find_by(key: "moderator")).not_to be_deletable
     end
 
     it "is true for an unused custom role, false once staff are assigned" do
       role = create(:role, company: company)
       expect(role).to be_deletable
 
-      create(:staff_member, company: company, role: :receptionist, assigned_role: role)
+      create(:staff_member, company: company, role: :moderator, assigned_role: role)
       expect(role.reload).not_to be_deletable
     end
   end
 
   describe "the Modérateur role" do
-    it "is the only role below the owner that can add coaches" do
+    it "is the one back-office role a new gym starts with, and it manages coaches" do
       company = create(:company)
       by_key = company.roles.index_by(&:key)
 
-      expect(by_key["moderator"].permissions).to include("coaches")
-      expect(by_key["receptionist"].permissions).not_to include("coaches")
+      expect(by_key.keys).to contain_exactly("admin", "moderator", "coach")
+      expect(by_key["moderator"].permissions).to include("coaches", "clients")
       expect(by_key["coach"].permissions).not_to include("coaches")
+      expect(by_key["admin"].name).to eq("Administrateur")
     end
 
-    it "still leaves the catalogues and the plans to the owner" do
+    it "still leaves the catalogues and the plans to the admin" do
       company = create(:company)
       moderator = company.roles.find_by(key: "moderator")
 
@@ -72,12 +73,12 @@ RSpec.describe Role do
     it "reaches a company created before the role existed, without touching a re-permissioned one" do
       company = create(:company)
       company.roles.find_by(key: "moderator").destroy
-      company.roles.find_by(key: "receptionist").update!(permissions: %w[clients])
+      company.roles.find_by(key: "coach").update!(permissions: %w[checkin clients])
 
       Role.seed_defaults_for(company)
 
       expect(company.roles.reload.find_by(key: "moderator")).to be_present
-      expect(company.roles.find_by(key: "receptionist").permissions).to eq(%w[clients])
+      expect(company.roles.find_by(key: "coach").permissions).to contain_exactly("checkin", "clients")
     end
   end
 end

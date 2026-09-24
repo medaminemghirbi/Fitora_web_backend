@@ -1,10 +1,10 @@
 module Api
   module V1
     # The "Contact" tab on the modules marketplace page — a problem report
-    # with optional file/video attachments, reviewed by a Fitora admin from
-    # a cross-company inbox (Api::V1::Admin::SupportTicketsController).
+    # with optional file/video attachments, reviewed by a Gymly superadmin from
+    # a cross-company inbox (Api::V1::Superadmin::SupportTicketsController).
     class SupportTicketsController < BaseController
-      before_action :require_owner!
+      before_action :require_admin!
       before_action :set_ticket, only: [ :attachment ]
 
       # GET /api/v1/support_tickets
@@ -32,7 +32,7 @@ module Api
           )
           render json: { support_ticket: SupportTicketSerializer.new(ticket).as_json }, status: :created
         else
-          render json: { error: ticket.errors.full_messages.first, errors: ticket.errors.full_messages }, status: :unprocessable_content
+          render_errors(ticket)
         end
       end
 
