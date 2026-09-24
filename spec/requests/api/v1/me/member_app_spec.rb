@@ -3,8 +3,8 @@ require "rails_helper"
 # A member's own app. The gym enabled their account; there is no directory,
 # no self-signup and no way to reach a gym they have not joined.
 RSpec.describe "Api::V1::Me", type: :request do
-  let(:owner) { create(:user, :owner) }
-  let(:company) { create(:company, owner: owner) }
+  let(:admin) { create(:user, :admin) }
+  let(:company) { create(:company, admin: admin) }
   let(:activity) { create(:activity, company: company) }
   let(:member) do
     create(:client, company: company, email: "member@example.test", password: "password123")
@@ -83,7 +83,7 @@ RSpec.describe "Api::V1::Me", type: :request do
     end
 
     it "is closed to a staff login — this is the member's half" do
-      get "/api/v1/me/sessions", headers: auth_headers(owner)
+      get "/api/v1/me/sessions", headers: auth_headers(admin)
 
       expect(response).to have_http_status(:forbidden)
     end

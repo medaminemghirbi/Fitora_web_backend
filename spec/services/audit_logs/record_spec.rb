@@ -3,7 +3,7 @@ require "rails_helper"
 RSpec.describe AuditLogs::Record do
   it "persists an audit log with the given attributes" do
     company = create(:company)
-    user = company.owner
+    user = company.admin
     client = create(:client, company: company)
 
     audit_log = described_class.call(
@@ -23,7 +23,7 @@ RSpec.describe AuditLogs::Record do
     company = create(:company)
     client = create(:client, company: company)
 
-    audit_log = described_class.call(company: company, user: company.owner, action: "client.updated", auditable: client)
+    audit_log = described_class.call(company: company, user: company.admin, action: "client.updated", auditable: client)
 
     expect(audit_log.auditable).to eq(client)
   end
@@ -32,7 +32,7 @@ RSpec.describe AuditLogs::Record do
     company = create(:company)
     client = create(:client, company: company)
 
-    audit_log = described_class.call(company: company, user: company.owner, action: "client.updated", auditable: client)
+    audit_log = described_class.call(company: company, user: company.admin, action: "client.updated", auditable: client)
 
     expect(audit_log.metadata).to eq({})
   end

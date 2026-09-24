@@ -17,6 +17,7 @@ class Payment < ApplicationRecord
   validates :payment_method, inclusion: { in: SELECTABLE_METHODS },
                              if: :will_save_change_to_payment_method?
   validate :linked_to_exactly_one_payable
+  validate :payable_belongs_to_this_gym, if: -> { will_save_change_to_contract_period_id? || will_save_change_to_booking_id? }
 
   scope :recent, -> { order(created_at: :desc) }
 
@@ -25,5 +26,16 @@ class Payment < ApplicationRecord
   def linked_to_exactly_one_payable
     links = [ contract_period_id, booking_id ].compact
     errors.add(:base, "must be linked to a contract or booking") if links.empty?
+  end
+
+  # A person can belong to several gyms, so their periods and bookings span
+  # gyms too. Money recorded here may only settle what is owed to this gym.
+  def payable_belongs_to_this_gym
+    if contract_period && contract_period.contract.company_id != company_id
+      errors.add(:contract_period, "belongs to another gym")
+    end
+    if booking && booking.session.company_id != company_id
+      errors.add(:booking, "belongs to another gym")
+    end
   end
 end

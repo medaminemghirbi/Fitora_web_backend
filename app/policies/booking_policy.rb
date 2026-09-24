@@ -21,12 +21,12 @@ class BookingPolicy < ApplicationPolicy
 
   private
 
-  # Owner always; staff need the `bookings` capability (manager, receptionist,
+  # Admin always; staff need the `bookings` capability (manager, moderator,
   # or a coach — narrowed to bookings on their own sessions only).
   def staff_access?
     return false if record.session.company_id != (user.active_company_id || user.staff_member&.company_id)
 
-    return true if user.owner?
+    return true if user.admin?
 
     staff = user.staff_member
     return false unless staff&.active? && staff.can?(:bookings)
@@ -35,7 +35,7 @@ class BookingPolicy < ApplicationPolicy
   end
 
   def staff_access_for_create?
-    return true if user.owner?
+    return true if user.admin?
 
     staff = user.staff_member
     staff&.active? && staff.can?(:bookings)

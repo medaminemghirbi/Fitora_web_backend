@@ -1,8 +1,8 @@
 module Permissions
   # The single source of truth for "what can this login do" — used by the
   # /me/permissions and /bootstrap endpoints. Every company has every
-  # feature, so the owner gets every permission the product exposes; staff
-  # get their assigned Role's list; a platform admin gets none.
+  # feature, so the admin gets every permission the product exposes; staff
+  # get their assigned Role's list; a platform superadmin gets none.
   class Resolve
     Result = Struct.new(:role, :permissions, keyword_init: true)
 
@@ -15,18 +15,18 @@ module Permissions
     end
 
     def call
-      return Result.new(role: nil, permissions: []) if user.admin?
+      return Result.new(role: nil, permissions: []) if user.superadmin?
 
       company = resolve_company
       available = Permission::ALL
 
-      if user.owner?
-        # The owner always has every permission the enabled modules expose —
-        # the stored "owner" Role row is cosmetic (its name), so new modules
+      if user.admin?
+        # The admin always has every permission the enabled modules expose —
+        # the stored "admin" Role row is cosmetic (its name), so new modules
         # light up for them without re-seeding.
-        owner_role = company&.roles&.find_by(key: "owner")
+        admin_role = company&.roles&.find_by(key: "admin")
         return Result.new(
-          role: role_hash(owner_role) || { key: "owner", name: "Propriétaire" },
+          role: role_hash(admin_role) || { key: "admin", name: "Administrateur" },
           permissions: available
         )
       end

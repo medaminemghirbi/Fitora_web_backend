@@ -7,14 +7,14 @@ class Company < ApplicationRecord
   MAX_LOGO_SIZE = 10.megabytes
 
   # The company's display language — one setting for the whole tenant, set by
-  # a Fitora admin (Api::V1::Admin::CompaniesController#update_settings). The
+  # a Gymly superadmin (Api::V1::Superadmin::CompaniesController#update_settings). The
   # frontend applies it from the bootstrap payload; there is no per-user
   # language switch inside a company's app.
   LOCALES = %w[fr en ar].freeze
 
-  belongs_to :owner, class_name: "User", inverse_of: :companies
+  belongs_to :admin, class_name: "User", inverse_of: :companies
 
-  # White-label branding — logo shown in the owner/coach shells, primary_color
+  # White-label branding — logo shown in the admin/coach shells, primary_color
   # overrides --color-primary (see BrandingService on the frontend, which
   # derives hover/soft tones from it via CSS color-mix() rather than storing
   # them separately). slug is unused today; it's reserved so hostname-based
@@ -36,6 +36,7 @@ class Company < ApplicationRecord
   has_many :contract_types, dependent: :destroy
   has_many :contracts, dependent: :destroy
   has_many :contract_periods, through: :contracts
+  has_many :data_imports, dependent: :destroy
   has_many :payments, dependent: :destroy
   has_many :staff_members, dependent: :destroy
   has_many :roles, dependent: :destroy
@@ -56,17 +57,18 @@ class Company < ApplicationRecord
 
   validates :name, presence: true
   validates :timezone, presence: true
+  validate :timezone_is_known
   validates :currency, presence: true, inclusion: { in: CurrencyCatalog::CODES }
   validates :locale, presence: true, inclusion: { in: LOCALES }
   validates :slug, uniqueness: true, allow_nil: true,
                     format: { with: /\A[a-z0-9]+(?:-[a-z0-9]+)*\z/, message: "must contain only lowercase letters, numbers, and hyphens" }
 
-  # Admin company search — name / city, plus the owner's name and email.
+  # Superadmin company search — name / city, plus the admin's name and email.
   scope :search, ->(term) {
     next all if term.blank?
 
     t = "%#{term.strip}%"
-    left_joins(:owner).where(
+    left_joins(:admin).where(
       "companies.name ILIKE :t OR companies.city ILIKE :t OR " \
       "users.first_name ILIKE :t OR users.last_name ILIKE :t OR users.email ILIKE :t",
       t: t
@@ -122,11 +124,11 @@ class Company < ApplicationRecord
   end
 
   # The company's monthly subscription price, in its own currency — what
-  # its owner's current company-limit tier costs per month. Priced per
-  # OWNER (the tier governs how many companies they may run), not per
-  # company, so every company under one owner shows the same price.
+  # its admin's current company-limit tier costs per month. Priced per
+  # ADMIN (the tier governs how many companies they may run), not per
+  # company, so every company under one admin shows the same price.
   def monthly_subscription_cents
-    SubscriptionPrice.for(currency, company_limit: owner.company_limit).monthly_cents
+    SubscriptionPrice.for(currency, company_limit: admin.company_limit).monthly_cents
   end
 
   # Platform-wide discount applied to a full year paid up front (info only
@@ -171,6 +173,17 @@ class Company < ApplicationRecord
     settings.working_day?(date)
   end
 
+  # The schema default, and the answer for a company whose zone cannot be
+  # read.
+  DEFAULT_TIMEZONE = "Africa/Tunis".freeze
+
+  # The zone "today", "tomorrow at 18:00" and a day's end mean at this gym.
+  # Requests and jobs run inside it (Api::V1::BaseController, the cron jobs),
+  # so Date.current and Time.zone answer for the gym, not for UTC.
+  def time_zone
+    Time.find_zone(timezone) || Time.find_zone!(DEFAULT_TIMEZONE)
+  end
+
   private
 
   SETTINGS_ERRORS = {
@@ -202,5 +215,11 @@ class Company < ApplicationRecord
     return unless logo.attached?
 
     errors.add(:logo, "must be smaller than #{MAX_LOGO_SIZE / 1.megabyte}MB") if logo.blob.byte_size > MAX_LOGO_SIZE
+  end
+
+  def timezone_is_known
+    return if timezone.blank? || Time.find_zone(timezone)
+
+    errors.add(:timezone, "is not a time zone we know")
   end
 end

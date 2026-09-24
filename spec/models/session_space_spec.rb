@@ -1,7 +1,7 @@
 require "rails_helper"
 
 # A room that can be double-booked is not worth having. These cover the
-# validations an owner sees on a form, and the database constraint that
+# validations an admin sees on a form, and the database constraint that
 # holds when two requests race past them.
 RSpec.describe Session, "in a room" do
   let(:company) { create(:company) }

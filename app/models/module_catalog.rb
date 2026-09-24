@@ -1,8 +1,8 @@
-# The list of what a Fitora subscription includes.
+# The list of what a Gymly subscription includes.
 #
 # Every company has every feature — the whole product comes in one
 # subscription (see SubscriptionPrice). So this is not an activation or
-# billing concept and it decides nothing: it is the key list the owner's
+# billing concept and it decides nothing: it is the key list the admin's
 # subscription page renders as "what you get", in display order.
 #
 # It used to double as the map from a feature to the permissions it unlocks,
@@ -10,7 +10,7 @@
 # is gone: permissions are Permission::CATALOG's business, and the duplicate
 # list was a bug waiting to happen — "revenue" was missing from it, so it was
 # silently stripped from every permission list the API advertised, the
-# owner's included.
+# admin's included.
 #
 # Display names and descriptions are i18n keys on the frontend
 # (`modules.<key>`); nothing here is user-facing text.

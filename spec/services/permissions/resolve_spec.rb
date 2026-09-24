@@ -1,21 +1,21 @@
 require "rails_helper"
 
 RSpec.describe Permissions::Resolve do
-  it "grants a platform admin no role and no permissions" do
-    admin = create(:user, :admin)
+  it "grants a platform superadmin no role and no permissions" do
+    superadmin = create(:user, :superadmin)
 
-    result = described_class.call(user: admin)
+    result = described_class.call(user: superadmin)
 
     expect(result.role).to be_nil
     expect(result.permissions).to eq([])
   end
 
-  it "grants the owner every permission the product exposes, under the company's owner role" do
+  it "grants the admin every permission the product exposes, under the company's admin role" do
     company = create(:company)
 
-    result = described_class.call(user: company.owner)
+    result = described_class.call(user: company.admin)
 
-    expect(result.role).to eq(key: "owner", name: "Propriétaire")
+    expect(result.role).to eq(key: "admin", name: "Administrateur")
     expect(result.permissions).to match_array(Permission::ALL)
   end
 
@@ -24,7 +24,7 @@ RSpec.describe Permissions::Resolve do
     custom_role = create(:role, company: company, key: "accountant", name: "Comptable",
                                  permissions: %w[clients payments], builtin: false)
     user = create(:user, :staff)
-    create(:staff_member, company: company, user: user, role: :receptionist, assigned_role: custom_role)
+    create(:staff_member, company: company, user: user, role: :moderator, assigned_role: custom_role)
 
     result = described_class.call(user: user)
 

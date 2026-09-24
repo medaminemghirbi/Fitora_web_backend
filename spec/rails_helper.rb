@@ -25,17 +25,74 @@ require 'rspec/rails'
 #
 Rails.root.glob('spec/support/**/*.rb').sort_by(&:to_s).each { |f| require f }
 
-# N+1 / unused-eager-loading audit — off by default (adds per-request
-# overhead), opt in with `BULLET=1 bundle exec rspec`. Logs to
-# log/bullet_test.log instead of raising, so a single run against the full
-# request-spec suite produces one full report rather than stopping at the
-# first offender.
-if ENV["BULLET"] == "1"
+# The API contract, written from the request specs: `OPENAPI=1 bundle exec
+# rspec spec/requests` rewrites doc/openapi.yaml. CI regenerates it and fails
+# on a diff, so a serializer change cannot reach the Angular or mobile app
+# without the contract showing it. Shapes only — no example values, which
+# would be random ids and timestamps and change every run.
+if ENV["OPENAPI"]
+  require "rspec/openapi"
+  RSpec::OpenAPI.path = "doc/openapi.yaml"
+  RSpec::OpenAPI.title = "Gymly API"
+  RSpec::OpenAPI.application_version = "v1"
+  RSpec::OpenAPI.enable_example = false
+  RSpec::OpenAPI.info = { description: "Generated from spec/requests — do not edit by hand." }
+
+  # The hook sees the gem's working copy, keyed by symbols or strings
+  # depending on where a node came from; `key` finds either.
+  key = ->(hash, name) { hash.key?(name.to_sym) ? name.to_sym : name.to_s }
+
+  # A map keyed by record ids (plan_counts: { "<uuid>" => 3 }) would list
+  # that run's random ids as properties. Say what it is instead: a map.
+  uuid = /\A\h{8}-\h{4}-\h{4}-\h{4}-\h{12}\z/
+  as_map = lambda do |node|
+    case node
+    when Hash
+      props = node[key.call(node, :properties)]
+      if props.is_a?(Hash) && props.any? && props.keys.all? { |k| k.to_s.match?(uuid) }
+        node.delete(key.call(node, :properties))
+        node.delete(key.call(node, :required))
+        node[:additionalProperties] = props.values.first
+      end
+      node.each_value { |child| as_map.call(child) }
+    when Array
+      node.each { |child| as_map.call(child) }
+    end
+  end
+
+  # A response's description would be whichever example's name ran first.
+  # The status says what it is.
+  describe_by_status = lambda do |spec|
+    (spec[key.call(spec, :paths)] || {}).each_value do |operations|
+      operations.each_value do |operation|
+        next unless operation.is_a?(Hash)
+
+        (operation[key.call(operation, :responses)] || {}).each do |code, response|
+          response[key.call(response, :description)] = Rack::Utils::HTTP_STATUS_CODES.fetch(code.to_s.to_i, code.to_s)
+        end
+      end
+    end
+  end
+
+  RSpec::OpenAPI.post_process_hook = lambda do |_path, _records, spec|
+    as_map.call(spec)
+    describe_by_status.call(spec)
+  end
+end
+
+# N+1 detection. On in CI, where an N+1 fails the build; opt in locally with
+# `BULLET=1 bundle exec rspec`. Only N+1 loads raise: "unused eager loading"
+# and "counter cache" advice are noisy on specs that build one or two rows.
+# Bullet sees association loads only — a `find_by` per row is invisible to
+# it, which is what spec/requests/performance/ counts instead.
+if ENV["BULLET"] == "1" || ENV["CI"].present?
   require "bullet"
   Bullet.enable = true
   Bullet.bullet_logger = true
-  Bullet.raise = false
+  Bullet.raise = true
   Bullet.add_footer = false
+  Bullet.unused_eager_loading_enable = false
+  Bullet.counter_cache_enable = false
 
   RSpec.configure do |config|
     config.before(:each) { Bullet.start_request }

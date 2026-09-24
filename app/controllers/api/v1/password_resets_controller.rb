@@ -1,7 +1,7 @@
 module Api
   module V1
     # Forgot-password — unauthenticated by design, same as PairingController.
-    # Never for a platform admin (role: :admin) — Fitora operators aren't
+    # Never for a platform superadmin (role: :superadmin) — Gymly operators aren't
     # self-service here, same line as everywhere else that special-cases them.
     class PasswordResetsController < ApplicationController
       # POST /api/v1/password_resets — { email: }. Always the same response
@@ -20,7 +20,7 @@ module Api
 
       # PATCH /api/v1/password_resets/:token — { password: }
       def update
-        record = User.active.where.not(role: :admin).find_by_reset_password_token(params[:token]) ||
+        record = User.active.where.not(role: :superadmin).find_by_reset_password_token(params[:token]) ||
                  Client.active.find_by_reset_password_token(params[:token])
 
         return render(json: { error: "invalid_or_expired_token" }, status: :unprocessable_content) if record.nil?
@@ -29,7 +29,7 @@ module Api
           record.clear_password_reset_token!
           head :no_content
         else
-          render json: { error: record.errors.full_messages.first, errors: record.errors.full_messages }, status: :unprocessable_content
+          render_errors(record)
         end
       end
 
@@ -39,7 +39,7 @@ module Api
         normalized = email.to_s.downcase.strip
         return nil if normalized.blank?
 
-        User.active.where.not(role: :admin).find_by(email: normalized) ||
+        User.active.where.not(role: :superadmin).find_by(email: normalized) ||
           Client.active.where.not(password_digest: nil).find_by(email: normalized)
       end
     end

@@ -1,8 +1,8 @@
 require "rails_helper"
 
 RSpec.describe "Api::V1::Sessions", type: :request do
-  let(:owner) { create(:user, :owner) }
-  let!(:company) { create(:company, owner: owner) }
+  let(:admin) { create(:user, :admin) }
+  let!(:company) { create(:company, admin: admin) }
   let!(:activity) { create(:activity, company: company) }
 
   describe "GET /api/v1/sessions" do
@@ -11,7 +11,7 @@ RSpec.describe "Api::V1::Sessions", type: :request do
       other_activity = create(:activity)
       other_session = create(:session, activity: other_activity, company: other_activity.company)
 
-      get "/api/v1/sessions", headers: auth_headers(owner)
+      get "/api/v1/sessions", headers: auth_headers(admin)
 
       ids = response.parsed_body["sessions"].map { |s| s["id"] }
       expect(ids).not_to include(other_session.id)
@@ -36,7 +36,7 @@ RSpec.describe "Api::V1::Sessions", type: :request do
       other_activity = create(:activity)
       other_session = create(:session, activity: other_activity, company: other_activity.company)
 
-      get "/api/v1/sessions/#{other_session.id}", headers: auth_headers(owner)
+      get "/api/v1/sessions/#{other_session.id}", headers: auth_headers(admin)
 
       expect(response).to have_http_status(:not_found)
     end
@@ -47,7 +47,7 @@ RSpec.describe "Api::V1::Sessions", type: :request do
       week_start = Date.current.beginning_of_week(:monday)
       create(:session, activity: activity, company: company, starts_at: week_start.to_time.change(hour: 9))
 
-      get "/api/v1/sessions/schedule_pdf", params: { from: week_start.iso8601 }, headers: auth_headers(owner)
+      get "/api/v1/sessions/schedule_pdf", params: { from: week_start.iso8601 }, headers: auth_headers(admin)
 
       expect(response).to have_http_status(:ok)
       expect(response.content_type).to eq("application/pdf")
@@ -65,7 +65,7 @@ RSpec.describe "Api::V1::Sessions", type: :request do
     end
 
     it "requires staff access" do
-      inactive_staff = create(:staff_member, company: company, role: :receptionist, active: false)
+      inactive_staff = create(:staff_member, company: company, role: :moderator, active: false)
 
       get "/api/v1/sessions/schedule_pdf", headers: auth_headers(inactive_staff.user)
 
@@ -85,7 +85,7 @@ RSpec.describe "Api::V1::Sessions", type: :request do
     end
 
     it "creates a session, defaulting capacity from the activity" do
-      post "/api/v1/sessions", params: params, headers: auth_headers(owner)
+      post "/api/v1/sessions", params: params, headers: auth_headers(admin)
 
       expect(response).to have_http_status(:created)
       expect(Session.last.capacity).to eq(activity.capacity)
@@ -110,7 +110,7 @@ RSpec.describe "Api::V1::Sessions", type: :request do
         create(:contract, client: client, contract_type: plan, activity: solo_activity)
 
         expect {
-          post "/api/v1/sessions", params: solo_params(client.id), headers: auth_headers(owner)
+          post "/api/v1/sessions", params: solo_params(client.id), headers: auth_headers(admin)
         }.to change(Booking, :count).by(1)
 
         expect(response).to have_http_status(:created)
@@ -120,7 +120,7 @@ RSpec.describe "Api::V1::Sessions", type: :request do
 
       it "rolls the session back when the member has no covering contract" do
         expect {
-          post "/api/v1/sessions", params: solo_params(client.id), headers: auth_headers(owner)
+          post "/api/v1/sessions", params: solo_params(client.id), headers: auth_headers(admin)
         }.not_to change(Session, :count)
 
         expect(response).to have_http_status(:unprocessable_content)
@@ -130,7 +130,7 @@ RSpec.describe "Api::V1::Sessions", type: :request do
       it "404s for a client from another company" do
         other_client = create(:client)
 
-        post "/api/v1/sessions", params: solo_params(other_client.id), headers: auth_headers(owner)
+        post "/api/v1/sessions", params: solo_params(other_client.id), headers: auth_headers(admin)
 
         expect(response).to have_http_status(:not_found)
       end
@@ -142,7 +142,7 @@ RSpec.describe "Api::V1::Sessions", type: :request do
       other_activity = create(:activity)
       other_session = create(:session, activity: other_activity, company: other_activity.company)
 
-      patch "/api/v1/sessions/#{other_session.id}", params: { session: { capacity: 99 } }, headers: auth_headers(owner)
+      patch "/api/v1/sessions/#{other_session.id}", params: { session: { capacity: 99 } }, headers: auth_headers(admin)
 
       expect(response).to have_http_status(:not_found)
     end

@@ -21,12 +21,31 @@ module Api
             client: {
               id: current_client.id,
               full_name: current_client.full_name,
+              first_name: current_client.first_name,
+              last_name: current_client.last_name,
               email: current_client.email,
               phone: current_client.phone
             },
             gyms: current_client.companies.map { |c| { id: c.id, name: c.name } },
             subscription: subscription_json(company),
             attendance: attendance_json(company)
+          }
+        end
+
+        # PATCH /api/v1/me/profile — { client: { first_name, last_name, phone } }
+        #
+        # The identity a gym can no longer change once it is shared
+        # (Client#identity_shared_beyond?) is the person's own to keep right.
+        # The email stays put: it is the login, and changing it would need
+        # the new address confirmed first.
+        def update
+          current_client.update!(params.require(:client).permit(:first_name, :last_name, :phone))
+          render json: {
+            client: {
+              id: current_client.id, full_name: current_client.full_name,
+              first_name: current_client.first_name, last_name: current_client.last_name,
+              email: current_client.email, phone: current_client.phone
+            }
           }
         end
 

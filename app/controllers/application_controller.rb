@@ -13,14 +13,19 @@ class ApplicationController < ActionController::API
 
     if claims[:client_id]
       @current_client = Client.active.find_by(id: claims[:client_id])
+      # A token from before a password change or "sign out everywhere".
+      @current_client = nil unless @current_client&.token_current?(claims[:token_version])
       render_unauthorized if @current_client.nil?
     else
       @current_user = User.active.find_by(id: claims[:user_id])
+      @current_user = nil unless @current_user&.token_current?(claims[:token_version])
       if claims[:impersonator_id]
-        @current_impersonator = User.active.find_by(id: claims[:impersonator_id])
+        @current_impersonator = User.active.superadmin.find_by(id: claims[:impersonator_id])
         # So every audit log written during this request says who was really
-        # at the keyboard — current_user is the impersonated owner throughout.
+        # at the keyboard — current_user is the impersonated admin throughout.
         Current.impersonator = @current_impersonator
+        # An impersonation whose superadmin is gone, or no longer a superadmin, is over.
+        @current_user = nil if @current_impersonator.nil?
       end
       render_unauthorized if @current_user.nil?
     end
@@ -64,7 +69,7 @@ class ApplicationController < ActionController::API
     @current_client
   end
 
-  # The admin who is impersonating current_user, if this is an impersonation
+  # The superadmin who is impersonating current_user, if this is an impersonation
   # session — nil for a normal login. See JwtService.encode.
   def current_impersonator
     @current_impersonator
@@ -86,9 +91,14 @@ class ApplicationController < ActionController::API
     render json: { error: exception.message }, status: :bad_request
   end
 
+  # The one shape a refused write answers with: the first message to show,
+  # and all of them.
+  def render_errors(record_or_messages, status: :unprocessable_content)
+    messages = record_or_messages.respond_to?(:errors) ? record_or_messages.errors.full_messages : Array(record_or_messages)
+    render json: { error: messages.first || "Validation failed", errors: messages }, status: status
+  end
+
   def render_unprocessable(exception = nil)
-    record = exception&.record
-    errors = record ? record.errors.full_messages : [ exception&.message ].compact
-    render json: { error: errors.first || "Validation failed", errors: errors }, status: :unprocessable_content
+    render_errors(exception&.record || [ exception&.message ].compact)
   end
 end

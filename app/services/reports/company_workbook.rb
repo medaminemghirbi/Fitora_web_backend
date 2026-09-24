@@ -1,8 +1,8 @@
 require "caxlsx"
 
 module Reports
-  # Builds the "export" workbook an owner downloads from
-  # owner/reports — a summary sheet (revenue for the chosen period, broken
+  # Builds the "export" workbook an admin downloads from
+  # admin/reports — a summary sheet (revenue for the chosen period, broken
   # down by payment method, plus client/contract/team counts) and a
   # clients sheet color-coded by active/inactive status. Colors are real
   # Excel cell fills (Axlsx), not just text, since plain CSV can't carry them.
@@ -59,7 +59,7 @@ module Reports
 
     def build_summary_sheet
       package.workbook.add_worksheet(name: "Résumé") do |sheet|
-        sheet.add_row [ "Rapport Fitora — #{company.name}" ], style: title_style
+        sheet.add_row [ "Rapport Gymly — #{company.name}" ], style: title_style
         sheet.add_row [ "Période : #{period.label}" ]
         sheet.add_row [ "Généré le : #{Time.current.strftime('%d/%m/%Y %H:%M')}" ]
         sheet.add_row []

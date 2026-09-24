@@ -1,4 +1,4 @@
-# Fitora — Domain Model
+# Gymly — Domain Model
 
 Concepts, lifecycles and rules. Table shapes live in `DATABASE_DESIGN.md`.
 
@@ -6,7 +6,7 @@ Concepts, lifecycles and rules. Table shapes live in `DATABASE_DESIGN.md`.
 
 ```
                        ┌──────────────┐
-                       │     User     │ owner | staff | admin
+                       │     User     │ admin | staff | superadmin
                        └──────┬───────┘
                  owns         │        seats
             ┌─────────────────┴──────────────┐

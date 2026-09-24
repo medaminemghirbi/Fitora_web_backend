@@ -36,12 +36,12 @@ RSpec.describe "Api::V1::Attendance", type: :request do
     end
   end
 
-  describe "receptionist check-in access" do
-    it "lets a receptionist mark attendance on any session in the company" do
-      receptionist = create(:staff_member, company: company, role: :receptionist)
+  describe "moderator check-in access" do
+    it "lets a moderator mark attendance on any session in the company" do
+      moderator = create(:staff_member, company: company, role: :moderator)
       booking = create(:booking, session: session, status: :confirmed)
 
-      post "/api/v1/attendance", params: { booking_id: booking.id, status: "present" }, headers: auth_headers(receptionist.user)
+      post "/api/v1/attendance", params: { booking_id: booking.id, status: "present" }, headers: auth_headers(moderator.user)
 
       expect(response).to have_http_status(:ok)
     end
@@ -50,10 +50,10 @@ RSpec.describe "Api::V1::Attendance", type: :request do
   it "forbids a manager-less staff role with no bookings/sessions/checkin capability" do
     # Every current staff role has at least one relevant capability, so this
     # documents the intended deny-by-default behavior for an inactive staff member.
-    inactive_receptionist = create(:staff_member, company: company, role: :receptionist, active: false)
+    inactive_moderator = create(:staff_member, company: company, role: :moderator, active: false)
     booking = create(:booking, session: session, status: :confirmed)
 
-    post "/api/v1/attendance", params: { booking_id: booking.id, status: "present" }, headers: auth_headers(inactive_receptionist.user)
+    post "/api/v1/attendance", params: { booking_id: booking.id, status: "present" }, headers: auth_headers(inactive_moderator.user)
 
     expect(response).to have_http_status(:forbidden)
   end

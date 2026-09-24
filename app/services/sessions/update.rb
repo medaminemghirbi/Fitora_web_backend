@@ -1,6 +1,6 @@
 module Sessions
   class Update
-    Result = Struct.new(:success?, :session, :error, keyword_init: true)
+    Result = ServiceResult.define(:session)
 
     def self.call(session:, attributes:)
       new(session: session, attributes: attributes).call

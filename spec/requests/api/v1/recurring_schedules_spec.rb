@@ -1,8 +1,8 @@
 require "rails_helper"
 
 RSpec.describe "Api::V1::RecurringSchedules", type: :request do
-  let(:owner) { create(:user, :owner) }
-  let!(:company) { create(:company, owner: owner) }
+  let(:admin) { create(:user, :admin) }
+  let!(:company) { create(:company, admin: admin) }
   let!(:activity) { create(:activity, company: company) }
 
   describe "GET /api/v1/recurring_schedules" do
@@ -10,7 +10,7 @@ RSpec.describe "Api::V1::RecurringSchedules", type: :request do
       create(:recurring_schedule, activity: activity, company: company, company: company)
       other_schedule = create(:recurring_schedule)
 
-      get "/api/v1/recurring_schedules", headers: auth_headers(owner)
+      get "/api/v1/recurring_schedules", headers: auth_headers(admin)
 
       ids = response.parsed_body["recurring_schedules"].map { |s| s["id"] }
       expect(ids).not_to include(other_schedule.id)
@@ -31,7 +31,7 @@ RSpec.describe "Api::V1::RecurringSchedules", type: :request do
 
       post "/api/v1/recurring_schedules",
            params: { recurring_schedule: { activity_id: other_activity.id, weekdays: [ 1 ], start_time: "18:00", recurrence_type: "weekly", starts_on: Date.current, ends_on: 30.days.from_now.to_date } },
-           headers: auth_headers(owner)
+           headers: auth_headers(admin)
 
       expect(response).to have_http_status(:not_found)
     end
@@ -41,7 +41,7 @@ RSpec.describe "Api::V1::RecurringSchedules", type: :request do
     it "rejects updates to another company's recurring schedule" do
       other_schedule = create(:recurring_schedule)
 
-      patch "/api/v1/recurring_schedules/#{other_schedule.id}", params: { recurring_schedule: { active: false } }, headers: auth_headers(owner)
+      patch "/api/v1/recurring_schedules/#{other_schedule.id}", params: { recurring_schedule: { active: false } }, headers: auth_headers(admin)
 
       expect(response).to have_http_status(:not_found)
     end

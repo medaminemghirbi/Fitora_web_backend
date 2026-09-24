@@ -1,6 +1,6 @@
 FactoryBot.define do
   factory :company do
-    association :owner, factory: [ :user, :owner ]
+    association :admin, factory: [ :user, :admin ]
     sequence(:name) { |n| "Studio #{n}" }
     timezone { "Africa/Tunis" }
     currency { "TND" }
@@ -14,11 +14,11 @@ FactoryBot.define do
 
     after(:create) do |company|
       Role.seed_defaults_for(company) if company.roles.empty?
-      # An owner can run several companies now — current_company resolves
+      # An admin can run several companies now — current_company resolves
       # through active_company, not "the" company, so specs that just
-      # `create(:company, owner: owner)` and expect current_company to be
+      # `create(:company, admin: admin)` and expect current_company to be
       # it need this set, same as the real signup flow does.
-      company.owner.update!(active_company: company) if company.owner.active_company_id.nil?
+      company.admin.update!(active_company: company) if company.admin.active_company_id.nil?
     end
   end
 end

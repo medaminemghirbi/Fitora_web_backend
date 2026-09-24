@@ -109,6 +109,9 @@ GEM
     bullet (8.2.0)
       activesupport (>= 3.0.0)
       uniform_notifier (~> 1.11)
+    bundler-audit (0.9.3)
+      bundler (>= 1.2.0)
+      thor (~> 1.0)
     caxlsx (4.5.0)
       htmlentities (~> 4.3, >= 4.3.4)
       marcel (~> 1.0)
@@ -320,6 +323,10 @@ GEM
     rspec-mocks (3.13.8)
       diff-lcs (>= 1.2.0, < 2.0)
       rspec-support (~> 3.13.0)
+    rspec-openapi (0.34.0)
+      actionpack (>= 5.2.0)
+      rails-dom-testing
+      rspec-core
     rspec-rails (8.0.4)
       actionpack (>= 7.2)
       activesupport (>= 7.2)
@@ -381,6 +388,7 @@ GEM
       fugit (~> 1.8, >= 1.11.1)
       globalid (>= 1.0.1)
       sidekiq (>= 6.5.0)
+    simplecov (1.3.0)
     sshkit (1.25.1)
       base64
       logger
@@ -425,6 +433,7 @@ DEPENDENCIES
   bootsnap
   brakeman
   bullet
+  bundler-audit
   caxlsx
   csv
   debug
@@ -442,6 +451,7 @@ DEPENDENCIES
   rails (~> 8.1.3)
   redis (~> 5)
   rqrcode
+  rspec-openapi
   rspec-rails
   rubocop-rails-omakase
   sentry-rails
@@ -449,6 +459,7 @@ DEPENDENCIES
   sentry-sidekiq
   sidekiq (~> 7)
   sidekiq-cron (~> 2)
+  simplecov
   tzinfo-data
 
 RUBY VERSION

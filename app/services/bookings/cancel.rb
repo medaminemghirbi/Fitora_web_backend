@@ -8,7 +8,7 @@ module Bookings
   # the coach called off) and a rule that stops them doing that is a rule
   # that gets worked around by deleting rows.
   class Cancel
-    Result = Struct.new(:success?, :error, :promoted, keyword_init: true)
+    Result = ServiceResult.define(:promoted)
 
     def self.call(booking:, by: :staff)
       new(booking: booking, by: by).call
@@ -27,11 +27,18 @@ module Bookings
       end
 
       promoted = nil
+      # Only a seat spends a session. A place in the queue spent nothing
+      # (Bookings::Create#join_waitlist), so cancelling it gives nothing back
+      # — it used to, which handed out a free session per queue exit.
+      held_a_seat = booking.confirmed?
 
       ActiveRecord::Base.transaction do
         booking.update!(status: :cancelled, waitlist_position: nil)
-        booking.contract_period&.contract&.restore_booking!
-        promoted = Bookings::PromoteFromWaitlist.call(session: booking.session)
+        if held_a_seat
+          booking.contract_period&.contract&.restore_booking!
+          # A seat freed in a session that is still on is the next in line's.
+          promoted = Bookings::PromoteFromWaitlist.call(session: booking.session) unless booking.session.cancelled?
+        end
       end
 
       Result.new(success?: true, error: nil, promoted: promoted)

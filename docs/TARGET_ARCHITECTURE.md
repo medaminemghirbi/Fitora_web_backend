@@ -1,4 +1,4 @@
-# Fitora — Target Architecture
+# Gymly — Target Architecture
 
 Companion to `CURRENT_ARCHITECTURE.md`. Written 2026-09-19.
 
@@ -10,8 +10,8 @@ These were decided explicitly and are not open:
 |---|---|---|
 | Backend strategy | **Full rewrite of the domain layer** | Models, services, controllers and serializers are rebuilt against a redesigned schema. Data migrates forward (see `MIGRATION_PLAN.md`). |
 | Spaces | **Optional per company** | `spaces` exists; a company turns it on in settings. Session creation only asks for a room when it is on. |
-| Naming | **Keep `Contract` / `ContractType` / `ContractPeriod`** | No rename pass. The product still *says* "plan" and "subscription" in the UI; the domain keeps its current words. `Subscription` continues to mean the gym's own SaaS subscription to Fitora. |
-| UI | **Full redesign of every screen** | All four existing shells are rebuilt, plus a new receptionist shell. |
+| Naming | **Keep `Contract` / `ContractType` / `ContractPeriod`** | No rename pass. The product still *says* "plan" and "subscription" in the UI; the domain keeps its current words. `Subscription` continues to mean the gym's own SaaS subscription to Gymly. |
+| UI | **Full redesign of every screen** | All four existing shells are rebuilt, plus a new moderator shell. |
 
 Three database-level invariants are carried forward verbatim into the new
 schema, because they are correctness properties the application layer cannot
@@ -126,7 +126,7 @@ single-activity rows valid as-is under the new rule. Access checks read
 
 `staff_members.role` (integer enum) is removed. `staff_members.role_id` →
 `Role` is the single source of truth. `Role#key` keeps identifying built-ins
-(`owner`, `moderator`, `receptionist`, `coach`) for the shell routing, and
+(`admin`, `moderator`, `moderator`, `coach`) for the shell routing, and
 `ModuleCatalog` is deleted.
 
 ### 3.5 Waitlist
@@ -175,13 +175,13 @@ that are only conventions rot; this one is tested.
 
 | Audience | Principal | Backend namespace | Shell |
 |---|---|---|---|
-| Platform admin | `User#admin?` | `/api/v1/admin/*` | `/admin` |
-| Owner | `User#owner?` | root + `/owner/*` | `/owner` |
-| Receptionist | `StaffMember` on a role with desk capabilities | root | `/desk` **(new)** |
+| Platform superadmin | `User#superadmin?` | `/api/v1/superadmin/*` | `/superadmin` |
+| Admin | `User#admin?` | root + `/admin/*` | `/admin` |
+| Moderator | `StaffMember` on a role with desk capabilities | root | `/desk` **(new)** |
 | Coach | `StaffMember` on the `coach` role | root + `/coach/*` **(new)** | `/coach` |
 | Client | `Client` | `/me/*` | `/member` |
 
-The receptionist stops borrowing the owner shell. The coach gets its own
+The moderator stops borrowing the admin shell. The coach gets its own
 read-mostly namespace so coach endpoints can be audited as a unit rather
 than as capability exceptions scattered through the staff controllers.
 

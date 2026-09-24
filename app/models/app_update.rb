@@ -1,8 +1,8 @@
-# A platform changelog entry — what the admin team shipped, with optional
+# A platform changelog entry — what the superadmin team shipped, with optional
 # screenshots/screen-recordings. The latest row's `version` is what the
-# owner/admin shells show as the running app version. Publishing one fans
-# out a real-time "system_update" Notification to every other admin (see
-# Api::V1::Admin::AppUpdatesController#create).
+# admin/superadmin shells show as the running app version. Publishing one fans
+# out a real-time "system_update" Notification to every other superadmin (see
+# Api::V1::Superadmin::AppUpdatesController#create).
 class AppUpdate < ApplicationRecord
   ALLOWED_MEDIA_TYPES = %w[
     image/jpeg image/png image/webp image/gif

@@ -9,8 +9,8 @@ require "rails_helper"
 # These are the paths a real all-access contract travels. Each one is a
 # regression test for a NoMethodError on nil.
 RSpec.describe "An all-access contract", type: :request do
-  let(:owner) { create(:user, :owner) }
-  let!(:company) { create(:company, owner: owner) }
+  let(:admin) { create(:user, :admin) }
+  let!(:company) { create(:company, admin: admin) }
   let(:pilates) { create(:activity, company: company, name: "Pilates") }
   let(:boxing) { create(:activity, company: company, name: "Boxe") }
   let(:plan) { create(:contract_type, company: company, name: "Tout accès", activity: pilates) }
@@ -22,7 +22,7 @@ RSpec.describe "An all-access contract", type: :request do
   end
 
   it "serializes with a null activity and says why" do
-    get "/api/v1/contracts/#{contract.id}", headers: auth_headers(owner)
+    get "/api/v1/contracts/#{contract.id}", headers: auth_headers(admin)
 
     expect(response).to have_http_status(:ok)
     body = response.parsed_body["contract"]
@@ -32,21 +32,21 @@ RSpec.describe "An all-access contract", type: :request do
   end
 
   it "appears in the list without raising" do
-    get "/api/v1/contracts", headers: auth_headers(owner)
+    get "/api/v1/contracts", headers: auth_headers(admin)
 
     expect(response).to have_http_status(:ok)
     expect(response.parsed_body["contracts"].map { |c| c["id"] }).to include(contract.id)
   end
 
   it "exports to CSV with the activities it covers, not a blank" do
-    get "/api/v1/data_exchange/contracts/export", headers: auth_headers(owner)
+    get "/api/v1/data_exchange/contracts/export", headers: auth_headers(admin)
 
     expect(response).to have_http_status(:ok)
     expect(response.body).to include("Pilates")
   end
 
   it "prints a receipt" do
-    get "/api/v1/contracts/#{contract.id}/receipt", headers: auth_headers(owner)
+    get "/api/v1/contracts/#{contract.id}/receipt", headers: auth_headers(admin)
 
     expect(response).to have_http_status(:ok)
     expect(response.body).to start_with("%PDF")

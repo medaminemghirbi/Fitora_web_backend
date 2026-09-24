@@ -28,19 +28,26 @@ module Api
             conflicts: generation.conflict_errors
           }, status: :created
         else
-          render json: { error: schedule.errors.full_messages.first, errors: schedule.errors.full_messages }, status: :unprocessable_content
+          render_errors(schedule)
         end
       end
 
-      # PATCH /api/v1/recurring_schedules/:id — active flag only (stopping a
-      # series); changing the recurrence pattern itself means creating a new
-      # schedule, so past-generated sessions never silently shift.
+      # PATCH /api/v1/recurring_schedules/:id — { active: false } stops a
+      # series (RecurringSchedules::Stop); changing the pattern itself means
+      # creating a new schedule, so generated sessions never silently shift.
       def update
-        if @schedule.update(params.permit(:active))
-          render json: { recurring_schedule: RecurringScheduleSerializer.new(@schedule).as_json }
-        else
-          render json: { error: @schedule.errors.full_messages.first, errors: @schedule.errors.full_messages }, status: :unprocessable_content
+        active = params.key?(:active) ? params[:active] : params.dig(:recurring_schedule, :active)
+        unless ActiveModel::Type::Boolean.new.cast(active) == false
+          return render json: { error: "Only stopping a series is supported", errors: [ "Only stopping a series is supported" ] },
+                        status: :unprocessable_content
         end
+
+        result = RecurringSchedules::Stop.call(schedule: @schedule)
+        render json: {
+          recurring_schedule: RecurringScheduleSerializer.new(result.schedule).as_json,
+          cancelled_sessions: result.cancelled_sessions,
+          kept_sessions: result.kept_sessions
+        }
       end
 
       private

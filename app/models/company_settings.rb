@@ -1,6 +1,6 @@
 # How a company has configured the engine to behave.
 #
-# Fitora runs a boxing club, a Pilates studio, an EMS studio and a gym off
+# Gymly runs a boxing club, a Pilates studio, an EMS studio and a gym off
 # one codebase. The difference between them is not a `type` column and not a
 # branch in the code — it is the values in here. A studio turns rooms on and
 # gives itself a twelve-hour cancellation window; a gym leaves rooms off and
@@ -71,7 +71,7 @@ class CompanySettings
   }.freeze
 
   # White-label appearance. primary_color overrides --color-primary in the
-  # app; nil means "use Fitora's own".
+  # app; nil means "use Gymly's own".
   BRANDING = {
     primary_color: nil
   }.freeze

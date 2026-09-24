@@ -1,6 +1,6 @@
 module Contracts
   class Renew
-    Result = Struct.new(:success?, :contract, :error, keyword_init: true)
+    Result = ServiceResult.define(:contract)
 
     def self.call(contract:, created_by:)
       new(contract: contract, created_by: created_by).call

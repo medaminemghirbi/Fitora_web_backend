@@ -50,7 +50,7 @@ RSpec.describe "Api::V1::Auth", type: :request do
       { user: { first_name: "Amine", last_name: "Mghirbi", email: "new@gym.test", password: "password123" } }
     end
 
-    it "opens an owner login and nothing else — the gym is named on the next screen" do
+    it "opens an admin login and nothing else — the gym is named on the next screen" do
       expect { post "/api/v1/auth/register", params: payload }.to change(User, :count).by(1)
 
       expect(response).to have_http_status(:created)
@@ -58,7 +58,7 @@ RSpec.describe "Api::V1::Auth", type: :request do
       expect(response.parsed_body["token"]).to be_present
 
       user = User.find_by(email: "new@gym.test")
-      expect(user.role).to eq("owner")
+      expect(user.role).to eq("admin")
       expect(user.active_company).to be_nil
       expect(Company.count).to eq(0)
     end
@@ -69,9 +69,9 @@ RSpec.describe "Api::V1::Auth", type: :request do
     end
 
     it "never lets the form choose its own role" do
-      post "/api/v1/auth/register", params: { user: payload[:user].merge(role: "admin") }
+      post "/api/v1/auth/register", params: { user: payload[:user].merge(role: "superadmin") }
 
-      expect(User.find_by(email: "new@gym.test").role).to eq("owner")
+      expect(User.find_by(email: "new@gym.test").role).to eq("admin")
     end
 
     it "refuses an address that already has an account" do

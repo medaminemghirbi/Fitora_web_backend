@@ -4,7 +4,7 @@ module Bookings
   # API credentials, gateway error) is reported back as a Result rather than
   # raised, since this is a one-off action a staff member triggers by hand.
   class SendReminder
-    Result = Struct.new(:success?, :error, keyword_init: true)
+    Result = ServiceResult.define
 
     def self.call(booking:)
       new(booking: booking).call

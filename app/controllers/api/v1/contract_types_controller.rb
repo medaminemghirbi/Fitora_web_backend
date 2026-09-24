@@ -29,7 +29,7 @@ module Api
           sync_associations(plan)
           render json: { plan: ContractTypeSerializer.new(plan).as_json }, status: :created
         else
-          render json: { error: plan.errors.full_messages.first, errors: plan.errors.full_messages }, status: :unprocessable_content
+          render_errors(plan)
         end
       end
 
@@ -39,7 +39,7 @@ module Api
           sync_associations(@plan)
           render json: { plan: ContractTypeSerializer.new(@plan).as_json }
         else
-          render json: { error: @plan.errors.full_messages.first, errors: @plan.errors.full_messages }, status: :unprocessable_content
+          render_errors(@plan)
         end
       end
 

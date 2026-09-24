@@ -5,7 +5,7 @@
 # is, and that is derived — see Onboarding::State.
 #
 # Every step is either satisfied by DATA the company owns (it has an
-# activity, it has a plan) or, where there is no such data, by the owner
+# activity, it has a plan) or, where there is no such data, by the admin
 # saying so. Deriving it is what stops the checklist going stale: create an
 # activity from the catalogue page and the step ticks itself, because the
 # step IS "this company has an activity".
@@ -16,7 +16,7 @@ module OnboardingStep
 
   ALL = [
     # The name, timezone, currency and opening hours. Nothing in the
-    # database can tell us an owner has LOOKED at these — a company is
+    # database can tell us an admin has LOOKED at these — a company is
     # created with defaults for all of them — so this one is confirmed by
     # hand and is the only step that works that way.
     Step.new(key: "company", skippable: false),

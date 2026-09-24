@@ -45,7 +45,7 @@ gem "kamal", require: false
 # (config/storage.yml :production).
 gem "aws-sdk-s3", require: false
 
-# Styled .xlsx generation (colored cells) for the owner's Premium report export
+# Styled .xlsx generation (colored cells) for the admin's Premium report export
 gem "caxlsx"
 
 # PDF invoice/receipt generation for the Premium membership receipt download
@@ -82,4 +82,16 @@ group :development, :test do
   # under BULLET=1, so it stays out of the way of a normal test run.
   gem "bullet", require: false
   gem "dotenv-rails"
+
+  # Known-vulnerable gem versions, checked in CI against the ruby-advisory-db.
+  gem "bundler-audit", require: false
+end
+
+group :test do
+  # Coverage, with a floor CI enforces (spec/spec_helper.rb).
+  gem "simplecov", require: false
+
+  # Writes doc/openapi.yaml from the request specs (OPENAPI=1). CI
+  # regenerates it and fails if the API changed without the file changing.
+  gem "rspec-openapi", require: false
 end

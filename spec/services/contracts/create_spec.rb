@@ -5,7 +5,7 @@ RSpec.describe Contracts::Create do
     activity = create(:activity)
     plan = create(:contract_type, company: activity.company, activity: activity, price: 89)
     client = create(:client, company: plan.company)
-    staff = create(:user, :owner)
+    staff = create(:user, :admin)
 
     starts_on = Date.current
     result = described_class.call(client: client, contract_type: plan, activity: activity, created_by: staff, starts_on: starts_on)
@@ -21,7 +21,7 @@ RSpec.describe Contracts::Create do
     activity = create(:activity)
     plan = create(:contract_type, company: activity.company, activity: activity, price: 100)
     client = create(:client, company: plan.company)
-    staff = create(:user, :owner)
+    staff = create(:user, :admin)
 
     result = described_class.call(client: client, contract_type: plan, activity: activity, created_by: staff, discount: 20)
 
@@ -32,7 +32,7 @@ RSpec.describe Contracts::Create do
     activity = create(:activity)
     plan = create(:contract_type, company: activity.company, activity: activity, price: 89)
     client = create(:client, company: plan.company)
-    staff = create(:user, :owner)
+    staff = create(:user, :admin)
 
     result = described_class.call(client: client, contract_type: plan, activity: activity, created_by: staff, collect_payment: true, payment_method: "bank_transfer")
 
@@ -45,7 +45,7 @@ RSpec.describe Contracts::Create do
     activity = create(:activity)
     plan = create(:contract_type, company: activity.company, activity: activity, price: 100)
     client = create(:client, company: plan.company)
-    staff = create(:user, :owner)
+    staff = create(:user, :admin)
 
     result = described_class.call(client: client, contract_type: plan, activity: activity, created_by: staff, discount: 30, collect_payment: true, payment_method: "cash")
 
@@ -57,7 +57,7 @@ RSpec.describe Contracts::Create do
     activity = create(:activity)
     plan = create(:contract_type, company: activity.company, activity: activity, price: 50)
     client = create(:client, company: plan.company)
-    staff = create(:user, :owner)
+    staff = create(:user, :admin)
 
     result = described_class.call(client: client, contract_type: plan, activity: activity, created_by: staff, collect_payment: true, payment_method: "card")
 
@@ -68,7 +68,7 @@ RSpec.describe Contracts::Create do
     activity = create(:activity)
     plan = create(:contract_type, company: activity.company, activity: activity, price: 89)
     client = create(:client, company: plan.company)
-    staff = create(:user, :owner)
+    staff = create(:user, :admin)
 
     result = described_class.call(client: client, contract_type: plan, activity: activity, created_by: staff)
 
@@ -83,7 +83,7 @@ RSpec.describe Contracts::Create do
     plan = create(:contract_type, company: company, activity: yoga, price: 89)
     create(:contract_type_activity, contract_type: plan, activity: crossfit, price: 89)
     client = create(:client, company: plan.company)
-    staff = create(:user, :owner)
+    staff = create(:user, :admin)
 
     first = described_class.call(client: client, contract_type: plan, activity: yoga, created_by: staff)
     second = described_class.call(client: client, contract_type: plan, activity: crossfit, created_by: staff)
@@ -98,7 +98,7 @@ RSpec.describe Contracts::Create do
     activity = create(:activity)
     plan = create(:contract_type, company: activity.company, activity: activity, price: 89)
     client = create(:client, company: plan.company)
-    staff = create(:user, :owner)
+    staff = create(:user, :admin)
 
     first = described_class.call(client: client, contract_type: plan, activity: activity, created_by: staff)
     second = described_class.call(client: client, contract_type: plan, activity: activity, created_by: staff)
@@ -115,7 +115,7 @@ RSpec.describe Contracts::Create do
     plan = create(:contract_type, company: company, activity: boxe, price: 50)
     create(:contract_type_activity, contract_type: plan, activity: pilates, price: 70)
     client = create(:client, company: plan.company)
-    staff = create(:user, :owner)
+    staff = create(:user, :admin)
 
     boxe_contract = described_class.call(client: client, contract_type: plan, activity: boxe, created_by: staff)
     pilates_contract = described_class.call(client: client, contract_type: plan, activity: pilates, created_by: staff)
@@ -128,7 +128,7 @@ RSpec.describe Contracts::Create do
     plan = create(:contract_type, price: 89)
     unpriced = create(:activity, company: plan.company, name: "Aquagym")
     client = create(:client, company: plan.company)
-    staff = create(:user, :owner)
+    staff = create(:user, :admin)
 
     result = described_class.call(client: client, contract_type: plan, activity: unpriced, created_by: staff)
 
@@ -141,7 +141,7 @@ RSpec.describe Contracts::Create do
     activity = create(:activity)
     plan = create(:contract_type, company: activity.company, activity: activity, price: 70)
     client = create(:client, company: plan.company)
-    staff = create(:user, :owner)
+    staff = create(:user, :admin)
 
     contract = described_class.call(client: client, contract_type: plan, activity: activity, created_by: staff).contract
     plan.contract_type_activities.find_by(activity: activity).update!(price: 80)

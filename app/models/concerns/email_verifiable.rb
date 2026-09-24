@@ -1,6 +1,6 @@
-# Shared by User (owner/staff — never admin) and Client.
+# Shared by User (admin/staff — never superadmin) and Client.
 #
-# For an owner it is a gate: a gym opening its own account confirms the
+# For an admin it is a gate: a gym opening its own account confirms the
 # address before anything past sign-up opens (see
 # Api::V1::BaseController#require_confirmed_email!), so the trial never
 # starts on a mistyped address nobody reads. For staff and members — whose

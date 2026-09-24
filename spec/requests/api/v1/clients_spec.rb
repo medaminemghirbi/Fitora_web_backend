@@ -1,19 +1,19 @@
 require "rails_helper"
 
 RSpec.describe "Api::V1::Clients", type: :request do
-  let(:owner) { create(:user, :owner) }
-  let!(:company) { create(:company, owner: owner) }
+  let(:admin) { create(:user, :admin) }
+  let!(:company) { create(:company, admin: admin) }
 
   describe "POST /api/v1/clients" do
     it "creates a client with only first name, last name, and phone required" do
-      post "/api/v1/clients", params: { client: { first_name: "Ahmed", last_name: "Ben Ali", phone: "+216 20 000 000" } }, headers: auth_headers(owner)
+      post "/api/v1/clients", params: { client: { first_name: "Ahmed", last_name: "Ben Ali", phone: "+216 20 000 000" } }, headers: auth_headers(admin)
 
       expect(response).to have_http_status(:created)
       expect(response.parsed_body["client"]["full_name"]).to eq("Ahmed Ben Ali")
     end
 
     it "rejects a client with no phone" do
-      post "/api/v1/clients", params: { client: { first_name: "Ahmed", last_name: "Ben Ali" } }, headers: auth_headers(owner)
+      post "/api/v1/clients", params: { client: { first_name: "Ahmed", last_name: "Ben Ali" } }, headers: auth_headers(admin)
 
       expect(response).to have_http_status(:unprocessable_content)
     end
@@ -21,13 +21,13 @@ RSpec.describe "Api::V1::Clients", type: :request do
     it "is never blocked by any client count — no plans, no limits" do
       create_list(:client, 5, company: company)
 
-      post "/api/v1/clients", params: { client: { first_name: "Ahmed", last_name: "Ben Ali", phone: "20000000" } }, headers: auth_headers(owner)
+      post "/api/v1/clients", params: { client: { first_name: "Ahmed", last_name: "Ben Ali", phone: "20000000" } }, headers: auth_headers(admin)
 
       expect(response).to have_http_status(:created)
     end
 
     it "logs an audit entry for the new client" do
-      post "/api/v1/clients", params: { client: { first_name: "Ahmed", last_name: "Ben Ali", phone: "20000000" } }, headers: auth_headers(owner)
+      post "/api/v1/clients", params: { client: { first_name: "Ahmed", last_name: "Ben Ali", phone: "20000000" } }, headers: auth_headers(admin)
 
       log = AuditLog.last
       expect(log.action).to eq("client.created")
@@ -40,7 +40,7 @@ RSpec.describe "Api::V1::Clients", type: :request do
       create(:client, company: company, first_name: "Ahmed", last_name: "Ben Ali", phone: "20111111")
       create(:client, company: company, first_name: "Leila", last_name: "Gharbi", phone: "20222222")
 
-      get "/api/v1/clients", params: { search: "ahmed" }, headers: auth_headers(owner)
+      get "/api/v1/clients", params: { search: "ahmed" }, headers: auth_headers(admin)
 
       names = response.parsed_body["clients"].map { |c| c["full_name"] }
       expect(names).to eq([ "Ahmed Ben Ali" ])
@@ -51,7 +51,7 @@ RSpec.describe "Api::V1::Clients", type: :request do
       create(:contract, client: with_contract, company: company, status: :active, expires_at: 10.days.from_now)
       without_contract = create(:client, company: company)
 
-      get "/api/v1/clients", params: { status: "contract_active" }, headers: auth_headers(owner)
+      get "/api/v1/clients", params: { status: "contract_active" }, headers: auth_headers(admin)
 
       ids = response.parsed_body["clients"].map { |c| c["id"] }
       expect(ids).to include(with_contract.id)
@@ -64,7 +64,7 @@ RSpec.describe "Api::V1::Clients", type: :request do
       create(:contract, client: holder, company: company, contract_type: plan)
       outsider = create(:client, company: company)
 
-      get "/api/v1/clients", params: { contract_type_id: plan.id }, headers: auth_headers(owner)
+      get "/api/v1/clients", params: { contract_type_id: plan.id }, headers: auth_headers(admin)
 
       ids = response.parsed_body["clients"].map { |c| c["id"] }
       expect(ids).to eq([ holder.id ])
@@ -77,7 +77,7 @@ RSpec.describe "Api::V1::Clients", type: :request do
       all_access = create(:client, company: company)
       create(:contract, client: all_access, company: company, contract_type: plan, activity: nil)
 
-      get "/api/v1/clients", params: { activity_id: yoga.id }, headers: auth_headers(owner)
+      get "/api/v1/clients", params: { activity_id: yoga.id }, headers: auth_headers(admin)
 
       ids = response.parsed_body["clients"].map { |c| c["id"] }
       expect(ids).to eq([ all_access.id ])
@@ -87,7 +87,7 @@ RSpec.describe "Api::V1::Clients", type: :request do
       old_hand = create(:client, company: company, joined_at: 2.years.ago)
       newcomer = create(:client, company: company, joined_at: 2.days.ago)
 
-      get "/api/v1/clients", params: { joined_from: 1.month.ago.to_date.to_s }, headers: auth_headers(owner)
+      get "/api/v1/clients", params: { joined_from: 1.month.ago.to_date.to_s }, headers: auth_headers(admin)
 
       ids = response.parsed_body["clients"].map { |c| c["id"] }
       expect(ids).to eq([ newcomer.id ])
@@ -98,10 +98,10 @@ RSpec.describe "Api::V1::Clients", type: :request do
       first_in = create(:client, company: company, first_name: "Zora", joined_at: 3.years.ago)
       last_in = create(:client, company: company, first_name: "Amel", joined_at: 1.day.ago)
 
-      get "/api/v1/clients", params: { sort: "joined", direction: "desc" }, headers: auth_headers(owner)
+      get "/api/v1/clients", params: { sort: "joined", direction: "desc" }, headers: auth_headers(admin)
       expect(response.parsed_body["clients"].map { |c| c["id"] }).to eq([ last_in.id, first_in.id ])
 
-      get "/api/v1/clients", params: { sort: "; DROP TABLE clients" }, headers: auth_headers(owner)
+      get "/api/v1/clients", params: { sort: "; DROP TABLE clients" }, headers: auth_headers(admin)
       expect(response).to have_http_status(:ok)
       expect(response.parsed_body["clients"].map { |c| c["id"] }).to eq([ last_in.id, first_in.id ])
     end
@@ -112,7 +112,7 @@ RSpec.describe "Api::V1::Clients", type: :request do
       create(:contract, client: holder, company: company, contract_type: plan, status: :active, expires_at: 10.days.from_now)
       create(:client, company: company)
 
-      get "/api/v1/clients", params: { contract_type_id: plan.id }, headers: auth_headers(owner)
+      get "/api/v1/clients", params: { contract_type_id: plan.id }, headers: auth_headers(admin)
 
       expect(response.parsed_body["counts"]["all"]).to eq(1)
       expect(response.parsed_body["counts"]["no_contract"]).to eq(0)
@@ -122,7 +122,7 @@ RSpec.describe "Api::V1::Clients", type: :request do
       create(:client, company: company)
       other_org_client = create(:client)
 
-      get "/api/v1/clients", headers: auth_headers(owner)
+      get "/api/v1/clients", headers: auth_headers(admin)
 
       ids = response.parsed_body["clients"].map { |c| c["id"] }
       expect(ids).not_to include(other_org_client.id)
@@ -136,11 +136,11 @@ RSpec.describe "Api::V1::Clients", type: :request do
       expect(response).to have_http_status(:forbidden)
     end
 
-    it "lets a receptionist browse the client list" do
-      receptionist = create(:staff_member, company: company, role: :receptionist)
+    it "lets a moderator browse the client list" do
+      moderator = create(:staff_member, company: company, role: :moderator)
       create(:client, company: company)
 
-      get "/api/v1/clients", headers: auth_headers(receptionist.user)
+      get "/api/v1/clients", headers: auth_headers(moderator.user)
 
       expect(response).to have_http_status(:ok)
     end
@@ -150,7 +150,7 @@ RSpec.describe "Api::V1::Clients", type: :request do
     it "returns the client's overview payload including outstanding balance and attendance rate" do
       client = create(:client, company: company)
 
-      get "/api/v1/clients/#{client.id}", headers: auth_headers(owner)
+      get "/api/v1/clients/#{client.id}", headers: auth_headers(admin)
 
       expect(response).to have_http_status(:ok)
       body = response.parsed_body["client"]
@@ -165,7 +165,7 @@ RSpec.describe "Api::V1::Clients", type: :request do
       create(:client, company: company, first_name: "Dorra", active: false)
       create(:client, company: company, first_name: "Sofiane", active: true)
 
-      get "/api/v1/clients", headers: auth_headers(owner)
+      get "/api/v1/clients", headers: auth_headers(admin)
 
       counts = response.parsed_body["counts"]
       expect(counts["all"]).to eq(3)
@@ -178,7 +178,7 @@ RSpec.describe "Api::V1::Clients", type: :request do
       create(:client, company: company, first_name: "Rania", active: true)
       create(:client, company: company, first_name: "Dorra", active: false)
 
-      get "/api/v1/clients", params: { search: "rania", status: "inactive" }, headers: auth_headers(owner)
+      get "/api/v1/clients", params: { search: "rania", status: "inactive" }, headers: auth_headers(admin)
 
       counts = response.parsed_body["counts"]
       expect(counts["all"]).to eq(1)
@@ -193,7 +193,7 @@ RSpec.describe "Api::V1::Clients", type: :request do
 
     before { create(:contract_type_activity, contract_type: plan, activity: activity, price: 120) }
 
-    def sign_up(subscription, user: owner)
+    def sign_up(subscription, user: admin)
       post "/api/v1/clients",
            params: {
              client: { first_name: "Rania", last_name: "Ferjani", phone: "20000001" },
@@ -227,7 +227,7 @@ RSpec.describe "Api::V1::Clients", type: :request do
     it "still records a member on their own when no plan is picked" do
       post "/api/v1/clients",
            params: { client: { first_name: "Sans", last_name: "Abonnement", phone: "20000002" } },
-           headers: auth_headers(owner)
+           headers: auth_headers(admin)
 
       expect(response).to have_http_status(:created)
       expect(response.parsed_body["contract"]).to be_nil
@@ -251,7 +251,7 @@ RSpec.describe "Api::V1::Clients", type: :request do
 
     it "refuses the sale to a login that may record members but not sell plans" do
       limited = create(:role, company: company, key: "front-desk", name: "Accueil", permissions: %w[clients])
-      staff = create(:staff_member, company: company, role: :receptionist, assigned_role: limited)
+      staff = create(:staff_member, company: company, role: :moderator, assigned_role: limited)
 
       expect { sign_up({ contract_type_id: plan.id, activity_id: activity.id }, user: staff.user) }
         .not_to change(Client, :count)

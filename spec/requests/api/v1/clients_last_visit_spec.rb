@@ -2,8 +2,8 @@ require "rails_helper"
 
 # "Dernière venue" on the member list: the column that says who is drifting.
 RSpec.describe "Api::V1::Clients last visit", type: :request do
-  let(:owner) { create(:user, :owner) }
-  let!(:company) { create(:company, owner: owner) }
+  let(:admin) { create(:user, :admin) }
+  let!(:company) { create(:company, admin: admin) }
   let(:activity) { create(:activity, company: company) }
 
   def attended!(client, at)
@@ -15,7 +15,7 @@ RSpec.describe "Api::V1::Clients last visit", type: :request do
     member = create(:client, company: company)
     attended!(member, 3.days.ago)
 
-    get "/api/v1/clients", headers: auth_headers(owner)
+    get "/api/v1/clients", headers: auth_headers(admin)
 
     row = response.parsed_body["clients"].find { |c| c["id"] == member.id }
     expect(Time.zone.parse(row["last_visit_at"])).to be_within(1.minute).of(3.days.ago)
@@ -26,7 +26,7 @@ RSpec.describe "Api::V1::Clients last visit", type: :request do
     attended!(member, 30.days.ago)
     attended!(member, 2.days.ago)
 
-    get "/api/v1/clients", headers: auth_headers(owner)
+    get "/api/v1/clients", headers: auth_headers(admin)
 
     row = response.parsed_body["clients"].first
     expect(Time.zone.parse(row["last_visit_at"])).to be_within(1.minute).of(2.days.ago)
@@ -35,7 +35,7 @@ RSpec.describe "Api::V1::Clients last visit", type: :request do
   it "sends null for someone who has never come" do
     create(:client, company: company)
 
-    get "/api/v1/clients", headers: auth_headers(owner)
+    get "/api/v1/clients", headers: auth_headers(admin)
 
     expect(response.parsed_body["clients"].first["last_visit_at"]).to be_nil
   end
@@ -46,7 +46,7 @@ RSpec.describe "Api::V1::Clients last visit", type: :request do
                                starts_at: 2.days.ago, ends_at: 2.days.ago + 1.hour)
     create(:booking, client: member, session: session, status: :cancelled)
 
-    get "/api/v1/clients", headers: auth_headers(owner)
+    get "/api/v1/clients", headers: auth_headers(admin)
 
     expect(response.parsed_body["clients"].first["last_visit_at"]).to be_nil
   end
@@ -60,7 +60,7 @@ RSpec.describe "Api::V1::Clients last visit", type: :request do
                                  starts_at: 1.day.ago, ends_at: 1.day.ago + 1.hour)
     create(:booking, client: person, session: elsewhere, status: :confirmed)
 
-    get "/api/v1/clients", headers: auth_headers(owner)
+    get "/api/v1/clients", headers: auth_headers(admin)
 
     expect(response.parsed_body["clients"].first["last_visit_at"]).to be_nil
   end
@@ -72,7 +72,7 @@ RSpec.describe "Api::V1::Clients last visit", type: :request do
     counter = ->(_n, _s, _f, _i, payload) { queries += 1 if payload[:sql].include?('MAX("sessions"."starts_at")') }
 
     ActiveSupport::Notifications.subscribed(counter, "sql.active_record") do
-      get "/api/v1/clients", headers: auth_headers(owner)
+      get "/api/v1/clients", headers: auth_headers(admin)
     end
 
     expect(response).to have_http_status(:ok)

@@ -33,7 +33,7 @@ RSpec.describe "Rack::Attack throttling on login", type: :request do
     end
 
     it "does not throttle a normal, low-volume login" do
-      user = create(:user, :owner, password: "password123")
+      user = create(:user, :admin, password: "password123")
 
       post "/api/v1/auth/login", params: { email: user.email, password: "password123" }
 

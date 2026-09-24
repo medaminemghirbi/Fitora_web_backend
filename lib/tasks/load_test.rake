@@ -29,25 +29,25 @@ namespace :load_test do
     accounts = {
       base_url: ENV.fetch("LOAD_TEST_BASE_URL", "http://localhost:3000"),
       password: password,
-      owners: [],
+      admins: [],
       clients: []
     }
 
     started = Time.current
 
     companies_count.times do |i|
-      owner = User.create!(
-        first_name: "Owner", last_name: i.to_s,
-        email: "loadtest-owner-#{i}@fitora.load",
-        password: password, role: :owner, locale: "fr",
-        # An unconfirmed owner reaches nothing (BaseController#require_confirmed_email!).
+      admin = User.create!(
+        first_name: "Admin", last_name: i.to_s,
+        email: "loadtest-admin-#{i}@gymly.load",
+        password: password, role: :admin, locale: "fr",
+        # An unconfirmed admin reaches nothing (BaseController#require_confirmed_email!).
         email_verified_at: Time.current
       )
 
       company = Company.new(name: "Load Test Gym #{i}", timezone: "Africa/Tunis", currency: "TND", locale: "fr")
-      company.owner = owner
+      company.admin = admin
       company.save!
-      owner.update!(active_company: company)
+      admin.update!(active_company: company)
 
       Role.seed_defaults_for(company)
       company.create_subscription!(active: true, billing_period: :monthly)
@@ -81,7 +81,7 @@ namespace :load_test do
       client_rows = clients_per_company.times.map do |c|
         {
           id: SecureRandom.uuid, company_id: company.id, first_name: "Client", last_name: "#{i}-#{c}",
-          email: "loadtest-client-#{i}-#{c}@fitora.load", phone: "+216 2#{format('%07d', c)}",
+          email: "loadtest-client-#{i}-#{c}@gymly.load", phone: "+216 2#{format('%07d', c)}",
           password_digest: password_digest, active: true, joined_at: now, created_at: now, updated_at: now
         }
       end
@@ -102,7 +102,7 @@ namespace :load_test do
       end
       ContractPeriod.insert_all(period_rows)
 
-      accounts[:owners] << { email: owner.email, company_id: company.id, company_name: company.name }
+      accounts[:admins] << { email: admin.email, company_id: company.id, company_name: company.name }
       accounts[:clients].concat(client_rows.map { |c| { email: c[:email], company_id: company.id } })
 
       puts "  [#{i + 1}/#{companies_count}] #{company.name}: #{clients_per_company} clients, #{sessions_per_company} sessions"
@@ -114,14 +114,14 @@ namespace :load_test do
     File.write(out_file, JSON.pretty_generate(accounts))
 
     elapsed = (Time.current - started).round(1)
-    puts "Done in #{elapsed}s — #{accounts[:owners].size} owners, #{accounts[:clients].size} clients. Wrote #{out_file}"
+    puts "Done in #{elapsed}s — #{accounts[:admins].size} admins, #{accounts[:clients].size} clients. Wrote #{out_file}"
   end
 
   desc "Remove all load-test seeded data"
   task clear: :environment do
     count = 0
-    User.where("email LIKE 'loadtest-owner-%@fitora.load'").find_each do |owner|
-      owner.destroy # dependent: :destroy on User#companies takes every one of them with it
+    User.where("email LIKE 'loadtest-admin-%@gymly.load'").find_each do |admin|
+      admin.destroy # dependent: :destroy on User#companies takes every one of them with it
       count += 1
     end
     puts "Cleared #{count} load-test companies and everything under them."

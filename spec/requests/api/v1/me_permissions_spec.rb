@@ -1,25 +1,25 @@
 require "rails_helper"
 
 RSpec.describe "Api::V1 GET /api/v1/me/permissions", type: :request do
-  let(:owner) { create(:user, :owner) }
-  let!(:company) { create(:company, owner: owner) }
+  let(:admin) { create(:user, :admin) }
+  let!(:company) { create(:company, admin: admin) }
 
-  it "gives the owner every permission" do
-    get "/api/v1/me/permissions", headers: auth_headers(owner)
+  it "gives the admin every permission" do
+    get "/api/v1/me/permissions", headers: auth_headers(admin)
 
     expect(response).to have_http_status(:ok)
     body = response.parsed_body
-    expect(body["role"]["key"]).to eq("owner")
+    expect(body["role"]["key"]).to eq("admin")
     expect(body["permissions"]).to match_array(Permission::ALL)
   end
 
   it "returns a staff login's resolved role permissions" do
-    staff = create(:staff_member, company: company, role: :receptionist)
+    staff = create(:staff_member, company: company, role: :moderator)
 
     get "/api/v1/me/permissions", headers: auth_headers(staff.user)
 
     body = response.parsed_body
-    expect(body["role"]["key"]).to eq("receptionist")
+    expect(body["role"]["key"]).to eq("moderator")
     expect(body["permissions"]).to include("bookings", "payments", "sessions")
     expect(body["permissions"]).not_to include("contract_types")
   end
@@ -33,10 +33,10 @@ RSpec.describe "Api::V1 GET /api/v1/me/permissions", type: :request do
     expect(response.parsed_body["permissions"]).to match_array(%w[clients bookings checkin])
   end
 
-  it "gives a platform admin no company permissions" do
-    admin = create(:user, :admin)
+  it "gives a platform superadmin no company permissions" do
+    superadmin = create(:user, :superadmin)
 
-    get "/api/v1/me/permissions", headers: auth_headers(admin)
+    get "/api/v1/me/permissions", headers: auth_headers(superadmin)
 
     expect(response.parsed_body).to eq("role" => nil, "permissions" => [])
   end

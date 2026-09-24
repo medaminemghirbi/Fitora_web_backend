@@ -12,19 +12,32 @@ module Notifications
 
     def notify(period)
       contract = period.contract
-      owner = contract&.company&.owner
-      return if owner.nil?
+      tell_member(period, contract) if contract
+      admin = contract&.company&.admin
+      return if admin.nil?
 
       Notifications::Push.call(
-        recipient: owner,
+        recipient: admin,
         kind: "contract_expiring",
         subject: period,
         dedup_key: "contract_exp:#{period.id}:#{period.expires_at.to_date}",
-        url: "/owner/clients/#{contract.client_id}",
+        url: "/admin/clients/#{contract.client_id}",
         data: {
           client_name: contract.client&.full_name,
           contract_type: contract.contract_type&.name,
           expires_at: period.expires_at&.iso8601
+        }
+      )
+    end
+
+    # The member hears it too, on their own app: renewing is their decision.
+    def tell_member(period, contract)
+      Notifications::Push.call(
+        recipient: contract.client, company: contract.company, kind: "subscription_expiring", subject: period,
+        dedup_key: "subscription_expiring:#{period.id}:#{period.expires_at.to_date}", url: "/member/profile",
+        data: {
+          plan_name: contract.contract_type&.name, expires_at: period.expires_at&.iso8601,
+          gym_name: contract.company&.name
         }
       )
     end

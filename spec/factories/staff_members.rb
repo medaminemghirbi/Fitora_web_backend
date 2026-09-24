@@ -5,11 +5,10 @@ FactoryBot.define do
     active { true }
 
     transient do
-      # Specs say `create(:staff_member, role: :receptionist)` in a hundred
+      # Specs say `create(:staff_member, role: :moderator)` in a hundred
       # places. There is no `role` column any more, so the transient resolves
-      # the company's built-in Role with that key — which is what the enum
-      # was standing in for all along.
-      role { :receptionist }
+      # the company's built-in Role with that key.
+      role { :moderator }
     end
 
     assigned_role do

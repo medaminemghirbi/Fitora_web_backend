@@ -1,4 +1,4 @@
-# Fitora — UI Architecture
+# Gymly — UI Architecture
 
 Angular, standalone components, signals. Full redesign of every screen across
 five shells.
@@ -16,9 +16,9 @@ What the redesign does replace:
 
 | Item | Problem | Action |
 |---|---|---|
-| `_adminlte.scss` (401 lines) | An admin-template skin. The product should not look like AdminLTE. | Delete; fold anything still needed into component styles. |
-| `_fitora.scss` (1208 lines) | A global stylesheet doing component work, which is why screens drift. | **Phase 7, not Phase 5.** It is mostly a Bootstrap *override* layer — `.btn`, `.form-control`, `.table`, `.alert`, `.badge` restyled with tokens — and those classes appear across 49 templates. It cannot shrink until the templates stop using them, which is the redesign itself. The "under 250 lines" target holds only *after* that. |
-| `_bootstrap-vars.scss` | Bootstrap coupling on a design system that no longer needs it. | **Done (Phase 7).** Bootstrap removed entirely: its utilities reproduced in `styles/_utilities.scss` against Fitora's tokens, its five unthemed components in `styles/_leftovers.scss`. Stylesheet 420 kB → 171 kB. `scripts/check-css.mjs` fails the build on any class a template uses with no rule behind it. |
+| `_adminlte.scss` (401 lines) | A superadmin-template skin. The product should not look like SuperadminLTE. | Delete; fold anything still needed into component styles. |
+| `_gymly.scss` (1208 lines) | A global stylesheet doing component work, which is why screens drift. | **Phase 7, not Phase 5.** It is mostly a Bootstrap *override* layer — `.btn`, `.form-control`, `.table`, `.alert`, `.badge` restyled with tokens — and those classes appear across 49 templates. It cannot shrink until the templates stop using them, which is the redesign itself. The "under 250 lines" target holds only *after* that. |
+| `_bootstrap-vars.scss` | Bootstrap coupling on a design system that no longer needs it. | **Done (Phase 7).** Bootstrap removed entirely: its utilities reproduced in `styles/_utilities.scss` against Gymly's tokens, its five unthemed components in `styles/_leftovers.scss`. Stylesheet 420 kB → 171 kB. `scripts/check-css.mjs` fails the build on any class a template uses with no rule behind it. |
 | Bootstrap Icons (`bi-*`) in nav blueprints | Icon set chosen by the template, not the brand. | One icon decision, applied everywhere, made before any screen work starts. |
 
 ## 2. Directory structure
@@ -37,11 +37,11 @@ src/app/
     components/     composed, still domain-free
     pipes/ utils/
   layout/
-    admin-shell/  owner-shell/  desk-shell/  coach-shell/  member-shell/
+    superadmin-shell/  admin-shell/  desk-shell/  coach-shell/  member-shell/
   features/
     landing/ auth/
-    admin/        companies, company-detail, metrics, pricing, support, updates
-    owner/        dashboard, clients, calendar, sessions, bookings, contracts,
+    superadmin/        companies, company-detail, metrics, pricing, support, updates
+    admin/        dashboard, clients, calendar, sessions, bookings, contracts,
                   plans, activities, spaces, payments, revenue, team, roles,
                   settings, subscription, onboarding, notifications
     desk/         dashboard, search, check-in, quick-book, quick-sell   (new)
@@ -58,13 +58,13 @@ template or ~200 of class is split.
 
 | Shell | Route | Layout | Density | Primary device |
 |---|---|---|---|---|
-| Admin | `/admin` | dark aubergine rail, data-first | high | desktop |
-| Owner | `/owner` | top navbar + contextual left rail, ⌘K palette | medium | desktop, responsive |
+| Superadmin | `/superadmin` | dark aubergine rail, data-first | high | desktop |
+| Admin | `/admin` | top navbar + contextual left rail, ⌘K palette | medium | desktop, responsive |
 | Desk | `/desk` | **single-column, search-first, oversized touch targets** | low | tablet + desktop |
 | Coach | `/coach` | day-centric, list-first | low | mobile-first |
 | Member | `/member` | bottom tab bar, card-first | low | mobile-first |
 
-### Desk (receptionist) — new
+### Desk (moderator) — new
 The screen answers one question: *who is in front of me and what do they
 need?* A persistent search field owns the top of every page; typing a name
 resolves to a member card carrying their subscription state, today's booking,
@@ -82,7 +82,7 @@ Adds what the portal lacks today: active subscription with **remaining
 sessions as the headline number**, booking history, attendance, notifications,
 and gym switching for a person who belongs to more than one.
 
-### Owner — rebuilt
+### Admin — rebuilt
 Keeps the navbar + filter-rail + ⌘K direction, which is sound. The dashboard
 stops being a wall of statistics and becomes **today's operations with the
 exceptions surfaced**: expiring subscriptions, unpaid balances, sessions
@@ -90,18 +90,18 @@ without a coach, sessions over capacity.
 
 ## 4. Navigation
 
-Driven by `NAV_BLUEPRINT` filtered at runtime by capability and `ownerOnly` —
+Driven by `NAV_BLUEPRINT` filtered at runtime by capability and `adminOnly` —
 already the right mechanism, extended to five shells. Each shell declares its
 own blueprint; no shell renders another's items. Adding a capability to a
 role changes the menu with no code change.
 
 | Shell | Items |
 |---|---|
-| Owner | Dashboard · Members · Schedule · Subscriptions (active / plans / activities / spaces) · Payments · Revenue · Team · Reports · Settings |
+| Admin | Dashboard · Members · Schedule · Subscriptions (active / plans / activities / spaces) · Payments · Revenue · Team · Reports · Settings |
 | Desk | Dashboard · Members · Check-in · Bookings · Schedule · Subscriptions |
 | Coach | Today · Schedule · Members · Attendance · Profile |
 | Member | Home · Book · My schedule · Subscription · Profile |
-| Admin | Companies · Metrics · Pricing · Support · Updates |
+| Superadmin | Companies · Metrics · Pricing · Support · Updates |
 
 ## 5. Design system
 
@@ -143,7 +143,7 @@ Non-negotiable per state:
 Every form control has a label. Focus is visible and never removed. Modals
 trap focus and close on Escape. Colour is never the only carrier of meaning
 (status badges carry text). Contrast meets WCAG AA in both themes — the token
-palette is validated, not assumed. The owner and admin shells are fully
+palette is validated, not assumed. The admin and superadmin shells are fully
 keyboard-operable, ⌘K included.
 
 ## 7. State and data
@@ -154,7 +154,7 @@ frontend may *mirror* a rule to disable a button early (for example, hiding
 "cancel" inside the cancellation window), and the backend rejects it anyway.
 
 Route-level lazy loading everywhere (already the case). Each shell is a
-separate bundle; a member never downloads the owner shell.
+separate bundle; a member never downloads the admin shell.
 
 ## 8. Testing
 

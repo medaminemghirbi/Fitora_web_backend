@@ -1,20 +1,20 @@
 require "rails_helper"
 
 RSpec.describe "Api::V1 GET /api/v1/bootstrap", type: :request do
-  let(:owner) { create(:user, :owner) }
-  let!(:company) { create(:company, owner: owner) }
+  let(:admin) { create(:user, :admin) }
+  let!(:company) { create(:company, admin: admin) }
   let!(:subscription) { create(:subscription, company: company) }
   let!(:invoice) { create(:invoice, :current, company: company) }
 
-  it "hydrates the owner shell in one call" do
-    get "/api/v1/bootstrap", headers: auth_headers(owner)
+  it "hydrates the admin shell in one call" do
+    get "/api/v1/bootstrap", headers: auth_headers(admin)
 
     expect(response).to have_http_status(:ok)
     body = response.parsed_body
-    expect(body["user"]["id"]).to eq(owner.id)
+    expect(body["user"]["id"]).to eq(admin.id)
     expect(body["company"]["id"]).to eq(company.id)
     expect(body["branding"]["name"]).to eq(company.name)
-    expect(body["role"]["key"]).to eq("owner")
+    expect(body["role"]["key"]).to eq("admin")
     expect(body["permissions"]).to match_array(Permission::ALL)
     expect(body["modules"]).to match_array(company.enabled_module_keys)
     expect(body["modules"]).to include("base", "clients", "classes", "hr")
@@ -29,7 +29,7 @@ RSpec.describe "Api::V1 GET /api/v1/bootstrap", type: :request do
   end
 
   it "omits the onboarding flow for staff" do
-    staff = create(:staff_member, company: company, role: :receptionist)
+    staff = create(:staff_member, company: company, role: :moderator)
 
     get "/api/v1/bootstrap", headers: auth_headers(staff.user)
 
@@ -37,7 +37,7 @@ RSpec.describe "Api::V1 GET /api/v1/bootstrap", type: :request do
   end
 
   it "hides the full company profile from staff but still returns branding" do
-    staff = create(:staff_member, company: company, role: :receptionist)
+    staff = create(:staff_member, company: company, role: :moderator)
 
     get "/api/v1/bootstrap", headers: auth_headers(staff.user)
 
@@ -49,8 +49,8 @@ RSpec.describe "Api::V1 GET /api/v1/bootstrap", type: :request do
     expect(body["permissions"]).to include("bookings")
   end
 
-  it "gives the owner every feature and every permission — nothing is gated" do
-    get "/api/v1/bootstrap", headers: auth_headers(owner)
+  it "gives the admin every feature and every permission — nothing is gated" do
+    get "/api/v1/bootstrap", headers: auth_headers(admin)
 
     body = response.parsed_body
     expect(body["modules"]).to match_array(%w[base] + ModuleCatalog::KEYS)
@@ -62,7 +62,7 @@ RSpec.describe "Api::V1 GET /api/v1/bootstrap", type: :request do
   it "still bootstraps a locked company (for the trial-expired screen)" do
     subscription.update!(active: false)
 
-    get "/api/v1/bootstrap", headers: auth_headers(owner)
+    get "/api/v1/bootstrap", headers: auth_headers(admin)
 
     expect(response).to have_http_status(:ok)
     expect(response.parsed_body["subscription"]["locked"]).to be(true)

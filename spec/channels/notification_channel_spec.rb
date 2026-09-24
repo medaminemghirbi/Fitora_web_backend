@@ -4,23 +4,68 @@ RSpec.describe NotificationChannel, type: :channel do
   let(:company) { create(:company) }
 
   it "streams for the connected user" do
-    stub_connection current_user: company.owner
+    stub_connection current_user: company.admin, current_client: nil
     subscribe
     expect(subscription).to be_confirmed
-    expect(subscription).to have_stream_for(company.owner)
+    expect(subscription).to have_stream_for(company.admin)
+  end
+
+  it "streams for a connected member" do
+    member = create(:client, company: company)
+    stub_connection current_user: nil, current_client: member
+    subscribe
+    expect(subscription).to have_stream_for(member)
   end
 end
 
 RSpec.describe ApplicationCable::Connection, type: :channel do
-  let(:user) { create(:user, :owner) }
+  let(:user) { create(:user, :admin) }
 
-  it "accepts a valid JWT in the query string" do
-    connect "/cable?token=#{JwtService.encode(user.id)}"
+  it "opens with a cable ticket" do
+    connect "/cable?ticket=#{JwtService.cable_ticket_for(user)}"
     expect(connection.current_user).to eq(user)
   end
 
-  it "rejects a missing or bad token" do
+  it "opens for a member with theirs" do
+    member = create(:client, password: "member-pass-1")
+    connect "/cable?ticket=#{JwtService.cable_ticket_for(member)}"
+    expect(connection.current_client).to eq(member)
+  end
+
+  it "opens once per ticket" do
+    ticket = JwtService.cable_ticket_for(user)
+    connect "/cable?ticket=#{ticket}"
+
+    expect { connect "/cable?ticket=#{ticket}" }.to have_rejected_connection
+  end
+
+  it "no longer takes the login token in the URL" do
+    expect { connect "/cable?token=#{JwtService.for_user(user)}" }.to have_rejected_connection
+    expect { connect "/cable?ticket=#{JwtService.for_user(user)}" }.to have_rejected_connection
+  end
+
+  it "refuses an expired ticket, and one from before a password change" do
+    stale = JwtService.cable_ticket_for(user)
+    travel(31.seconds) { expect { connect "/cable?ticket=#{stale}" }.to have_rejected_connection }
+
+    before_change = JwtService.cable_ticket_for(user)
+    user.update!(password: "brand-new-pass-1")
+    expect { connect "/cable?ticket=#{before_change}" }.to have_rejected_connection
+  end
+
+  it "rejects a missing or bad ticket" do
     expect { connect "/cable" }.to have_rejected_connection
-    expect { connect "/cable?token=garbage" }.to have_rejected_connection
+    expect { connect "/cable?ticket=garbage" }.to have_rejected_connection
+  end
+end
+
+RSpec.describe "POST /api/v1/cable_ticket", type: :request do
+  it "hands a signed-in account a ticket that is not itself a login" do
+    user = create(:user, :admin)
+    post "/api/v1/cable_ticket", headers: auth_headers(user)
+    ticket = response.parsed_body["ticket"]
+
+    get "/api/v1/auth/me", headers: { "Authorization" => "Bearer #{ticket}" }
+    expect(response).to have_http_status(:unauthorized)
   end
 end

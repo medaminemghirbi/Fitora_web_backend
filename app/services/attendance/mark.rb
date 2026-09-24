@@ -1,6 +1,6 @@
 module Attendance
   class Mark
-    Result = Struct.new(:success?, :attendance_record, :error, keyword_init: true)
+    Result = ServiceResult.define(:attendance_record)
 
     def self.call(booking:, status:, marked_by:, checked_in_at: nil, checked_out_at: nil)
       new(booking: booking, status: status, marked_by: marked_by, checked_in_at: checked_in_at, checked_out_at: checked_out_at).call

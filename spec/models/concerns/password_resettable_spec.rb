@@ -2,7 +2,7 @@ require "rails_helper"
 
 RSpec.describe PasswordResettable, type: :model do
   # Tested through User — the only model that signs in.
-  let(:user) { create(:user, :owner) }
+  let(:user) { create(:user, :admin) }
 
   it "generates a token whose digest is persisted, never the raw value" do
     raw = user.generate_password_reset_token!

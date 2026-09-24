@@ -38,9 +38,10 @@ RSpec.describe RecurringSchedules::Generate do
     activity_a = create(:activity, company: company, duration: 60)
     activity_b = create(:activity, company: company, duration: 60)
 
-    # An existing manual session already occupies this coach at this exact time.
-    create(:session, activity: activity_a, company: company, coach: coach,
-                      starts_at: monday.to_time(:utc).change(hour: 18), ends_at: monday.to_time(:utc).change(hour: 19))
+    # An existing manual session already occupies this coach at this exact
+    # time — 18:00 at the gym.
+    six_pm = company.time_zone.local(monday.year, monday.month, monday.day, 18)
+    create(:session, activity: activity_a, company: company, coach: coach, starts_at: six_pm, ends_at: six_pm + 1.hour)
 
     schedule = create(:recurring_schedule, activity: activity_b, company: company, coach: coach,
                                             weekdays: [ 1 ], start_time: "18:00", starts_on: monday, ends_on: monday)
@@ -50,5 +51,34 @@ RSpec.describe RecurringSchedules::Generate do
     expect(result.created_count).to eq(0)
     expect(result.conflict_errors.size).to eq(1)
     expect(result.conflict_errors.first[:error]).to eq("Coach already has a session at that time.")
+  end
+
+  it "puts an 18:00 class at 18:00 where the gym is, not at 18:00 UTC" do
+    monday = Date.current.next_occurring(:monday)
+    company = create(:company, timezone: "Africa/Tunis")
+    activity = create(:activity, company: company, duration: 60)
+    schedule = create(:recurring_schedule, activity: activity, company: company,
+                                           weekdays: [ 1 ], start_time: "18:00", starts_on: monday, ends_on: monday)
+
+    described_class.call(schedule: schedule)
+
+    starts_at = schedule.sessions.first.starts_at
+    expect(starts_at.in_time_zone("Africa/Tunis").strftime("%H:%M")).to eq("18:00")
+    expect(starts_at.utc.hour).to eq(17)
+  end
+
+  it "does not duplicate a class when run again" do
+    monday = Date.current.next_occurring(:monday)
+    company = create(:company, timezone: "Africa/Tunis")
+    activity = create(:activity, company: company, duration: 60)
+    schedule = create(:recurring_schedule, activity: activity, company: company,
+                                           weekdays: [ 1 ], start_time: "18:00", starts_on: monday, ends_on: monday + 14)
+
+    first = described_class.call(schedule: schedule)
+    second = described_class.call(schedule: schedule)
+
+    expect(first.created_count).to eq(3)
+    expect(second.created_count).to eq(0)
+    expect(second.skipped_count).to eq(3)
   end
 end

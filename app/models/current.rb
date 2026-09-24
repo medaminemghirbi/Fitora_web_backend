@@ -5,11 +5,11 @@
 # an argument. The one thing here is the exception, because it is invisible
 # by design.
 #
-# When a Fitora admin impersonates an owner
-# (Api::V1::Admin::CompaniesController#impersonate), current_user IS the
-# owner for the whole session — that is the point, so the admin sees exactly
-# what the owner sees. The consequence is that every audit log written during
-# that session would otherwise name the owner for something the admin did.
+# When a Gymly superadmin impersonates an admin
+# (Api::V1::Superadmin::CompaniesController#impersonate), current_user IS the
+# admin for the whole session — that is the point, so the superadmin sees exactly
+# what the admin sees. The consequence is that every audit log written during
+# that session would otherwise name the admin for something the superadmin did.
 # AuditLogs::Record reads this to say who was really at the keyboard.
 class Current < ActiveSupport::CurrentAttributes
   attribute :impersonator

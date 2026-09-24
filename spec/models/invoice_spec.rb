@@ -2,11 +2,23 @@ require "rails_helper"
 
 RSpec.describe Invoice do
   describe ".next_number" do
+    # Each call hands a number out; it is not a peek. Inside a transaction
+    # that rolls back, the number goes back with it.
     it "starts a year at one and counts up" do
       travel_to(Date.new(2026, 3, 1)) do
         expect(described_class.next_number).to eq("FIT-2026-0001")
-        create(:invoice, number: described_class.next_number)
         expect(described_class.next_number).to eq("FIT-2026-0002")
+      end
+    end
+
+    it "gives a number back when the invoice that took it rolls back" do
+      travel_to(Date.new(2026, 3, 1)) do
+        ActiveRecord::Base.transaction(requires_new: true) do
+          described_class.next_number
+          raise ActiveRecord::Rollback
+        end
+
+        expect(described_class.next_number).to eq("FIT-2026-0001")
       end
     end
 

@@ -8,14 +8,14 @@ module DataExchange
     EXAMPLE_ROW = [ "amine@example.com", "90", "cash", Date.current.to_s ].freeze
 
     def self.template_csv
-      CSV.generate do |csv|
+      CsvSafe.generate do |csv|
         csv << HEADERS
         csv << EXAMPLE_ROW
       end
     end
 
     def self.export_csv(company)
-      CSV.generate do |csv|
+      CsvSafe.generate do |csv|
         csv << HEADERS
         company.payments.includes(:client).order(:created_at).find_each do |payment|
           csv << [ payment.client.email, payment.amount, payment.payment_method, payment.paid_at&.to_date ]
@@ -24,42 +24,30 @@ module DataExchange
     end
 
     def self.import_csv(company:, user:, io:)
-      created = 0
-      errors = []
+      Importer.run(io) { |row| import_row(company, user, row) }
+    end
 
-      CSV.parse(io.read, headers: true).each_with_index do |row, index|
-        line = index + 2
-        email = row["client_email"].to_s.strip.downcase
-        client = company.clients.find_by(email: email)
-        unless client
-          errors << { row: line, message: "No client found with email #{email}" }
-          next
-        end
+    # nil when the payment was recorded, otherwise why not.
+    def self.import_row(company, user, row)
+      email = row["client_email"].to_s.strip.downcase
+      client = company.clients.find_by(email: email)
+      return "No client found with email #{email}" unless client
 
-        period = client.current_contract&.current_period
-        unless period
-          errors << { row: line, message: "#{email} has no active contract to record a payment against" }
-          next
-        end
+      # This gym's contract: the same person may be subscribed elsewhere too.
+      period = client.current_contract(company)&.current_period
+      return "#{email} has no active contract to record a payment against" unless period
 
-        method = row["payment_method"].to_s.strip.presence || "cash"
-        unless ::Payment::SELECTABLE_METHODS.include?(method)
-          errors << { row: line, message: "Invalid payment method: #{method} (use cash, bank_transfer or other)" }
-          next
-        end
-
-        result = ::Payments::Record.call(
-          client: client, company: company, created_by: user,
-          amount: row["amount"], payment_method: method, contract_period: period
-        )
-        if result.success?
-          created += 1
-        else
-          errors << { row: line, message: result.error }
-        end
+      method = row["payment_method"].to_s.strip.presence || "cash"
+      unless ::Payment::SELECTABLE_METHODS.include?(method)
+        return "Invalid payment method: #{method} (use cash, bank_transfer or other)"
       end
 
-      { created: created, errors: errors }
+      result = ::Payments::Record.call(
+        client: client, company: company, created_by: user,
+        amount: row["amount"], payment_method: method, contract_period: period
+      )
+      result.error unless result.success?
     end
+    private_class_method :import_row
   end
 end

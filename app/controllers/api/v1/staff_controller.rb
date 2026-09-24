@@ -7,7 +7,7 @@ module Api
 
       # GET /api/v1/staff
       def index
-        staff = current_company.staff_members.includes(:user, :coach)
+        staff = current_company.staff_members.includes(:user, :coach, :assigned_role)
                                .joins(:assigned_role).order("roles.position", "roles.name")
         render json: { staff: staff.map { |s| StaffMemberSerializer.new(s).as_json } }
       end
@@ -40,9 +40,9 @@ module Api
         raw = user.generate_email_verification_token!
         AccountMailer.email_verification(user, raw).deliver_later
 
+        # A refused save raises RecordInvalid, which ApplicationController
+        # answers with the same 422 every other write gives.
         render json: { staff_member: StaffMemberSerializer.new(staff_member).as_json }, status: :created
-      rescue ActiveRecord::RecordInvalid => e
-        render json: { error: e.record.errors.full_messages.first, errors: e.record.errors.full_messages }, status: :unprocessable_content
       end
 
       # PATCH /api/v1/staff/:id
@@ -61,16 +61,16 @@ module Api
 
           render json: { staff_member: StaffMemberSerializer.new(@staff_member).as_json }
         else
-          render json: { error: @staff_member.errors.full_messages.first, errors: @staff_member.errors.full_messages }, status: :unprocessable_content
+          render_errors(@staff_member)
         end
       end
 
       private
 
-      # Staff management is owner-only now — no in-company staff role has full
-      # access anymore, so there's no "staff-admin" exception to make here.
+      # Staff management is admin-only now — no in-company staff role has full
+      # access anymore, so there's no "staff-superadmin" exception to make here.
       def require_staff_manager!
-        render_forbidden unless current_user.owner?
+        render_forbidden unless current_user.admin?
       end
 
       def set_staff_member
@@ -88,7 +88,7 @@ module Api
       # Resolve an incoming assignment to the company's own Role row.
       #
       # `role_id` (the roles editor) is the real input. A bare `role` key
-      # ("receptionist", "coach") is still accepted because older clients
+      # ("moderator", "coach") is still accepted because older clients
       # send it, and it means "the built-in role with that key, in this
       # company". Returns {} when neither is present, so an unrelated update
       # leaves the role alone.

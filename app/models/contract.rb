@@ -28,6 +28,12 @@ class Contract < ApplicationRecord
   # itself.
   # Not memoized: #reload doesn't know to clear a plain ivar, and this
   # isn't a hot enough path to be worth the staleness risk.
+  # Everything ContractSerializer reads, loaded once for a whole list.
+  # `preload` for the periods, never `includes`: see #periods_by_time.
+  scope :for_serializer, -> {
+    preload(:contract_periods, :activity, :client, contract_type: { contract_type_activities: :activity })
+  }
+
   delegate :status, :starts_at, :expires_at, :remaining_bookings, :discount, :final_price, :payment_status,
            :pending?, :active?, :expired?, :cancelled?, :unpaid?, :paid?,
            to: :current_period, allow_nil: true
@@ -127,9 +133,12 @@ class Contract < ApplicationRecord
   # assume one is reading this instead.
   def activity_label
     return activity.name if activity
+    # From the plan's pricing rows, so a list that preloaded them asks the
+    # database nothing more here.
+    names = contract_type.contract_type_activities.map { |row| row.activity.name }.sort
+    return names.to_sentence if names.any?
 
-    names = contract_type.activities.order(:name).pluck(:name)
-    names.presence&.to_sentence || "—"
+    "—"
   end
 
   def consume_booking!(period: current_period)

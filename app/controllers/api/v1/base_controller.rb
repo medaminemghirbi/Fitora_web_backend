@@ -5,8 +5,18 @@ module Api
       before_action :reject_member_token!
       before_action :require_confirmed_email!
       before_action :enforce_trial_lock!
+      # After authentication, so it knows whose gym this is.
+      around_action :in_gym_time_zone
 
       private
+
+      # "Today", a day's end and "18:00 on Tuesday" mean the gym's local
+      # time, not the server's UTC. Timestamps are still stored in UTC; only
+      # what a date or a wall-clock time means changes.
+      def in_gym_time_zone(&action)
+        company = current_company || member_company || current_client&.companies&.first
+        Time.use_zone(company&.time_zone || Time.zone, &action)
+      end
 
       # A member's token has no business on a staff endpoint.
       #
@@ -14,7 +24,7 @@ module Api
       # require_company! early, which renders 422 because a client login has
       # no current_company — denied, but by accident and with a misleading
       # status. Worse, a controller whose capability check runs first would
-      # reach `current_user.owner?` with current_user nil and raise.
+      # reach `current_user.admin?` with current_user nil and raise.
       #
       # One gate, applied to every staff controller, so a new one is closed
       # by default. The member's own namespace (Api::V1::Me::*) is the single
@@ -26,12 +36,12 @@ module Api
         render_forbidden
       end
 
-      # An owner who signed up and has not clicked the link yet reaches
+      # An admin who signed up and has not clicked the link yet reaches
       # nothing here — not even naming their gym, which is where the trial
       # starts. What they need meanwhile (who am I, send it again) lives in
       # AuthController and EmailVerificationsController, outside this base.
       #
-      # An admin impersonating them is let through: they are there to help,
+      # A superadmin impersonating them is let through: they are there to help,
       # and the address is not theirs to confirm.
       def require_confirmed_email!
         return if current_user.nil? || current_impersonator.present?
@@ -43,23 +53,23 @@ module Api
         }, status: :forbidden
       end
 
-      # The only endpoints a locked company's owner can still reach — enough
+      # The only endpoints a locked company's admin can still reach — enough
       # to see their status, and nothing that operates the gym. Staff get no
-      # exceptions at all: once the free trial expires, only the owner has
-      # any access, and only to this much, until a platform admin manually
-      # grants access again (Api::V1::Admin::CompaniesController#update_subscription).
-      OWNER_ALLOWED_WHEN_LOCKED = {
-        # A locked owner still sees what they owe and can download the
+      # exceptions at all: once the free trial expires, only the admin has
+      # any access, and only to this much, until a platform superadmin manually
+      # grants access again (Api::V1::Superadmin::CompaniesController#update_subscription).
+      ADMIN_ALLOWED_WHEN_LOCKED = {
+        # A locked admin still sees what they owe and can download the
         # invoices they already have: the way out is settling, and both of
         # these are how they work out what settling means.
         "Api::V1::SubscriptionController" => %w[show],
         "Api::V1::InvoicesController" => %w[index show],
-        # One of an owner's companies being locked must never trap them —
+        # One of an admin's companies being locked must never trap them —
         # they still need to see the list, switch to an unlocked one, or
         # create a fresh one (its own independent trial).
         "Api::V1::CompaniesController" => %w[show index create switch]
       }.freeze
-      private_constant :OWNER_ALLOWED_WHEN_LOCKED
+      private_constant :ADMIN_ALLOWED_WHEN_LOCKED
 
       def enforce_trial_lock!
         # A member's own login carries no current_user. Their gym's trial
@@ -67,12 +77,12 @@ module Api
         # screen, and leaving them stranded mid-booking would teach them
         # nothing they can act on.
         return if current_client
-        return if current_user.admin?
+        return if current_user.superadmin?
 
         subscription = current_company&.subscription
         return unless subscription&.locked?
 
-        return if current_user.owner? && OWNER_ALLOWED_WHEN_LOCKED[self.class.name]&.include?(action_name)
+        return if current_user.admin? && ADMIN_ALLOWED_WHEN_LOCKED[self.class.name]&.include?(action_name)
 
         render json: {
           error: subscription.lock_reason.to_s,
@@ -81,28 +91,28 @@ module Api
       end
 
       # Why the door is shut, in words the person reading them can act on.
-      # Staff are told to talk to their owner whatever the reason: the money
+      # Staff are told to talk to their admin whatever the reason: the money
       # is not theirs to settle and the detail is not theirs to see.
       def lock_message(subscription)
-        return "This gym's account is locked. Contact your gym owner." unless current_user.owner?
+        return "This gym's account is locked. Contact your gym's admin." unless current_user.admin?
 
         reason = subscription.lock_reason
         if reason == :unpaid && subscription.trial?
-          "Your free trial has ended. Choose a plan and settle with Fitora to reopen access."
+          "Your free trial has ended. Choose a plan and settle with Gymly to reopen access."
         elsif reason == :unpaid
-          "The period you paid for has run out. Access closed #{Subscription::GRACE_DAYS} days later; settle with Fitora to reopen it."
+          "The period you paid for has run out. Access closed #{Subscription::GRACE_DAYS} days later; settle with Gymly to reopen it."
         else
-          "Your access has been suspended by Fitora. Get in touch to find out why."
+          "Your access has been suspended by Gymly. Get in touch to find out why."
         end
       end
 
       # Never trust a company_id supplied by the client — always derive
-      # it from the authenticated user: an owner may now run several
+      # it from the authenticated user: an admin may now run several
       # companies, so theirs is whichever one is their active_company
       # (Api::V1::CompaniesController#switch), not just "the" company;
-      # staff (managers/coaches/receptionists) still have exactly one, via
-      # StaffMember. Never confuse either with User#role == "admin", the
-      # Fitora platform operator handled entirely by Api::V1::Admin::*.
+      # staff (managers/coaches/moderators) still have exactly one, via
+      # StaffMember. Never confuse either with User#role == "superadmin", the
+      # Gymly platform operator handled entirely by Api::V1::Superadmin::*.
       def current_company
         @current_company ||= current_user&.active_company || current_staff_member&.company
       end
@@ -132,21 +142,21 @@ module Api
         @current_staff_member ||= current_user.staff_member
       end
 
-      def require_owner!
-        render_forbidden unless current_user.owner?
-      end
-
       def require_admin!
         render_forbidden unless current_user.admin?
       end
 
+      def require_superadmin!
+        render_forbidden unless current_user.superadmin?
+      end
+
       # Gates the member endpoints (Api::V1::Me::*) — the counterpart to
-      # require_owner!/require_admin!, for the other kind of login.
+      # require_admin!/require_superadmin!, for the other kind of login.
       def require_client!
         render_forbidden if current_client.nil?
       end
 
-      # True for the owner (always) or for staff whose role grants this
+      # True for the admin (always) or for staff whose role grants this
       # capability — the only two ways into any endpoint gated by this check.
       def require_capability!(capability)
         render_forbidden unless capability?(capability)
@@ -157,7 +167,7 @@ module Api
       # does not halt, so calling require_capability! mid-action would render
       # twice.
       def capability?(capability)
-        return true if current_user.owner?
+        return true if current_user.admin?
 
         current_staff_member&.active? && current_staff_member.can?(capability) || false
       end
@@ -166,7 +176,7 @@ module Api
       # shared operational context for every role. Editing sessions is a
       # separate, narrower check (require_capability!(:sessions)).
       def require_staff!
-        return if current_user.owner?
+        return if current_user.admin?
         return if current_staff_member&.active?
 
         render_forbidden
@@ -177,7 +187,7 @@ module Api
       # (`capability`) *plus* anyone who can edit the schedule (`:sessions`),
       # since you can't plan a week of sessions without seeing the options.
       def require_schedule_reference_read!(capability)
-        return if current_user.owner?
+        return if current_user.admin?
         if current_staff_member&.active? &&
            (current_staff_member.can?(capability) || current_staff_member.can?(:sessions))
           return
@@ -191,22 +201,23 @@ module Api
       end
 
       def paginate(scope)
-        page = [ params[:page].to_i, 1 ].max
-        per_page = params[:per_page].to_i
-        per_page = 20 if per_page <= 0
-        per_page = [ per_page, 100 ].min
-
+        page, per_page = page_params
         scope.limit(per_page).offset((page - 1) * per_page)
       end
 
       def pagination_meta(scope)
-        page = [ params[:page].to_i, 1 ].max
-        per_page = params[:per_page].to_i
-        per_page = 20 if per_page <= 0
-        per_page = [ per_page, 100 ].min
+        page, per_page = page_params
         total = scope.count
 
         { page: page, per_page: per_page, total: total, total_pages: (total.to_f / per_page).ceil }
+      end
+
+      # ?page= from 1, ?per_page= 20 by default and never more than 100.
+      def page_params
+        page = [ params[:page].to_i, 1 ].max
+        per_page = params[:per_page].to_i
+        per_page = 20 if per_page <= 0
+        [ page, [ per_page, 100 ].min ]
       end
     end
   end

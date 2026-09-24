@@ -2,28 +2,28 @@ require "rails_helper"
 
 RSpec.describe "Api::V1::EmailVerifications", type: :request do
   describe "POST /api/v1/email_verifications" do
-    it "sends a verification email to the signed-in owner" do
-      owner = create(:user, :owner, :unverified)
+    it "sends a verification email to the signed-in admin" do
+      admin = create(:user, :admin, :unverified)
 
       expect {
-        post "/api/v1/email_verifications", headers: auth_headers(owner)
+        post "/api/v1/email_verifications", headers: auth_headers(admin)
       }.to have_enqueued_mail(AccountMailer, :email_verification)
 
       expect(response).to have_http_status(:no_content)
     end
 
-    it "refuses a platform admin" do
-      admin = create(:user, :admin)
+    it "refuses a platform superadmin" do
+      superadmin = create(:user, :superadmin)
 
-      post "/api/v1/email_verifications", headers: auth_headers(admin)
+      post "/api/v1/email_verifications", headers: auth_headers(superadmin)
 
       expect(response).to have_http_status(:forbidden)
     end
 
     it "refuses to resend once already verified" do
-      owner = create(:user, :owner)
+      admin = create(:user, :admin)
 
-      post "/api/v1/email_verifications", headers: auth_headers(owner)
+      post "/api/v1/email_verifications", headers: auth_headers(admin)
 
       expect(response).to have_http_status(:unprocessable_content)
     end
@@ -31,22 +31,22 @@ RSpec.describe "Api::V1::EmailVerifications", type: :request do
     # A double click, or an impatient third one, must not bury the inbox in
     # identical links. The screen counts down from the same number.
     it "waits a minute between two sends, and says how long is left" do
-      owner = create(:user, :owner, :unverified)
-      owner.generate_email_verification_token!
+      admin = create(:user, :admin, :unverified)
+      admin.generate_email_verification_token!
 
-      post "/api/v1/email_verifications", headers: auth_headers(owner)
+      post "/api/v1/email_verifications", headers: auth_headers(admin)
 
       expect(response).to have_http_status(:too_many_requests)
       expect(response.parsed_body["retry_in"]).to be_between(1, 60)
     end
 
     it "sends again once the minute is up" do
-      owner = create(:user, :owner, :unverified)
-      owner.generate_email_verification_token!
+      admin = create(:user, :admin, :unverified)
+      admin.generate_email_verification_token!
 
       travel 61.seconds do
         expect {
-          post "/api/v1/email_verifications", headers: auth_headers(owner)
+          post "/api/v1/email_verifications", headers: auth_headers(admin)
         }.to have_enqueued_mail(AccountMailer, :email_verification)
       end
     end
@@ -60,13 +60,13 @@ RSpec.describe "Api::V1::EmailVerifications", type: :request do
 
   describe "PATCH /api/v1/email_verifications/:token" do
     it "verifies with a valid token" do
-      owner = create(:user, :owner, :unverified)
-      raw = owner.generate_email_verification_token!
+      admin = create(:user, :admin, :unverified)
+      raw = admin.generate_email_verification_token!
 
       patch "/api/v1/email_verifications/#{raw}"
 
       expect(response).to have_http_status(:no_content)
-      expect(owner.reload.email_verified?).to be true
+      expect(admin.reload.email_verified?).to be true
     end
 
     it "rejects an invalid token" do
@@ -75,9 +75,9 @@ RSpec.describe "Api::V1::EmailVerifications", type: :request do
       expect(response).to have_http_status(:unprocessable_content)
     end
 
-    it "rejects a token belonging to a platform admin" do
-      admin = create(:user, :admin)
-      raw = admin.generate_email_verification_token!
+    it "rejects a token belonging to a platform superadmin" do
+      superadmin = create(:user, :superadmin)
+      raw = superadmin.generate_email_verification_token!
 
       patch "/api/v1/email_verifications/#{raw}"
 

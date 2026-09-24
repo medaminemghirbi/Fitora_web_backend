@@ -18,9 +18,10 @@ class ContractTypeSerializer
       priority_booking: plan.priority_booking,
       color: plan.color,
       active: plan.active,
-      activity_ids: plan.activity_ids,
-      # The pricing grid: what each activity costs under this plan.
-      activity_prices: plan.contract_type_activities.includes(:activity).map { |row|
+      activity_ids: plan.contract_type_activities.map(&:activity_id),
+      # The pricing grid: what each activity costs under this plan. Read from
+      # the association as loaded, so a list that preloaded it costs nothing.
+      activity_prices: plan.contract_type_activities.map { |row|
         { activity_id: row.activity_id, activity_name: row.activity.name, activity_emoji: row.activity.emoji, price: row.price }
       }
     }

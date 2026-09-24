@@ -14,7 +14,8 @@ module Subscriptions
       closed = 0
 
       Subscription.where(active: true).includes(company: :invoices).find_each do |subscription|
-        next unless subscription.uncovered?
+        # "Ran out more than three days ago" is counted in the gym's days.
+        next unless Time.use_zone(subscription.company.time_zone) { subscription.uncovered? }
 
         subscription.update!(active: false)
         closed += 1

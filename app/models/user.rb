@@ -2,23 +2,24 @@ class User < ApplicationRecord
   has_secure_password
   include PasswordResettable
   include EmailVerifiable
+  include TokenVersioned
 
-  # A User is always staff: the Fitora-operator ("admin", manages every
-  # company's SaaS subscription via /admin) or an in-gym account
-  # (owner, or staff — the specific in-gym role lives on StaffMember).
+  # A User is always staff: the Gymly-operator ("superadmin", manages every
+  # company's SaaS subscription via /superadmin) or an in-gym account
+  # (admin, or staff — the specific in-gym role lives on StaffMember).
   # Clients are business records the gym creates, never Users — see Client.
-  enum :role, { owner: 0, staff: 1, admin: 2 }
+  enum :role, { admin: 0, staff: 1, superadmin: 2 }
 
 
-  # An owner can run more than one company now (each a fully independent
+  # An admin can run more than one company now (each a fully independent
   # tenant — its own clients, staff); company_limit gates how
   # many they may create (nil = unlimited), active_company is which one
   # their session is currently scoped to — see
   # Api::V1::BaseController#current_company and #switch.
-  has_many :companies, foreign_key: :owner_id, inverse_of: :owner, dependent: :destroy
+  has_many :companies, foreign_key: :admin_id, inverse_of: :admin, dependent: :destroy
   belongs_to :active_company, class_name: "Company", optional: true
   has_one :staff_member, dependent: :destroy
-  has_many :notifications, foreign_key: :recipient_id, inverse_of: :recipient, dependent: :destroy
+  has_many :notifications, as: :recipient, dependent: :destroy
 
   before_validation { self.email = email.to_s.downcase.strip }
 
@@ -37,16 +38,16 @@ class User < ApplicationRecord
   end
 
   # Signed up, and the address not confirmed yet: nothing past sign-up
-  # opens until it is. Owners only — see EmailVerifiable.
+  # opens until it is. Admins only — see EmailVerifiable.
   def email_confirmation_pending?
-    owner? && !email_verified?
+    admin? && !email_verified?
   end
 
   def company_limit_reached?
     company_limit.present? && companies.count >= company_limit
   end
 
-  # Moves this owner's active session to one of their OWN companies —
+  # Moves this admin's active session to one of their OWN companies —
   # never lets them switch onto a company they don't own, since that's
   # exactly the cross-tenant boundary current_company exists to enforce.
   def switch_active_company!(company)

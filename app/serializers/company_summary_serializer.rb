@@ -1,5 +1,5 @@
 # The lightweight shape used everywhere a caller just needs to list/pick
-# one of an owner's companies (the navbar switcher, the owner's own user
+# one of an admin's companies (the navbar switcher, the admin's own user
 # payload) — CompanySerializer is the full, heavier shape for "the
 # currently active company's own settings screen."
 class CompanySummarySerializer

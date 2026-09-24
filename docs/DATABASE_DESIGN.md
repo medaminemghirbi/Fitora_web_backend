@@ -1,4 +1,4 @@
-# Fitora — Database Design
+# Gymly — Database Design
 
 PostgreSQL. UUID primary keys (`gen_random_uuid()`) throughout. Extensions:
 `pgcrypto`, `pg_trgm` (trigram search), `btree_gist` (exclusion constraints).
@@ -62,7 +62,7 @@ Each removal is preceded by a backfill into `settings` in the same migration,
 and each is individually reversible (`up`/`down` written by hand, not
 `change`). See `MIGRATION_PLAN.md` §3.
 
-The GIN index on `settings` exists for platform-admin queries like "which
+The GIN index on `settings` exists for platform-superadmin queries like "which
 companies have online booking on" — not for hot-path reads, which always
 load the whole company row anyway.
 
@@ -125,10 +125,10 @@ None.
 **`platform_settings` is KEPT.** An earlier draft of this document proposed
 folding it into an ENV-backed constant on the grounds that a single integer
 does not need a table. That was wrong: `annual_discount_percent` is edited
-at runtime by a platform admin through
-`PATCH /api/v1/admin/subscription_pricing`. A constant would delete a working
+at runtime by a platform superadmin through
+`PATCH /api/v1/superadmin/subscription_pricing`. A constant would delete a working
 feature. A single-row settings table is the right shape for an
-admin-editable global, and it stays.
+superadmin-editable global, and it stays.
 
 ## 4. Indexing review
 

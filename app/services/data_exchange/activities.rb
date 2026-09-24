@@ -5,14 +5,14 @@ module DataExchange
     EXAMPLE_ROW = [ "Yoga", "collective", "60", "20", "🧘", "" ].freeze
 
     def self.template_csv
-      CSV.generate do |csv|
+      CsvSafe.generate do |csv|
         csv << HEADERS
         csv << EXAMPLE_ROW
       end
     end
 
     def self.export_csv(company)
-      CSV.generate do |csv|
+      CsvSafe.generate do |csv|
         csv << HEADERS
         company.activities.order(:created_at).find_each do |activity|
           csv << [ activity.name, activity.session_format, activity.duration, activity.capacity, activity.emoji, activity.description ]
@@ -21,10 +21,7 @@ module DataExchange
     end
 
     def self.import_csv(company:, user:, io:)
-      created = 0
-      errors = []
-
-      CSV.parse(io.read, headers: true).each_with_index do |row, index|
+      Importer.run(io) do |row|
         activity = company.activities.new(
           name: row["name"].to_s.strip,
           session_format: row["session_format"].to_s.strip,
@@ -33,15 +30,8 @@ module DataExchange
           emoji: row["emoji"].to_s.strip.presence,
           description: row["description"].to_s.strip.presence
         )
-
-        if activity.save
-          created += 1
-        else
-          errors << { row: index + 2, message: activity.errors.full_messages.join(", ") }
-        end
+        activity.errors.full_messages.join(", ") unless activity.save
       end
-
-      { created: created, errors: errors }
     end
   end
 end

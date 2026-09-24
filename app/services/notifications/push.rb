@@ -3,14 +3,21 @@ module Notifications
   # it fires Notification#broadcast (real-time push + badge count). Safe to
   # call from a daily scan and from a synchronous after_commit hook.
   class Push
-    def self.call(recipient:, kind:, data:, url:, dedup_key:, subject: nil)
+    # `company` is required for a member: they belong to several gyms, and
+    # the notification comes from one of them. For a User it is derived.
+    def self.call(recipient:, kind:, data:, url:, dedup_key:, subject: nil, company: nil)
       return nil if recipient.nil?
 
-      # Every company-scoped notification still requires one (a nil company
-      # here would silently be a bug in the caller); a platform-level event
-      # aimed at a Fitora admin has none by design — see Notification#company.
-      company = recipient.active_company || recipient.staff_member&.company
-      return nil if company.nil? && !recipient.admin?
+      if recipient.is_a?(Client)
+        # Nobody to tell: a member without their app never reads these.
+        return nil if company.nil? || !recipient.login_enabled?
+      else
+        # Every company-scoped notification still requires one (a nil company
+        # here would silently be a bug in the caller); a platform-level event
+        # aimed at a Gymly superadmin has none by design — see Notification#company.
+        company = recipient.active_company || recipient.staff_member&.company
+        return nil if company.nil? && !recipient.superadmin?
+      end
 
       recipient.notifications.create!(
         company: company,

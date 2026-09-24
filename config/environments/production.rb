@@ -32,7 +32,7 @@ Rails.application.configure do
   # Origins allowed to open the /cable WebSocket. Set FRONTEND_ORIGINS to the
   # deployed front-end URL(s), comma-separated.
   config.action_cable.allowed_request_origins =
-    ENV.fetch("FRONTEND_ORIGINS", "https://app.fitora.io").split(",")
+    ENV.fetch("FRONTEND_ORIGINS", "https://app.gymly.io").split(",")
 
   # Log to STDOUT with the current request id as a default log tag.
   config.log_tags = [ :request_id ]
@@ -49,7 +49,7 @@ Rails.application.configure do
 
   # Outgoing mail. Configured entirely from ENV so no SMTP secret lives in the
   # repo; if SMTP_ADDRESS is unset, delivery is a no-op (dev/staging safety).
-  app_host = ENV.fetch("APP_HOST", "app.fitora.io")
+  app_host = config.x.app_host
   config.action_mailer.default_url_options = { host: app_host, protocol: "https" }
   config.action_mailer.raise_delivery_errors = ENV["SMTP_ADDRESS"].present?
   config.action_mailer.perform_deliveries = ENV["SMTP_ADDRESS"].present?

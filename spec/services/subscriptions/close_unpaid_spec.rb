@@ -63,7 +63,7 @@ RSpec.describe Subscriptions::CloseUnpaid do
     expect(described_class.call.closed_count).to eq(0)
   end
 
-  it "never reopens a gym an admin suspended" do
+  it "never reopens a gym a superadmin suspended" do
     _company, subscription = gym(period_end: Date.current.end_of_month, active: false)
 
     described_class.call

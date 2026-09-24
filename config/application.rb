@@ -38,6 +38,14 @@ module Backend
     # in config/environments, which are processed later.
     #
     # config.time_zone = "Central Time (US & Canada)"
+
+    # Where the Angular app is served. One default, read by the production
+    # host list and by every link a mail sends (AccountMailer), so the two
+    # can never point at different domains.
+    config.x.app_host = ENV.fetch("APP_HOST", "app.gymly.com")
+    config.x.frontend_url = ENV.fetch("FRONTEND_URL") do
+      Rails.env.production? ? "https://#{config.x.app_host}" : "http://localhost:4200"
+    end
     # config.eager_load_paths << Rails.root.join("extras")
 
     # Only loads a smaller set of middleware suitable for API only apps.

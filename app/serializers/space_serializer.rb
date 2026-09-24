@@ -13,7 +13,7 @@ class SpaceSerializer
       # Which activities are restricted to this room. Empty means no activity
       # singles it out — not that nothing can run here.
       activity_ids: space.activity_ids,
-      # Whether the owner can remove it, so the UI can say why rather than
+      # Whether the admin can remove it, so the UI can say why rather than
       # offering a button that fails.
       deletable: space.deletable?
     }

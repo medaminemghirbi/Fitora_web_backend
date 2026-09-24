@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_09_23_090000) do
+ActiveRecord::Schema[8.1].define(version: 2026_09_24_090700) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "btree_gist"
   enable_extension "pg_catalog.plpgsql"
@@ -129,27 +129,26 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_23_090000) do
 
   create_table "clients", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
     t.boolean "active", default: true, null: false
-    t.string "address"
     t.datetime "created_at", null: false
-    t.date "date_of_birth"
     t.string "email"
     t.datetime "email_verification_sent_at"
     t.string "email_verification_token_digest"
     t.datetime "email_verified_at"
-    t.string "emergency_contact_name"
-    t.string "emergency_contact_phone"
     t.string "first_name", null: false
-    t.string "gender"
+    t.datetime "invitation_sent_at"
+    t.string "invitation_token_digest"
     t.string "last_name", null: false
     t.string "password_digest"
     t.string "phone"
     t.datetime "reset_password_sent_at"
     t.string "reset_password_token_digest"
+    t.integer "token_version", default: 0, null: false
     t.datetime "updated_at", null: false
     t.index "lower((email)::text)", name: "index_clients_on_lower_email", unique: true, where: "(email IS NOT NULL)"
     t.index ["email"], name: "index_clients_on_email_trgm", opclass: :gin_trgm_ops, using: :gin
     t.index ["email_verification_token_digest"], name: "index_clients_on_email_verification_token_digest", unique: true
     t.index ["first_name"], name: "index_clients_on_first_name_trgm", opclass: :gin_trgm_ops, using: :gin
+    t.index ["invitation_token_digest"], name: "index_clients_on_invitation_token_digest", unique: true
     t.index ["last_name"], name: "index_clients_on_last_name_trgm", opclass: :gin_trgm_ops, using: :gin
     t.index ["phone"], name: "index_clients_on_phone_trgm", opclass: :gin_trgm_ops, using: :gin
     t.index ["reset_password_token_digest"], name: "index_clients_on_reset_password_token_digest", unique: true
@@ -173,6 +172,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_23_090000) do
   create_table "companies", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
     t.boolean "active", default: true, null: false
     t.string "address"
+    t.uuid "admin_id", null: false
     t.string "city"
     t.string "country"
     t.datetime "created_at", null: false
@@ -183,16 +183,15 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_23_090000) do
     t.string "locale", default: "fr", null: false
     t.decimal "longitude", precision: 10, scale: 6
     t.string "name", null: false
-    t.uuid "owner_id", null: false
     t.string "phone"
     t.jsonb "settings", default: {}, null: false
     t.datetime "setup_dismissed_at"
     t.string "slug"
     t.string "timezone", default: "Africa/Tunis", null: false
     t.datetime "updated_at", null: false
+    t.index ["admin_id"], name: "index_companies_on_admin_id"
     t.index ["city"], name: "index_companies_on_city_trgm", opclass: :gin_trgm_ops, using: :gin
     t.index ["name"], name: "index_companies_on_name_trgm", opclass: :gin_trgm_ops, using: :gin
-    t.index ["owner_id"], name: "index_companies_on_owner_id"
     t.index ["settings"], name: "index_companies_on_settings", using: :gin
     t.index ["slug"], name: "index_companies_on_slug", unique: true
   end
@@ -259,6 +258,24 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_23_090000) do
     t.index ["created_by_id"], name: "index_contracts_on_created_by_id"
   end
 
+  create_table "data_imports", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.uuid "company_id", null: false
+    t.datetime "created_at", null: false
+    t.integer "created_count", default: 0, null: false
+    t.string "entity", null: false
+    t.string "message"
+    t.jsonb "row_errors", default: [], null: false
+    t.integer "status", default: 0, null: false
+    t.datetime "updated_at", null: false
+    t.uuid "user_id"
+    t.index ["company_id"], name: "index_data_imports_on_company_id"
+    t.index ["user_id"], name: "index_data_imports_on_user_id"
+  end
+
+  create_table "invoice_sequences", primary_key: "year", id: :integer, default: nil, force: :cascade do |t|
+    t.integer "last_value", null: false
+  end
+
   create_table "invoices", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
     t.integer "amount_cents", null: false
     t.integer "billing_period", default: 0, null: false
@@ -281,9 +298,14 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_23_090000) do
 
   create_table "memberships", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
     t.boolean "active", default: true, null: false
+    t.string "address"
     t.uuid "client_id", null: false
     t.uuid "company_id", null: false
     t.datetime "created_at", null: false
+    t.date "date_of_birth"
+    t.string "emergency_contact_name"
+    t.string "emergency_contact_phone"
+    t.string "gender"
     t.datetime "joined_at", null: false
     t.text "notes"
     t.datetime "updated_at", null: false
@@ -300,6 +322,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_23_090000) do
     t.string "kind", null: false
     t.datetime "read_at"
     t.uuid "recipient_id", null: false
+    t.string "recipient_type", null: false
     t.uuid "subject_id"
     t.string "subject_type"
     t.string "url", null: false
@@ -308,6 +331,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_23_090000) do
     t.index ["recipient_id", "created_at"], name: "index_notifications_on_recipient_id_and_created_at"
     t.index ["recipient_id", "read_at"], name: "index_notifications_on_recipient_id_and_read_at"
     t.index ["recipient_id"], name: "index_notifications_on_recipient_id"
+    t.index ["recipient_type", "recipient_id", "created_at"], name: "index_notifications_on_recipient_and_created_at"
     t.index ["subject_type", "subject_id"], name: "index_notifications_on_subject_type_and_subject_id"
   end
 
@@ -498,7 +522,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_23_090000) do
   add_foreign_key "bookings", "contract_periods"
   add_foreign_key "bookings", "sessions"
   add_foreign_key "coaches", "companies"
-  add_foreign_key "companies", "users", column: "owner_id"
+  add_foreign_key "companies", "users", column: "admin_id"
   add_foreign_key "contract_periods", "contracts"
   add_foreign_key "contract_type_activities", "activities"
   add_foreign_key "contract_type_activities", "contract_types"
@@ -508,12 +532,13 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_23_090000) do
   add_foreign_key "contracts", "companies"
   add_foreign_key "contracts", "contract_types"
   add_foreign_key "contracts", "users", column: "created_by_id"
+  add_foreign_key "data_imports", "companies"
+  add_foreign_key "data_imports", "users"
   add_foreign_key "invoices", "companies"
   add_foreign_key "invoices", "users", column: "issued_by_id"
   add_foreign_key "memberships", "clients"
   add_foreign_key "memberships", "companies"
   add_foreign_key "notifications", "companies"
-  add_foreign_key "notifications", "users", column: "recipient_id"
   add_foreign_key "payments", "bookings"
   add_foreign_key "payments", "clients"
   add_foreign_key "payments", "companies"

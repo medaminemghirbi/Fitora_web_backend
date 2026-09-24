@@ -6,7 +6,7 @@ module Invoices
   # must never rewrite a past invoice — the same rule ContractPeriod#base_price
   # follows for a member's own subscription.
   class Issue
-    Result = Struct.new(:success?, :invoice, :error, keyword_init: true)
+    Result = ServiceResult.define(:invoice)
 
     def self.call(company:, issued_by:, notes: nil)
       new(company: company, issued_by: issued_by, notes: notes).call

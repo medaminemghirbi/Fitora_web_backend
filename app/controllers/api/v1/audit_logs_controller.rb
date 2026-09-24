@@ -2,7 +2,7 @@ module Api
   module V1
     class AuditLogsController < BaseController
       before_action :require_company!
-      before_action -> { require_capability!(:reports) }, unless: -> { current_user.owner? }
+      before_action -> { require_capability!(:reports) }, unless: -> { current_user.admin? }
 
       # GET /api/v1/audit_logs
       def index

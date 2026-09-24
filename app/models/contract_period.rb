@@ -14,7 +14,7 @@ class ContractPeriod < ApplicationRecord
   scope :currently_active, -> { active.where("expires_at IS NULL OR expires_at >= ?", Time.current) }
   scope :expiring_soon, ->(within: 7.days) { currently_active.where(expires_at: Time.current..Time.current + within) }
 
-  # Warning window for the owner notification.
+  # Warning window for the admin notification.
   NOTIFY_WITHIN = 14.days
 
   after_commit :notify_if_expiring, on: [ :create, :update ]
@@ -35,7 +35,7 @@ class ContractPeriod < ApplicationRecord
   # base_price is the catalogue price frozen when this period was created
   # (Contracts::Create / Contracts::Renew) and is never rewritten — so a
   # later change to the activity's tariff leaves already-sold periods alone.
-  # Only the discount, which the owner can still edit while unpaid, moves
+  # Only the discount, which the admin can still edit while unpaid, moves
   # final_price after the fact.
   def compute_final_price
     return if base_price.blank?

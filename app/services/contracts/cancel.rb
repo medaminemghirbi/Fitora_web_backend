@@ -1,6 +1,6 @@
 module Contracts
   class Cancel
-    Result = Struct.new(:success?, :error, keyword_init: true)
+    Result = ServiceResult.define
 
     def self.call(contract:)
       new(contract: contract).call

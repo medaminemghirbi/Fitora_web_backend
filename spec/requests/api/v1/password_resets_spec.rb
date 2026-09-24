@@ -2,19 +2,19 @@ require "rails_helper"
 
 RSpec.describe "Api::V1::PasswordResets", type: :request do
   describe "POST /api/v1/password_resets" do
-    it "sends a reset email for a matching owner and always returns 204" do
-      owner = create(:user, :owner, email: "owner@example.test")
+    it "sends a reset email for a matching admin and always returns 204" do
+      admin = create(:user, :admin, email: "owner@example.test")
 
       expect {
         post "/api/v1/password_resets", params: { email: "owner@example.test" }
       }.to have_enqueued_mail(AccountMailer, :password_reset)
 
       expect(response).to have_http_status(:no_content)
-      expect(owner.reload.reset_password_token_digest).to be_present
+      expect(admin.reload.reset_password_token_digest).to be_present
     end
 
-    it "never sends anything for a platform admin, but still returns 204" do
-      create(:user, :admin, email: "admin@example.test")
+    it "never sends anything for a platform superadmin, but still returns 204" do
+      create(:user, :superadmin, email: "admin@example.test")
 
       expect {
         post "/api/v1/password_resets", params: { email: "admin@example.test" }
@@ -34,7 +34,7 @@ RSpec.describe "Api::V1::PasswordResets", type: :request do
 
   describe "PATCH /api/v1/password_resets/:token" do
     it "resets the password with a valid token" do
-      user = create(:user, :owner)
+      user = create(:user, :admin)
       raw = user.generate_password_reset_token!
 
       patch "/api/v1/password_resets/#{raw}", params: { password: "new-strong-password" }
@@ -50,9 +50,9 @@ RSpec.describe "Api::V1::PasswordResets", type: :request do
       expect(response).to have_http_status(:unprocessable_content)
     end
 
-    it "rejects a token belonging to a platform admin" do
-      admin = create(:user, :admin)
-      raw = admin.generate_password_reset_token!
+    it "rejects a token belonging to a platform superadmin" do
+      superadmin = create(:user, :superadmin)
+      raw = superadmin.generate_password_reset_token!
 
       patch "/api/v1/password_resets/#{raw}", params: { password: "new-strong-password" }
 
@@ -60,7 +60,7 @@ RSpec.describe "Api::V1::PasswordResets", type: :request do
     end
 
     it "rejects an expired token" do
-      user = create(:user, :owner)
+      user = create(:user, :admin)
       raw = user.generate_password_reset_token!
       user.update!(reset_password_sent_at: PasswordResettable::TOKEN_EXPIRY.ago - 1.minute)
 

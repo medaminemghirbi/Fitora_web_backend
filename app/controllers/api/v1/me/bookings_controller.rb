@@ -4,7 +4,7 @@ module Api
       # A client's own bookings, from their own mobile login
       # (current_client — see ApplicationController). Deliberately its own
       # namespace rather than Api::V1::BookingsController: that one is
-      # staff/owner-facing (current_user, current_company) and a bare
+      # staff/admin-facing (current_user, current_company) and a bare
       # `Client` constant would resolve to this module inside a
       # `module Client`, so "me" avoids the collision entirely.
       class BookingsController < BaseController
@@ -25,7 +25,7 @@ module Api
         # POST /api/v1/me/bookings { session_id: }
         def create
           # Bookable at any gym the person has joined — and nowhere else.
-          session = ::Session.where(company_id: current_client.companies.ids) # rubocop:disable Fitora/UnscopedTenantQuery
+          session = ::Session.where(company_id: current_client.companies.ids) # rubocop:disable Gymly/UnscopedTenantQuery
                               .find_by(id: params[:session_id])
           return render(json: { error: "Session not found" }, status: :not_found) if session.nil?
 

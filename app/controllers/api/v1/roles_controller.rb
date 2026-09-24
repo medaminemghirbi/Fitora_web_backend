@@ -1,10 +1,10 @@
 module Api
   module V1
-    # The company's staff roles — built-in (owner / receptionist / coach) plus
-    # any custom ones. Owner-only: this is where web access is defined.
+    # The company's staff roles — built-in (admin / moderator / coach) plus
+    # any custom ones. Admin-only: this is where web access is defined.
     class RolesController < BaseController
       before_action :require_company!
-      before_action :require_owner!
+      before_action :require_admin!
       before_action :set_role, only: [ :update, :destroy ]
 
       # GET /api/v1/roles
@@ -26,9 +26,9 @@ module Api
         end
       end
 
-      # PATCH /api/v1/roles/:id — rename / re-permission (not the owner role)
+      # PATCH /api/v1/roles/:id — rename / re-permission (not the admin role)
       def update
-        return render(json: { error: "The Owner role cannot be edited." }, status: :unprocessable_content) if @role.key == "owner"
+        return render(json: { error: "The Admin role cannot be edited." }, status: :unprocessable_content) if @role.key == "admin"
 
         # A built-in role keeps its key even if renamed.
         if @role.update(role_params)
@@ -60,7 +60,7 @@ module Api
       end
 
       def render_error(record)
-        render json: { error: record.errors.full_messages.first, errors: record.errors.full_messages }, status: :unprocessable_content
+        render_errors(record)
       end
     end
   end
