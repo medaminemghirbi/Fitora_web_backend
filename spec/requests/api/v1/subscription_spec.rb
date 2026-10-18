@@ -27,6 +27,40 @@ RSpec.describe "Api::V1::Subscription", type: :request do
       expect(response.parsed_body["arrears_cents"]).to eq(company.monthly_subscription_cents)
     end
 
+    # The RIB lives in the environment, never in the database. What the page
+    # needs is the "not configured" case to be a fallback, not a blank card.
+    context "the bank details a gym transfers to" do
+      around do |example|
+        before = ENV["FITORA_RIB"]
+        example.run
+      ensure
+        before.nil? ? ENV.delete("FITORA_RIB") : ENV["FITORA_RIB"] = before
+        ENV.delete("FITORA_BANK_NAME")
+      end
+
+      it "hands the owner the account and a reference naming their gym" do
+        ENV["FITORA_RIB"] = "TN59 1000 6035 0123 4567 8901"
+        ENV["FITORA_BANK_NAME"] = "BIAT"
+        create(:subscription, company: company)
+
+        get "/api/v1/subscription", headers: auth_headers(owner)
+
+        payout = response.parsed_body["payout"]
+        expect(payout["rib"]).to eq("TN59 1000 6035 0123 4567 8901")
+        expect(payout["bank_name"]).to eq("BIAT")
+        expect(payout["reference"]).to start_with("FIT-")
+      end
+
+      it "sends no payout at all when no RIB is configured" do
+        ENV.delete("FITORA_RIB")
+        create(:subscription, company: company)
+
+        get "/api/v1/subscription", headers: auth_headers(owner)
+
+        expect(response.parsed_body["payout"]).to be_nil
+      end
+    end
+
     it "is closed to staff — it is the owner's business" do
       staff = create(:staff_member, company: company, role: :receptionist).user
       create(:subscription, company: company)

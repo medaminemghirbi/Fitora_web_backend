@@ -30,7 +30,10 @@ module Api
           company_limit: current_user.company_limit,
           companies_count: current_user.companies.count,
           company_limit_reached: current_user.company_limit_reached?,
-          company_tiers: company_tiers(company&.currency)
+          company_tiers: company_tiers(company&.currency),
+          # Where to send the money. nil when no RIB is configured, and the
+          # page falls back to the generic wording.
+          payout: PayoutAccount.current&.as_json(company: company)
         }
       end
 
